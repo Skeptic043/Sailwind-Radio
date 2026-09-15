@@ -1,0 +1,15 @@
+# Source attribution and dependencies
+
+The shortcut parser, text setting wrapper and shortcut activation logic are adapted from [Sailwind Fast Forward](https://github.com/Skeptic043/Sailwind-Fast-Forward) at revision `13e44060ece3680d74472f6fb7b7b9272efba592`, specifically `src/ShortcutParser.cs`, `src/ShortcutSetting.cs` and `src/HotkeyInput.cs`.
+
+Copyright (c) 2026 skeptic043. These sources use the MIT License reproduced in [LICENSE](LICENSE).
+
+## NLayer
+
+The test package includes `NLayer.dll` from the official [NLayer 1.16.0 NuGet package](https://www.nuget.org/packages/NLayer/1.16.0). Its netstandard2.0 assembly has no additional package dependencies. The upstream package identifies source revision `c88b0d8abfa15c1e506106931ea8410170dc6326` in [naudio/NLayer](https://github.com/naudio/NLayer/tree/c88b0d8abfa15c1e506106931ea8410170dc6326).
+
+Copyright (c) 2018 Mark Heath, Andrew Ward & Contributors. The full MIT notice is retained in [licenses/NLayer.txt](licenses/NLayer.txt).
+
+## External references and content
+
+Sailwind Radio's MIT License covers the mod's source and documentation. Sailwind, Unity, BepInEx, Harmony and music supplied by the player retain their own rights and terms. Game and loader assemblies are external build references and are not included in the source or test packages.

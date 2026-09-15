@@ -1,0 +1,97 @@
+param(
+    [string]$GameDir = 'C:\Steam Games\steamapps\common\Sailwind',
+    [string]$LoaderPath = "$PSScriptRoot\.local\references",
+    [string]$OfflineFeed = "$PSScriptRoot\.local\nuget-feed"
+)
+$ErrorActionPreference = 'Stop'
+& "$PSScriptRoot\Build.ps1" -GameDir $GameDir -LoaderPath $LoaderPath -OfflineFeed $OfflineFeed
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$radioVersion = ([xml](Get-Content -LiteralPath "$PSScriptRoot\Radio.csproj" -Raw)).Project.PropertyGroup.Version
+if ($radioVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid version.' }
+$radioOutput = Join-Path $PSScriptRoot 'artifacts\packages'
+New-Item -ItemType Directory -Path $radioOutput -Force | Out-Null
+$radioBinaryFiles = [ordered]@{
+    'BepInEx/plugins/SailwindRadio/SailwindRadio.dll' = "$PSScriptRoot\artifacts\build\$radioVersion\SailwindRadio.dll"
+    'BepInEx/plugins/SailwindRadio/NLayer.dll' = "$PSScriptRoot\artifacts\build\$radioVersion\NLayer.dll"
+    'README.md' = "$PSScriptRoot\README.md"
+    'LICENSE' = "$PSScriptRoot\LICENSE"
+    'THIRD_PARTY_NOTICES.md' = "$PSScriptRoot\THIRD_PARTY_NOTICES.md"
+    'licenses/NLayer.txt' = "$PSScriptRoot\licenses\NLayer.txt"
+    'docs/TESTING.md' = "$PSScriptRoot\docs\TESTING.md"
+    'docs/BUILDING.md' = "$PSScriptRoot\docs\BUILDING.md"
+    'docs/PLAN.md' = "$PSScriptRoot\docs\PLAN.md"
+    'docs/VALIDATION.md' = "$PSScriptRoot\docs\VALIDATION.md"
+    'tests/Audio/UNITY-PROBE.md' = "$PSScriptRoot\tests\Audio\UNITY-PROBE.md"
+}
+$radioSourceFiles = [ordered]@{}
+foreach ($radioName in @('AGENTS.md', '.gitignore', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'Radio.csproj', 'Directory.Build.props', 'Build.ps1', 'Package.ps1')) {
+    $radioSourceFiles[$radioName] = Join-Path $PSScriptRoot $radioName
+}
+$radioSourceFiles['licenses/NLayer.txt'] = "$PSScriptRoot\licenses\NLayer.txt"
+foreach ($radioSourceDirectory in @('src', 'tests', 'docs')) {
+    Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot $radioSourceDirectory) -Recurse -File | ForEach-Object {
+        $radioRelative = $_.FullName.Substring($PSScriptRoot.Length + 1).Replace('\', '/')
+        if ($radioRelative -notmatch '/(bin|obj|Library|Temp|Logs|\.local)/' -and $_.Extension -in @('.cs', '.csproj', '.ps1', '.md', '.json')) {
+            $radioSourceFiles[$radioRelative] = $_.FullName
+        }
+    }
+}
+function Write-RadioZip($radioDestination, $radioFiles) {
+    $radioTemporary = "$radioDestination.$([Guid]::NewGuid().ToString('N')).tmp"
+    try {
+        $radioArchive = [IO.Compression.ZipFile]::Open($radioTemporary, [IO.Compression.ZipArchiveMode]::Create)
+        try {
+            foreach ($radioEntry in $radioFiles.GetEnumerator()) {
+                [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($radioArchive, $radioEntry.Value, $radioEntry.Key, [IO.Compression.CompressionLevel]::Optimal) | Out-Null
+            }
+        } finally { $radioArchive.Dispose() }
+        $radioArchive = [IO.Compression.ZipFile]::OpenRead($radioTemporary)
+        try {
+            if ($radioArchive.Entries.Count -ne $radioFiles.Count) { throw 'ZIP entry count mismatch.' }
+            foreach ($radioEntry in $radioFiles.GetEnumerator()) {
+                $radioStream = $radioArchive.GetEntry($radioEntry.Key).Open()
+                $radioHasher = [Security.Cryptography.SHA256]::Create()
+                try { $radioHash = [BitConverter]::ToString($radioHasher.ComputeHash($radioStream)).Replace('-', '') }
+                finally { $radioStream.Dispose(); $radioHasher.Dispose() }
+                if ($radioHash -ne (Get-FileHash -LiteralPath $radioEntry.Value -Algorithm SHA256).Hash) { throw "ZIP content mismatch: $($radioEntry.Key)" }
+            }
+        } finally { $radioArchive.Dispose() }
+        Move-Item -LiteralPath $radioTemporary -Destination $radioDestination -Force
+    } finally {
+        if (Test-Path -LiteralPath $radioTemporary) { Remove-Item -LiteralPath $radioTemporary }
+    }
+}
+$radioBinaryZip = Join-Path $radioOutput "SailwindRadio-$radioVersion-test.zip"
+$radioSourceZip = Join-Path $radioOutput "SailwindRadio-$radioVersion-source.zip"
+Write-RadioZip $radioBinaryZip $radioBinaryFiles
+Write-RadioZip $radioSourceZip $radioSourceFiles
+
+# Fresh unique extraction. No existing directory is deleted or replaced.
+$radioFresh = Join-Path $PSScriptRoot ('artifacts\source-check\' + [Guid]::NewGuid().ToString('N'))
+[IO.Compression.ZipFile]::ExtractToDirectory($radioSourceZip, $radioFresh)
+& (Join-Path $radioFresh 'Build.ps1') -GameDir $GameDir -LoaderPath $LoaderPath -OfflineFeed $OfflineFeed
+$radioOriginalHash = (Get-FileHash -LiteralPath "$PSScriptRoot\artifacts\build\$radioVersion\SailwindRadio.dll" -Algorithm SHA256).Hash
+$radioFreshHash = (Get-FileHash -LiteralPath "$radioFresh\artifacts\build\$radioVersion\SailwindRadio.dll" -Algorithm SHA256).Hash
+if ($radioOriginalHash -ne $radioFreshHash) { throw 'Fresh source build produced a different plugin DLL.' }
+$radioDecoderHash = (Get-FileHash -LiteralPath "$PSScriptRoot\artifacts\build\$radioVersion\NLayer.dll" -Algorithm SHA256).Hash
+$radioFreshDecoderHash = (Get-FileHash -LiteralPath "$radioFresh\artifacts\build\$radioVersion\NLayer.dll" -Algorithm SHA256).Hash
+if ($radioDecoderHash -ne $radioFreshDecoderHash) { throw 'Fresh source build resolved a different decoder DLL.' }
+$radioResult = [ordered]@{
+    version = $radioVersion
+    checked_utc = [datetime]::UtcNow.ToString('o')
+    binary_zip = $radioBinaryZip
+    binary_zip_sha256 = (Get-FileHash -LiteralPath $radioBinaryZip -Algorithm SHA256).Hash
+    source_zip = $radioSourceZip
+    source_zip_sha256 = (Get-FileHash -LiteralPath $radioSourceZip -Algorithm SHA256).Hash
+    plugin_sha256 = $radioOriginalHash
+    source_build_plugin_sha256 = $radioFreshHash
+    source_rebuild_passed = $true
+    source_rebuild_byte_identical = ($radioOriginalHash -eq $radioFreshHash)
+    decoder_sha256 = $radioDecoderHash
+    source_build_decoder_sha256 = $radioFreshDecoderHash
+    binary_entries = $radioBinaryFiles.Count
+    source_entries = $radioSourceFiles.Count
+    live_sailwind_acceptance = 'pending'
+}
+$radioResult | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $radioOutput "SailwindRadio-$radioVersion-validation.json") -Encoding utf8
+$radioResult | ConvertTo-Json

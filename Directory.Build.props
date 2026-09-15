@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory).local\nuget</RestorePackagesPath>
+    <RestoreSources Condition="Exists('$(MSBuildThisFileDirectory).local\nuget-feed\netstandard.library.2.0.3.nupkg')">$(MSBuildThisFileDirectory).local\nuget-feed</RestoreSources>
+  </PropertyGroup>
+</Project>

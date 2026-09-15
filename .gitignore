@@ -1,0 +1,8 @@
+.local/
+artifacts/
+**/bin/
+**/obj/
+**/Library/
+**/Temp/
+**/Logs/
+**/UserSettings/
