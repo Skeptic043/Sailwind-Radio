@@ -41,6 +41,7 @@ public sealed class RadioUnityEditorProbe : MonoBehaviour
         new GameObject("Probe listener").AddComponent<AudioListener>();
         state = new RadioState { TrackPath = fixture, Powered = true, Volume = 0 };
         playback = new RadioPlayback(this, state, message => report += "WARNING: " + message + Environment.NewLine);
+        playback.SetAcoustics(Vector3.zero, true, 0);
         float deadline = Time.realtimeSinceStartup + 20;
         while (playback.Status != "Playing" && Time.realtimeSinceStartup < deadline)
             yield return null;

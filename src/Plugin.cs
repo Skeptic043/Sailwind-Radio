@@ -3,8 +3,13 @@ using System.Collections.Generic;
 using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
+using SailwindRadio.Acoustics;
 using SailwindRadio.Input;
+using SailwindRadio.Library;
 using SailwindRadio.Physical;
+using SailwindRadio.Playback;
+using SailwindRadio.Shops;
+using SailwindRadio.UI;
 using UnityEngine;
 
 namespace SailwindRadio
@@ -14,13 +19,23 @@ namespace SailwindRadio
     public sealed class Plugin : BaseUnityPlugin
     {
         public const string Id = "local.sailwind.radio";
-        public const string Version = "0.1.1";
+        public const string Version = "0.4.1";
         private static Plugin instance;
         private Harmony harmony;
         private RadioWorldService world;
+        private RadioAcousticsService acoustics;
+        private RadioShopService shops;
         private ConfigEntry<string> musicFile;
+        private ConfigEntry<string> musicFolders;
+        private ConfigEntry<bool> stormEnabled;
+        private ConfigEntry<float> stormStrength;
+        private ConfigEntry<bool> continueWhilePaused;
+        private LibraryScanner library;
+        private RadioMenus menus;
+        private bool libraryReady;
         private ShortcutSetting spawnKey;
         private readonly Dictionary<RadioItemController, RadioPlayback> playback = new Dictionary<RadioItemController, RadioPlayback>();
+        private readonly Dictionary<RadioItemController, RadioQueue> queues = new Dictionary<RadioItemController, RadioQueue>();
         private readonly HashSet<RadioItemController> seen = new HashSet<RadioItemController>();
         private readonly List<RadioItemController> removed = new List<RadioItemController>();
         private bool ready;
@@ -33,17 +48,31 @@ namespace SailwindRadio
             try
             {
                 musicFile = Config.Bind("Music", "MusicFile", "",
-                    "Absolute path to one local MP3, OGG or WAV file for the first radio test. New radios use this file.");
-                spawnKey = new ShortcutSetting(Config, "Development", "SpawnRadio", new KeyboardShortcut(KeyCode.F7),
-                    "Create a test radio in front of the player during normal gameplay. Use key names such as O, F7 or Mouse4. " +
-                    "Chords such as LeftShift + Mouse4 also work. Key names ignore case and spaces. Leave blank or use None to disable.", Warn);
+                    "Optional legacy single-file path. Used when no music folders are configured.");
+                musicFolders = Config.Bind("Music", "MusicFolders", "",
+                    "Music folders separated by |. Each folder is one collection including all its subfolders. Example: D:\\Music | E:\\Sailing Music");
+                stormEnabled = Config.Bind("Audio", "StormInterferenceEnabled", true,
+                    "Add occasional quiet static and brief signal dips in poor weather.");
+                stormStrength = Config.Bind("Audio", "StormInterferenceStrength", .35f,
+                    new ConfigDescription("Strength of weather interference.", new AcceptableValueRange<float>(0f, 1f)));
+                continueWhilePaused = Config.Bind("Audio", "ContinueWhilePaused", false,
+                    "Keep music playing in the game pause menu. Sleep and loading still suspend playback.");
+                spawnKey = SpawnShortcut.Bind(Config, Warn);
                 harmony = new Harmony(Id);
-                world = new RadioWorldService(harmony, () => musicFile.Value, Warn);
+                acoustics = new RadioAcousticsService();
+                library = new LibraryScanner();
+                menus = new RadioMenus();
+                world = new RadioWorldService(harmony, () => string.IsNullOrWhiteSpace(musicFolders.Value) ? musicFile.Value : "", Warn);
                 world.BeforeSave += CapturePositions;
+                world.ActionRequested += HandleAction;
+                shops = new RadioShopService(world, Warn);
+                menus.SpawnRequested += SpawnDevice;
+                menus.CollectionsChanged += SelectCollections;
+                library.RequestScan(musicFolders.Value);
                 InstallSuspendBoundary(typeof(StartMenu), "GameToSettings");
                 InstallSuspendBoundary(typeof(Sleep), "FallAsleep");
                 ready = true;
-                Logger.LogInfo("Sailwind Radio " + Version + " ready. Configure MusicFile, then press " + spawnKey.Value.Serialize() + " to create a test radio.");
+                Logger.LogInfo("Sailwind Radio " + Version + " ready. Configure MusicFolders, then press " + spawnKey.Value.Serialize() + " for the spawn menu.");
             }
             catch (Exception error)
             {
@@ -72,28 +101,39 @@ namespace SailwindRadio
 
         private static void SuspendBoundary()
         {
-            if (instance && instance.ready) instance.SuspendNow();
+            if (instance && instance.ready && instance.Suspended) instance.SuspendNow();
         }
 
         private bool Suspended => !GameState.playing || GameState.currentlyLoading || GameState.loadingScenes > 0 ||
-            GameState.sleeping || Time.timeScale <= 0f || AudioListener.pause || applicationPaused || (!focused && !Application.runInBackground);
+            GameState.sleeping || (Time.timeScale <= 0f && !continueWhilePaused.Value) || AudioListener.pause || applicationPaused || (!focused && !Application.runInBackground);
 
         private void Update()
         {
             if (!ready) return;
             try
             {
+                acoustics.Tick();
                 world.Tick();
+                TickShops();
                 SynchronizePlayback();
-                bool suspended = Suspended;
-                foreach (var pair in playback)
+                if (library.Poll())
                 {
-                    if (!pair.Key) continue;
-                    pair.Value.Tick(pair.Key.VisualAudioPosition, suspended);
-                    pair.Key.SetPlaybackDisplay(pair.Value.TrackLabel, pair.Value.Status);
+                    libraryReady = true;
+                    foreach (string warning in library.Snapshot.Warnings) Warn(warning);
+                    foreach (var pair in queues)
+                        if (pair.Value.ApplySnapshot(library.Snapshot)) playback[pair.Key].SetTrack(pair.Key.State.TrackPath);
+                    if (menus.CollectionRadio) ShowCollections(menus.CollectionRadio);
                 }
-                if (!suspended && !GameState.inCursorMenu && HotkeyInput.IsDown(spawnKey.Value,
-                    focused && Application.isFocused, UnityEngine.Input.GetKeyDown, UnityEngine.Input.GetKey)) SpawnRadio();
+                menus.Tick();
+                bool suspended = Suspended;
+                PlaybackOrder.Tick(playback, world.ActiveRadioId, pair => pair.Key ? pair.Key.InstanceId : 0,
+                    TickPlayback, suspended);
+                if (!suspended && (menus.IsOpen || !GameState.inCursorMenu) && HotkeyInput.IsDown(spawnKey.Value,
+                    focused && Application.isFocused, UnityEngine.Input.GetKeyDown, UnityEngine.Input.GetKey))
+                {
+                    if (menus.IsOpen) menus.Close();
+                    else { ReleaseRadioControls(); menus.ShowSpawnChooser(); }
+                }
             }
             catch (Exception error)
             {
@@ -110,34 +150,143 @@ namespace SailwindRadio
             for (int index = 0; index < items.Count; index++)
             {
                 var item = items[index];
-                if (!item) continue;
+                if (!item || item.State.Kind != 0) continue;
                 seen.Add(item);
                 if (playback.ContainsKey(item)) continue;
-                var engine = new RadioPlayback(this, item.State, Warn);
+                var queue = new RadioQueue(item.State);
+                if (libraryReady) queue.ApplySnapshot(library.Snapshot);
+                queues.Add(item, queue);
+                var engine = new RadioPlayback(this, item.State, Warn) { RepeatTrack = false };
                 playback.Add(item, engine);
                 item.CapturePosition = engine.CapturePosition;
+                item.SuspendPlayback = () => engine.Tick(item.VisualAudioPosition, true);
             }
             removed.Clear();
             foreach (var pair in playback)
             {
                 if (pair.Key && seen.Contains(pair.Key)) continue;
                 pair.Value.Dispose();
-                if (pair.Key) pair.Key.CapturePosition = null;
+                if (pair.Key) { pair.Key.CapturePosition = null; pair.Key.SuspendPlayback = null; }
                 removed.Add(pair.Key);
             }
-            foreach (var item in removed) playback.Remove(item);
+            foreach (var item in removed) { playback.Remove(item); queues.Remove(item); }
         }
 
-        private void SpawnRadio()
+        private void TickShops()
+        {
+            if (shops == null) return;
+            try { shops.Tick(); }
+            catch (Exception error)
+            {
+                Warn("Radio shops stopped after an error: " + error.Message);
+                var failed = shops;
+                shops = null;
+                try { failed.Dispose(); }
+                catch (Exception cleanup) { Warn("Could not release radio shops: " + cleanup.Message); }
+            }
+        }
+
+        private void TickPlayback(KeyValuePair<RadioItemController, RadioPlayback> pair, bool suspended)
+        {
+            if (!pair.Key) return;
+            Vector3 devicePosition = pair.Key.VisualAudioPosition;
+            Vector3 position = pair.Key.SoundPosition;
+            bool carried = pair.Key.UsesPlayerPosition;
+            if (carried && acoustics.ListenerKnown) position = acoustics.ListenerPosition;
+            float obstruction = pair.Key.State.Powered ? acoustics.ObstructionAt(position, carried) : 0;
+            pair.Value.SetAcoustics(acoustics.ListenerPosition, acoustics.ListenerKnown, obstruction);
+            pair.Value.SetCarried(carried);
+            var interference = WeatherInterference.Sample(GameState.rainIntensity, Time.realtimeSinceStartup,
+                stormEnabled.Value, stormStrength.Value);
+            pair.Value.SetInterference(interference.Gain, interference.Cutoff, interference.Crackle);
+            pair.Value.BeginEndpoints();
+            if (pair.Key.InstanceId == world.ActiveRadioId && pair.Key.State.Powered)
+            {
+                var sourceVessel = pair.Key.Vessel;
+                foreach (var speaker in world.Items)
+                {
+                    if (!speaker || speaker.State.Kind == 0 || !speaker.State.SpeakerEnabled) continue;
+                    var speakerVessel = speaker.Vessel;
+                    bool speakerCarried = speaker.UsesPlayerPosition;
+                    Vector3 speakerDevicePosition = speaker.VisualAudioPosition;
+                    if (!DeviceVessels.CanConnect(sourceVessel, speakerVessel, devicePosition, speakerDevicePosition)) continue;
+                    Vector3 speakerPosition = speakerCarried && acoustics.ListenerKnown ? acoustics.ListenerPosition : speaker.SoundPosition;
+                    pair.Value.SetEndpoint(speaker.InstanceId, speakerPosition, speakerCarried, speaker.State.Kind,
+                        speaker.State.Kind == 3 ? 1f : speaker.State.Volume, speaker.State.Bass, acoustics.ObstructionAt(speakerPosition, speakerCarried));
+                }
+            }
+            pair.Value.EndEndpoints();
+            pair.Value.Tick(position, suspended);
+            if (!suspended && pair.Key.State.Powered && !pair.Key.State.Paused)
+            {
+                RadioQueue queue = queues[pair.Key];
+                bool changed = pair.Value.LoadFailed ? queue.TrackFailed(pair.Value.FailedPath) :
+                    pair.Value.TrackEnded && queue.TrackEnded();
+                if (changed) pair.Value.SetTrack(pair.Key.State.TrackPath);
+            }
+            pair.Value.PreloadTrack(pair.Key.InstanceId == world.ActiveRadioId && pair.Key.State.Powered
+                ? queues[pair.Key].PeekNext() : "");
+            var info = library.Snapshot.GetTrackInfo(pair.Key.State.TrackPath);
+            pair.Key.SetTrackInfo(info.Title, info.Artist, info.Album);
+        }
+
+        private void HandleAction(RadioItemController item, RadioAction action)
+        {
+            if (!ready || !item || item.State.Kind != 0) return;
+            if (action == RadioAction.Power)
+            {
+                if (item.State.Powered) library.RequestScan(musicFolders.Value);
+                return;
+            }
+            if (!playback.TryGetValue(item, out var engine) || !queues.TryGetValue(item, out var queue)) return;
+            bool changed = false;
+            switch (action)
+            {
+                case RadioAction.PlayPause:
+                    if (!item.State.Powered) item.TogglePower();
+                    else
+                    {
+                        engine.CapturePosition();
+                        item.State.Paused = !item.State.Paused;
+                        if (item.State.Paused) item.SuspendPlayback?.Invoke();
+                    }
+                    break;
+                case RadioAction.Previous: changed = queue.Previous(); break;
+                case RadioAction.Next: changed = queue.Next(); break;
+                case RadioAction.Shuffle: changed = queue.SetShuffle(!item.State.Shuffle); break;
+                case RadioAction.Collections: ShowCollections(item); break;
+            }
+            if (changed) engine.SetTrack(item.State.TrackPath);
+        }
+
+        private void ShowCollections(RadioItemController item)
+        {
+            if (!item) return;
+            var choices = new List<CollectionChoice>();
+            var selected = new HashSet<string>(item.State.SelectedCollections ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+            foreach (var collection in library.Snapshot.Collections)
+                choices.Add(new CollectionChoice(collection.Id, collection.Label, selected.Contains(collection.Id)));
+            menus.ShowCollections(item, choices);
+        }
+
+        private void SelectCollections(RadioItemController item, string[] selected)
+        {
+            if (!item || !queues.TryGetValue(item, out var queue)) return;
+            if (queue.SetCollections(library.Snapshot, selected)) playback[item].SetTrack(item.State.TrackPath);
+        }
+
+        private void OnGUI() { if (ready) menus?.Draw(); }
+
+        private void SpawnDevice(RadioDeviceKind kind)
         {
             if (!Refs.observerMirror) return;
             Transform player = Refs.observerMirror.transform;
             Vector3 forward = Vector3.ProjectOnPlane(player.forward, Vector3.up).normalized;
             if (forward.sqrMagnitude < 0.1f) forward = Vector3.forward;
             Vector3 position = player.position + Vector3.up * 0.8f + forward * 1.2f;
-            bool created = world.TrySpawn(position, Quaternion.LookRotation(forward, Vector3.up), out string message);
+            bool created = world.TrySpawn(position, Quaternion.LookRotation(forward, Vector3.up), kind, out string message);
             if (created) Logger.LogInfo(message);
-            else Warn(message);
+            else { Warn(message); menus.SetMessage(message); }
         }
 
         private void CapturePositions()
@@ -159,6 +308,7 @@ namespace SailwindRadio
 
         private void ReleaseRadioControls()
         {
+            menus?.Close();
             foreach (var item in world?.Items ?? Array.Empty<RadioItemController>())
                 if (item)
                     try { item.ReleaseControls(); }
@@ -175,6 +325,7 @@ namespace SailwindRadio
         private void OnApplicationFocus(bool focus)
         {
             focused = focus;
+            acoustics?.Invalidate();
             if (!focus) ReleaseRadioControls();
             if (!focus && !Application.runInBackground && ready) SuspendNow();
         }
@@ -190,14 +341,24 @@ namespace SailwindRadio
             CapturePositions();
             foreach (var pair in playback)
             {
-                if (pair.Key) pair.Key.CapturePosition = null;
+                if (pair.Key) { pair.Key.CapturePosition = null; pair.Key.SuspendPlayback = null; }
                 try { pair.Value.Dispose(); }
                 catch (Exception error) { Warn("Could not release a radio player: " + error.Message); }
             }
             playback.Clear();
+            queues.Clear();
+            library?.Dispose();
+            library = null;
+            menus?.Dispose();
+            menus = null;
+            try { shops?.Dispose(); }
+            catch (Exception error) { Warn("Could not release radio shops: " + error.Message); }
+            shops = null;
             try { world?.Dispose(); }
             catch (Exception error) { Warn("Could not release radio item hooks: " + error.Message); }
             world = null;
+            acoustics?.Dispose();
+            acoustics = null;
             try { harmony?.UnpatchSelf(); }
             catch (Exception error) { Warn("Could not remove radio hooks: " + error.Message); }
             harmony = null;

@@ -14,7 +14,7 @@ $radioProperties = @("-p:GameDir=$GameDir", "-p:LoaderPath=$LoaderPath", '-p:NuG
 if (Test-Path -LiteralPath $OfflineFeed -PathType Container) { $radioProperties += "-p:RestoreSources=$OfflineFeed" }
 & dotnet build "$PSScriptRoot\Radio.csproj" -c Release @radioProperties
 if ($LASTEXITCODE -ne 0) { throw 'Radio build failed.' }
-foreach ($radioTestProject in @('tests\Audio\AudioChecks.csproj', 'tests\Native\NativeChecks.csproj', 'tests\Input\InputChecks.csproj', 'tests\Input\Controls\ControlsChecks.csproj')) {
+foreach ($radioTestProject in @('tests\Audio\AudioChecks.csproj', 'tests\Native\NativeChecks.csproj', 'tests\Input\InputChecks.csproj', 'tests\Input\Controls\ControlsChecks.csproj', 'tests\Playback\PlaybackChecks.csproj', 'tests\Acoustics\AcousticsChecks.csproj', 'tests\Library\LibraryChecks.csproj', 'tests\Devices\DeviceChecks.csproj', 'tests\Devices\Models\ModelChecks.csproj', 'tests\Shops\ShopChecks.csproj', 'tests\Shops\Placement\PlacementChecks.csproj')) {
     if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $radioTestProject))) { throw "Required test project is missing: $radioTestProject" }
     & dotnet run --project (Join-Path $PSScriptRoot $radioTestProject) -c Release @radioProperties
     if ($LASTEXITCODE -ne 0) { throw "Radio checks failed: $radioTestProject" }

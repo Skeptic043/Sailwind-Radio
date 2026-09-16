@@ -8,7 +8,12 @@ namespace UnityEngine
     {
         public bool Destroyed;
         public bool PersistsAcrossScenes;
-        public static void Destroy(Object value) { value.Destroyed = true; }
+        public static void Destroy(Object value)
+        {
+            value.Destroyed = true;
+            var gameObject = value as GameObject;
+            if (!ReferenceEquals(gameObject, null)) foreach (Object component in gameObject.Components) component.Destroyed = true;
+        }
         public static void DontDestroyOnLoad(Object value) { value.PersistsAcrossScenes = true; }
         public static bool operator ==(Object a, Object b)
         {
@@ -21,18 +26,56 @@ namespace UnityEngine
         public override int GetHashCode() { return base.GetHashCode(); }
     }
     public class MonoBehaviour : Object { }
-    public struct Vector3 { public float x, y, z; public Vector3(float x,float y,float z) { this.x=x;this.y=y;this.z=z; } }
+    public struct Vector3
+    {
+        public float x, y, z;
+        public Vector3(float x,float y,float z) { this.x=x;this.y=y;this.z=z; }
+        public static float Distance(Vector3 a, Vector3 b)
+        { double x=a.x-b.x, y=a.y-b.y, z=a.z-b.z; return (float)Math.Sqrt(x*x+y*y+z*z); }
+    }
     public class Transform { public Vector3 position; }
     public class GameObject : Object
     {
         public static GameObject Last;
+        public static bool RejectFilters;
+        public readonly List<Object> Components = new List<Object>();
         public Transform transform = new Transform();
+        public bool activeSelf = true; public void SetActive(bool value) { activeSelf = value; }
         public GameObject(string name) { Last = this; }
-        public T AddComponent<T>() where T : new() { return new T(); }
+        public T AddComponent<T>() where T : new()
+        {
+            if (RejectFilters && (typeof(T) == typeof(AudioHighPassFilter) || typeof(T) == typeof(AudioLowPassFilter)))
+                throw new InvalidOperationException("Filter unavailable in fixture");
+            var component = new T();
+            if (component is Object) Components.Add(component as Object);
+            return component;
+        }
     }
-    public enum AudioRolloffMode { Logarithmic }
+    public enum AudioRolloffMode { Logarithmic, Linear, Custom }
+    public enum AudioSourceCurveType { CustomRolloff }
+    public enum WrapMode { ClampForever }
+    public struct Keyframe { public float time, value; public Keyframe(float time,float value) { this.time=time;this.value=value; } }
+    public class AnimationCurve
+    {
+        public Keyframe[] keys;
+        public WrapMode preWrapMode, postWrapMode;
+        public static AnimationCurve Constant(float start, float end, float value)
+        { return new AnimationCurve { keys = new[] { new Keyframe(start,value), new Keyframe(end,value) } }; }
+    }
+    public class AudioHighPassFilter : Object
+    {
+        public static AudioHighPassFilter Last;
+        public AudioHighPassFilter() { Last=this; }
+        public float cutoffFrequency, highpassResonanceQ;
+    }
+    public class AudioLowPassFilter : Object
+    {
+        public static AudioLowPassFilter Last;
+        public AudioLowPassFilter() { Last=this; }
+        public float cutoffFrequency, lowpassResonanceQ;
+    }
     public enum AudioDataLoadState { Failed, Loaded, Loading }
-    public enum AudioType { MPEG, OGGVORBIS, WAV }
+    public enum AudioType { MPEG, OGGVORBIS, WAV, UNKNOWN }
     public class AudioClip : Object
     {
         public int samples = 480000, channels = 1;
@@ -63,24 +106,42 @@ namespace UnityEngine
         public bool playOnAwake, loop, ignoreListenerPause;
         public float spatialBlend, minDistance, maxDistance, pitch, dopplerLevel, volume;
         public AudioRolloffMode rolloffMode;
+        public AnimationCurve RolloffCurve;
+        public AudioSourceCurveType RolloffCurveType;
+        public void SetCustomCurve(AudioSourceCurveType type, AnimationCurve curve) { RolloffCurveType=type; RolloffCurve=curve; }
         public AudioClip clip;
         private int cursor;
         public int timeSamples
         {
             get { if (Destroyed) throw new InvalidOperationException("Destroyed native AudioSource"); return cursor; }
-            set { if (Destroyed) throw new InvalidOperationException("Destroyed native AudioSource"); cursor=value; }
+            set
+            {
+                if (Destroyed) throw new InvalidOperationException("Destroyed native AudioSource");
+                if (value < 0 || (clip != null && value >= clip.samples)) throw new ArgumentOutOfRangeException("timeSamples");
+                cursor=value;
+            }
         }
         public int Schedules;
         public double ScheduledAt;
-        public void Stop() { timeSamples = 0; }
-        public void PlayScheduled(double value) { Schedules++; ScheduledAt=value; }
+        public bool ThrowOnNextStop;
+        public bool enabled = true, isVirtual, isPlaying;
+        public int Pauses, UnPauses;
+        public void Pause() { Pauses++; isPlaying = false; }
+        public void UnPause() { UnPauses++; isPlaying = true; }
+        public void Stop()
+        {
+            if (ThrowOnNextStop) { ThrowOnNextStop = false; throw new InvalidOperationException("Injected native Stop failure"); }
+            timeSamples = 0; isPlaying = false;
+        }
+        public void PlayScheduled(double value) { Schedules++; ScheduledAt=value; isPlaying = true; }
     }
     public static class Mathf { public static float Clamp01(float v) { return Math.Max(0,Math.Min(v,1)); } }
     public static class AudioListener { public static bool pause; }
-    public static class Time { public static float realtimeSinceStartup; }
+    public static class Time { public static float realtimeSinceStartup; public static float unscaledDeltaTime = 1f / 60; }
     public static class AudioSettings
     {
-        public static double dspTime;
+        public static double dspTime; public static int outputSampleRate = 48000;
+        public static void GetDSPBufferSize(out int length, out int count) { length = 1024; count = 4; }
         public static event Action<bool> OnAudioConfigurationChanged;
         public static int Subscribers { get { return OnAudioConfigurationChanged == null ? 0 : OnAudioConfigurationChanged.GetInvocationList().Length; } }
         public static void Reset() { OnAudioConfigurationChanged?.Invoke(true); }

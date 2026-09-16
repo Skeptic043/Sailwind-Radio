@@ -1,46 +1,74 @@
 using System;
 using System.Collections.Generic;
+using SailwindRadio.Models;
 using UnityEngine;
 
 namespace SailwindRadio.Physical
 {
     public sealed class RadioItemController : MonoBehaviour
     {
-        public RadioState State { get; private set; }
-        public int InstanceId { get; private set; }
-        public Action CapturePosition { get; set; }
+        public RadioState State
+        {
+            get; private set;
+        }
+        public int InstanceId
+        {
+            get; private set;
+        }
+        public Action CapturePosition
+        {
+            get; set;
+        }
+        public Action SuspendPlayback
+        {
+            get; set;
+        }
         private ShipItem item;
         private RadioWorldService owner;
         private readonly List<UnityEngine.Object> assets = new List<UnityEngine.Object>();
-        private readonly List<Transform> controls = new List<Transform>();
-        private TextMesh display;
-        private RadioVolumeKnob volumeKnob;
-        private string trackLabel = "";
-        private string status = "Off";
-        private string renderedTrack;
-        private string renderedStatus;
-        private int renderedVolume = -1;
-        private bool renderedPower;
+        private readonly List<RadioVolumeKnob> knobs = new List<RadioVolumeKnob>();
+        private Dictionary<string, GameObject> parts;
+        private readonly Dictionary<string, float> pulses = new Dictionary<string, float>();
+        private sealed class Glow
+        {
+            internal string Key;
+            internal Material Material;
+            internal bool Active;
+            internal Color RestColor;
+        }
+        private readonly List<Glow> glows = new List<Glow>();
+        private int renderedLayer = -1;
+        private DotMatrixDisplay display;
+        private Material screenMaterial;
+        private bool screenLit;
+        private string title = "", artist = "", album = "", displayContent = "", renderedText;
+        private readonly Dictionary<RadioVolumeKnob, float> knobAngles = new Dictionary<RadioVolumeKnob, float>();
+        private Transform menuPointer;
+        private Collider menuControl;
+
+        public DeviceVessel Vessel => DeviceVessels.Resolve(item, UsesPlayerPosition);
+        internal bool WithinMenuReach => RadioControlReach.Contains(menuPointer, menuControl);
+        internal void RememberControl(GoPointer pointer, Collider control)
+        {
+            menuPointer = pointer ? pointer.transform : null;
+            menuControl = control;
+        }
+        public bool UsesPlayerPosition => DeviceVessels.IsPlayerOwned(item);
 
         public Vector3 VisualAudioPosition
         {
             get
             {
-                // Native inventory transforms are UI space. Require actual slot ownership, never just layer 5.
-                var slots = GPButtonInventorySlot.inventorySlots;
-                if (slots != null)
-                    foreach (var slot in slots)
-                        if (slot && slot.currentItem == item && Refs.observerMirror)
-                            return Refs.observerMirror.transform.position;
-                if (item && item.held && Refs.observerMirror) return Refs.observerMirror.transform.position;
-                // A hidden crate item follows the crate's visual item, not the player's inventory.
+                if (UsesPlayerPosition && Refs.observerMirror)
+                    return Refs.observerMirror.transform.position;
                 if (item && item.itemRigidbodyC)
                 {
                     Transform box = item.itemRigidbodyC.GetCurrentBox();
                     if (box)
                     {
                         var body = box.GetComponentInParent<ItemRigidbody>();
-                        if (body && body.GetShipItem()) return body.GetShipItem().transform.position;
+                        if (body && body.GetShipItem())
+                            return body.GetShipItem().transform.position;
                         return box.position;
                     }
                 }
@@ -48,143 +76,265 @@ namespace SailwindRadio.Physical
             }
         }
 
+        // Placed sound originates at the cone rather than the floor-level native item pivot.
+        public Vector3 SoundPosition => UsesPlayerPosition || (item && item.itemRigidbodyC && item.itemRigidbodyC.GetCurrentBox())
+            ? VisualAudioPosition : transform.TransformPoint(RadioDevice.SoundOrigin(State.Kind));
+
         internal void Initialize(RadioWorldService service, RadioState state)
         {
             owner = service;
             item = GetComponent<ShipItem>();
-            InstanceId = GetComponent<SaveablePrefab>().instanceId;
+            RefreshOwnership();
             State = state;
-            item.name = "Sailwind Radio";
-            item.description = "Place the radio and click its power button. Click the volume knob, scroll to adjust, then click to release";
-            item.big = false;
-            item.mass = 0.5f;
-            item.value = 0;
-            BuildPlaceholder();
+            item.name = RadioDevice.Name(State.Kind);
+            item.description = "";
+            item.big = State.Kind >= 2;
+            item.wallAttachment = State.Kind == 1;
+            item.mass = State.Kind == 1 ? .25f : State.Kind == 2 ? 3f : State.Kind == 3 ? 8f : .5f;
+            // The inspected native PC inventory basis reverses X and faces +camera-Z at yaw zero.
+            // Our models face -Z, so a local half-turn restores front-facing text and controls.
+            item.inventoryRotation = RadioDevice.InventoryYaw;
+            item.inventoryRotationX = 0;
+            if (item.wallAttachment && item.itemRigidbodyC && !item.held)
+                item.itemRigidbodyC.attached = true;
+            item.value = SailwindRadio.Shops.RadioShopCatalog.BasePrice(State.Kind);
+            BuildModel();
+        }
+
+        internal void RefreshOwnership()
+        {
+            InstanceId = GetComponent<SaveablePrefab>().instanceId;
+        }
+
+        internal void SetShopStock(bool stock)
+        {
+            if (stock)
+                ReleaseControls();
+            if (parts == null)
+                return;
+            foreach (var pair in parts)
+            {
+                if (!pair.Key.StartsWith("control_", StringComparison.Ordinal))
+                    continue;
+                var collider = pair.Value.GetComponent<Collider>();
+                if (collider)
+                    collider.enabled = !stock;
+            }
         }
 
         public void TogglePower()
         {
-            CapturePosition?.Invoke();
-            State.Powered = !State.Powered;
-            if (State.Powered) State.Paused = false;
+            owner?.TogglePower(this);
         }
-
+        public void RequestAction(RadioAction action)
+        {
+            if (!IsPlacedForControls)
+                return;
+            owner?.RequestAction(this, action);
+            if (action != RadioAction.Power && action != RadioAction.PlayPause && action != RadioAction.Shuffle)
+                pulses[action.ToString().ToLowerInvariant()] = Time.unscaledTime + .16f;
+        }
+        public void SetTrackInfo(string trackTitle, string trackArtist, string trackAlbum)
+        {
+            string newTitle = Clean(trackTitle, 128), newArtist = Clean(trackArtist, 128), newAlbum = Clean(trackAlbum, 128);
+            if (title == newTitle && artist == newArtist && album == newAlbum)
+                return;
+            title = newTitle;
+            artist = newArtist;
+            album = newAlbum;
+            displayContent = title + "\n" + artist + "\n" + album;
+        }
         public void SetPlaybackDisplay(string track, string playbackStatus)
         {
-            trackLabel = track ?? "";
-            status = playbackStatus ?? "";
+            if (State != null && State.Kind == 0 && string.IsNullOrEmpty(title))
+                SetTrackInfo(track, "", "");
         }
-
-        internal bool IsPlacedForControls => item && !item.held && gameObject.activeInHierarchy &&
-            gameObject.layer != 5 && item.itemRigidbodyC && !item.itemRigidbodyC.GetCurrentBox() && item.GetCurrentInventorySlot() < 0;
-
+        private static string Clean(string value, int limit)
+        {
+            value = (value ?? "").Replace('\n', ' ').Replace('\r', ' ');
+            if (value.Length <= limit)
+                return value;
+            int end = limit - 1;
+            if (char.IsHighSurrogate(value[end - 1]))
+                end--;
+            return value.Substring(0, end) + "…";
+        }
+        internal bool IsPlacedForControls => item && item.sold && !item.held && gameObject.activeInHierarchy && gameObject.layer != 5 &&
+            item.itemRigidbodyC && !item.itemRigidbodyC.GetCurrentBox() && item.GetCurrentInventorySlot() < 0;
         public void ReleaseControls()
         {
-            if (volumeKnob) volumeKnob.ReleaseInteraction();
+            foreach (var knob in knobs)
+                if (knob)
+                    knob.ReleaseInteraction();
         }
 
         internal void Tick()
         {
-            foreach (Transform child in controls)
-                if (child) child.gameObject.layer = gameObject.layer;
-            int volume = Mathf.RoundToInt(State.Volume * 100);
-            if (display && (renderedTrack != trackLabel || renderedStatus != status || renderedPower != State.Powered || renderedVolume != volume))
+            if (parts == null)
+                return;
+            if (renderedLayer != gameObject.layer)
             {
-                renderedTrack = trackLabel;
-                renderedStatus = status;
-                renderedPower = State.Powered;
-                renderedVolume = volume;
-                string title = trackLabel.Replace('\n', ' ').Replace('\r', ' ');
-                if (title.Length > 25) title = title.Substring(0, 22) + "...";
-                display.text = "SAILWIND RADIO\n" + (State.Powered ? status : "Off") + "  " + volume + "%\n" + title;
+                renderedLayer = gameObject.layer;
+                foreach (var part in parts.Values)
+                    if (part)
+                        part.layer = renderedLayer;
+                display?.SetLayer(renderedLayer);
+            }
+            foreach (var glow in glows)
+            {
+                string key = glow.Key;
+                bool active = DeviceControlVisuals.IsLit(State, key, pulses.TryGetValue(key, out float until) && Time.unscaledTime < until);
+                if (glow.Active != active)
+                {
+                    glow.Active = active;
+                    // Only the inset symbol glows. Button caps and cabinet remain unlit.
+                    glow.Material.color = active ? new Color(.65f, .31f, .06f) : glow.RestColor;
+                    glow.Material.SetColor("_EmissionColor", active ? new Color(.42f, .13f, .018f) : Color.black);
+                }
+            }
+            foreach (var knob in knobs)
+            {
+                float level = knob.Mode == RadioKnobMode.Bass ? State.Bass :
+                    knob.Mode == RadioKnobMode.Local ? State.LocalVolume : State.Volume;
+                float angle = DeviceControlVisuals.KnobAngle(level);
+                if (!knobAngles.TryGetValue(knob, out float previous) || previous != angle)
+                {
+                    knob.transform.localRotation = Quaternion.Euler(0, 0, angle);
+                    knobAngles[knob] = angle;
+                }
+            }
+            if (screenMaterial && screenLit != State.Powered)
+            {
+                screenLit = State.Powered;
+                screenMaterial.SetColor("_EmissionColor", screenLit ? new Color(.045f, .018f, .0025f) : Color.black);
+            }
+            if (display != null)
+            {
+                display.Tick();
+                string text = State.Powered ? displayContent : "";
+                if (text != renderedText)
+                {
+                    display.SetMetadata(State.Powered, title, artist, album);
+                    renderedText = text;
+                }
             }
         }
-
-        private void BuildPlaceholder()
+        private void BuildModel()
         {
-            // Only this runtime instance is modified. The donor prefab and its directory entry stay intact.
-            foreach (Transform child in transform) child.gameObject.SetActive(false);
-            var temporary = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            temporary.SetActive(false);
-            Mesh mesh = Instantiate(temporary.GetComponent<MeshFilter>().sharedMesh);
-            var vertices = mesh.vertices;
-            for (int i = 0; i < vertices.Length; i++) vertices[i] = Vector3.Scale(vertices[i], new Vector3(.6f, .38f, .2f)) + new Vector3(0, .19f, 0);
-            mesh.vertices = vertices;
-            mesh.RecalculateBounds();
-            GetComponent<MeshFilter>().sharedMesh = mesh;
-            assets.Add(mesh);
-            Destroy(temporary);
-            var bodyMaterial = MakeMaterial(new Color(.20f, .105f, .045f));
-            GetComponent<Renderer>().sharedMaterials = new[] { bodyMaterial };
+            foreach (Transform child in transform)
+                child.gameObject.SetActive(false);
+            parts = DeviceModel.Build(gameObject, State.Kind, assets);
+            foreach (var pair in parts)
+            {
+                if (pair.Key == "screen")
+                    screenMaterial = pair.Value.GetComponent<Renderer>().sharedMaterial;
+                else if (DeviceModel.HasOwnLightMaterial(pair.Key))
+                {
+                    var material = pair.Value.GetComponent<Renderer>().sharedMaterial;
+                    glows.Add(new Glow { Key = pair.Key.Substring(5), Material = material, RestColor = material.color });
+                }
+            }
             var box = GetComponent<BoxCollider>();
-            box.center = new Vector3(0, .19f, 0);
-            box.size = new Vector3(.6f, .38f, .2f);
-            // Loaded objects may already have their separate native collision body.
+            box.center = RadioDevice.Center(State.Kind);
+            box.size = RadioDevice.Size(State.Kind);
             if (item.itemRigidbodyC)
             {
                 var physicsBox = item.itemRigidbodyC.GetComponent<BoxCollider>();
-                if (physicsBox) { physicsBox.center = box.center; physicsBox.size = box.size; }
+                if (physicsBox)
+                {
+                    physicsBox.center = box.center;
+                    physicsBox.size = box.size;
+                }
             }
-            Part("Speaker grille", new Vector3(-.12f, .21f, -.106f), new Vector3(.25f, .25f, .018f), new Color(.07f, .065f, .055f), false);
-            var power = Part("Power", new Vector3(.17f, .14f, -.125f), new Vector3(.075f, .075f, .045f), new Color(.65f, .23f, .10f), true);
-            power.AddComponent<RadioPowerButton>().Radio = this;
-            var volume = Part("Volume", new Vector3(.17f, .26f, -.125f), new Vector3(.09f, .09f, .045f), new Color(.65f, .55f, .33f), true);
-            volumeKnob = volume.AddComponent<RadioVolumeKnob>();
-            volumeKnob.Radio = this;
-            var label = new GameObject("Radio label");
-            label.transform.SetParent(transform, false);
-            label.transform.localPosition = new Vector3(0, .365f, -.112f);
-            label.transform.localRotation = Quaternion.identity;
-            display = label.AddComponent<TextMesh>();
-            display.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            label.GetComponent<Renderer>().sharedMaterial = display.font.material;
-            display.anchor = TextAnchor.UpperCenter;
-            display.alignment = TextAlignment.Center;
-            display.characterSize = .009f;
-            display.fontSize = 40;
-            display.color = new Color(.95f, .86f, .65f);
-            controls.Add(label.transform);
+            AddButton("power", RadioAction.Power);
+            if (State.Kind == 0)
+            {
+                AddButton("playpause", RadioAction.PlayPause);
+                AddButton("previous", RadioAction.Previous);
+                AddButton("next", RadioAction.Next);
+                AddButton("shuffle", RadioAction.Shuffle);
+                AddButton("collections", RadioAction.Collections);
+                AddKnob("master", RadioKnobMode.Master);
+                AddKnob("local", RadioKnobMode.Local);
+                BuildTrackDisplay();
+            }
+            else if (State.Kind == 3)
+                AddKnob("bass", RadioKnobMode.Bass);
+            else
+                AddKnob("volume", RadioKnobMode.Volume);
         }
-
-        private Material MakeMaterial(Color color)
+        private void AddButton(string name, RadioAction action)
         {
-            Shader shader = Shader.Find("Standard") ?? GetComponent<Renderer>().sharedMaterial.shader;
-            var material = new Material(shader) { color = color };
-            assets.Add(material);
-            return material;
+            if (!parts.TryGetValue("control_" + name, out var part))
+                throw new InvalidOperationException("Missing device control: " + name);
+            if (action == RadioAction.Power)
+                part.AddComponent<RadioPowerButton>().Radio = this;
+            else
+            {
+                var control = part.AddComponent<RadioActionButton>();
+                control.Radio = this;
+                control.Action = action;
+            }
         }
-
-        private GameObject Part(string partName, Vector3 position, Vector3 scale, Color color, bool interactive)
+        private void AddKnob(string name, RadioKnobMode mode)
         {
-            var part = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            part.name = partName;
-            part.transform.SetParent(transform, false);
-            part.transform.localPosition = position;
-            part.transform.localScale = scale;
-            part.GetComponent<Renderer>().sharedMaterial = MakeMaterial(color);
-            if (!interactive) Destroy(part.GetComponent<Collider>());
-            else part.GetComponent<Collider>().isTrigger = true;
-            controls.Add(part.transform);
-            return part;
+            if (!parts.TryGetValue("control_" + name, out var part))
+                throw new InvalidOperationException("Missing device knob: " + name);
+            var knob = part.AddComponent<RadioVolumeKnob>();
+            knob.Radio = this;
+            knob.Mode = mode;
+            knobs.Add(knob);
         }
-
+        private void BuildTrackDisplay()
+        {
+            // The installed player's Sprites/Default is depth-tested (LEqual), unlike GUI/Text Shader.
+            var shader = Shader.Find("Sprites/Default");
+            if (!shader)
+            {
+                owner?.Report("Depth-tested radio track display shader unavailable");
+                return;
+            }
+            display = new DotMatrixDisplay(transform, shader, assets);
+        }
         private void OnDestroy()
         {
-            try { ReleaseControls(); CapturePosition?.Invoke(); }
-            catch (Exception ex) { owner?.Report("Could not capture final radio position: " + ex.Message); }
-            finally
+            display?.Dispose();
+            try
             {
-                try { owner?.Forget(this); }
-                finally { foreach (var asset in assets) if (asset) Destroy(asset); }
+                ReleaseControls();
+                CapturePosition?.Invoke();
             }
+            catch (Exception ex) { owner?.Report("Could not capture final radio position: " + ex.Message); }
+            finally { try { owner?.Forget(this); } finally { foreach (var asset in assets) if (asset) Destroy(asset); } }
         }
     }
-
     public sealed class RadioPowerButton : GoPointerButton
     {
         public RadioItemController Radio;
-        public override void OnActivate() { if (Radio) Radio.TogglePower(); }
-        public override void ExtraLateUpdate() { if (Radio) lookText = Radio.State.Powered ? "Turn radio off" : "Turn radio on"; }
+        public override void OnActivate()
+        {
+            if (Radio)
+                Radio.RequestAction(RadioAction.Power);
+        }
+        public override void ExtraLateUpdate()
+        {
+            lookText = "";
+        }
     }
-
+    public sealed class RadioActionButton : GoPointerButton
+    {
+        public RadioItemController Radio;
+        public RadioAction Action;
+        public override void OnActivate(GoPointer pointer)
+        {
+            if (!Radio)
+                return;
+            Radio.RememberControl(pointer, GetComponent<Collider>());
+            Radio.RequestAction(Action);
+        }
+        public override void ExtraLateUpdate()
+        {
+            lookText = "";
+        }
+    }
 }

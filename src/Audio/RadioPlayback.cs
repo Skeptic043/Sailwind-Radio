@@ -9,14 +9,24 @@ using UnityEngine.Networking;
 namespace SailwindRadio
 {
     /// <summary>One local clip and one positional emitter. Call only from the Unity main thread.</summary>
-    public sealed class RadioPlayback : IDisposable
+    public sealed partial class RadioPlayback : IDisposable
     {
         private const double ScheduleLeadSeconds = 0.05;
         private const double LoadTimeoutSeconds = 60;
         private readonly RadioState state;
         private readonly Action<string> warning;
+        private readonly MonoBehaviour host;
+        private RadioAudioLifetime lifetime;
         private GameObject emitter;
         private AudioSource source;
+        private RadioSpeakerOutput builtIn;
+        private readonly Dictionary<int, RadioSpeakerOutput> endpoints = new Dictionary<int, RadioSpeakerOutput>();
+        private readonly List<int> lostEndpoints = new List<int>();
+        private float interferenceGain = 1f;
+        private float interferenceCutoff = 22000f;
+        private float interferenceCrackle;
+        private Vector3 listenerPosition;
+        private bool listenerKnown;
         private AudioClip clip;
         private UnityWebRequest request;
         private Task<DecodedMp3> mp3Task;
@@ -25,6 +35,9 @@ namespace SailwindRadio
         private string failure;
         private bool disposed;
         private bool running;
+        private bool voicesPaused;
+        private bool recoveryWarned;
+        private double nextHealthCheck;
         private bool wasPowered;
         private volatile bool resetRequested;
         private double scheduledDsp;
@@ -34,28 +47,22 @@ namespace SailwindRadio
 
         public string Status { get; private set; }
         public string TrackLabel { get; private set; }
+        public bool RepeatTrack { get; set; } = true;
+        public bool TrackEnded { get; private set; }
+        public bool LoadFailed { get { return failure != null; } }
+        public string FailedPath { get; private set; }
 
         public RadioPlayback(MonoBehaviour coroutineHost, RadioState state, Action<string> warning)
         {
             if (coroutineHost == null) throw new ArgumentNullException("coroutineHost");
             if (state == null) throw new ArgumentNullException("state");
             this.state = state;
+            host = coroutineHost;
             this.warning = warning ?? delegate { };
-            emitter = new GameObject("Sailwind Radio audio");
-            // The plugin host owns lifetime, not whichever additive scene happened to
-            // be active when this endpoint was created. Item/session removal disposes it.
-            UnityEngine.Object.DontDestroyOnLoad(emitter);
-            source = emitter.AddComponent<AudioSource>();
-            source.playOnAwake = false;
-            source.loop = true; // Milestone A repeats its single configured track.
-            source.spatialBlend = 1f;
-            source.rolloffMode = AudioRolloffMode.Logarithmic;
-            source.minDistance = 2f;
-            source.maxDistance = 35f;
-            source.pitch = 1f;
-            source.dopplerLevel = 0f;
-            source.ignoreListenerPause = false;
-            var lifetime = emitter.AddComponent<RadioAudioLifetime>();
+            builtIn = new RadioSpeakerOutput("Sailwind Radio audio", RadioSpeakerProfile.BuiltIn, this.warning);
+            emitter = builtIn.Emitter;
+            source = builtIn.Source;
+            lifetime = emitter.AddComponent<RadioAudioLifetime>();
             lifetime.Host = coroutineHost;
             lifetime.Playback = this;
             AudioSettings.OnAudioConfigurationChanged += OnAudioConfigurationChanged;
@@ -72,38 +79,114 @@ namespace SailwindRadio
                 state.PositionSeconds = 0;
             state.TrackPath = path;
             ReleaseTrack();
+            failure = null;
+            FailedPath = null;
+            TrackEnded = false;
             requestedPath = null; // Explicit selection also retries a previously failed file.
+            if (!AdoptPreload(path)) ReleasePreload();
+        }
+
+        public void SetCarried(bool carried) { if (!disposed) builtIn.Carried = carried; }
+
+        public void SetInterference(float gain, float cutoff, float crackle)
+        {
+            if (disposed) return;
+            interferenceGain = RadioSpeakerOutput.Clamp(gain);
+            interferenceCutoff = IsFinite(cutoff) ? Math.Max(20f, Math.Min(22000f, cutoff)) : 22000f;
+            interferenceCrackle = RadioSpeakerOutput.Clamp(crackle);
+        }
+
+        public void BeginEndpoints()
+        {
+            if (disposed) return;
+            foreach (var endpoint in endpoints.Values) endpoint.Seen = false;
+        }
+
+        public void SetEndpoint(int id, Vector3 position, bool carried, int kind, float localVolume, float bass, float obstruction)
+        {
+            if (disposed) return;
+            RadioSpeakerProfile profile = RadioSpeakerProfile.ForKind(kind);
+            if (profile == null) return;
+            RadioSpeakerOutput endpoint;
+            if (!endpoints.TryGetValue(id, out endpoint) || endpoint.Emitter == null || endpoint.Source == null)
+            {
+                if (endpoint != null) endpoint.Dispose();
+                endpoint = new RadioSpeakerOutput("Sailwind Radio speaker " + id, profile, warning);
+                endpoints[id] = endpoint;
+            }
+            endpoint.Profile = profile;
+            endpoint.Position = position;
+            endpoint.Carried = carried;
+            endpoint.LocalVolume = localVolume;
+            endpoint.Bass = bass;
+            endpoint.Obstruction = obstruction;
+            endpoint.Seen = true;
+        }
+
+        public void EndEndpoints()
+        {
+            if (disposed) return;
+            lostEndpoints.Clear();
+            foreach (var pair in endpoints) if (!pair.Value.Seen) lostEndpoints.Add(pair.Key);
+            foreach (int id in lostEndpoints) { endpoints[id].Dispose(); endpoints.Remove(id); }
+        }
+
+        /// <summary>Set current listener and obstruction from native world geometry. Main thread only.</summary>
+        public void SetAcoustics(Vector3 listenerPosition, bool listenerKnown, float obstruction)
+        {
+            if (disposed) return;
+            this.listenerPosition = listenerPosition;
+            this.listenerKnown = listenerKnown && IsFinite(listenerPosition.x) && IsFinite(listenerPosition.y) && IsFinite(listenerPosition.z);
+            builtIn.Obstruction = obstruction;
         }
 
         public void Tick(Vector3 worldPosition, bool suspended)
         {
             if (disposed) return;
-            if (emitter == null || source == null) { Dispose(); return; }
-            emitter.transform.position = worldPosition;
+            if (host == null) { Dispose(); return; }
+            EnsureOwnedOutput();
+            builtIn.Position = worldPosition;
+            builtIn.LocalVolume = state.LocalVolume;
             state.Volume = Single.IsNaN(state.Volume) ? 0.5f : Mathf.Clamp01(state.Volume);
-            source.volume = state.Volume;
+            // Preserve the saved knob value. A lower ceiling and squared gain provide
+            // useful quiet settings for a tabletop radio without changing playback time.
+            builtIn.Update(state.Volume, listenerPosition, listenerKnown, interferenceGain, interferenceCutoff, interferenceCrackle);
+            source.loop = RepeatTrack;
+            foreach (var endpoint in endpoints.Values)
+            {
+                endpoint.Update(state.Volume, listenerPosition, listenerKnown, interferenceGain, interferenceCutoff, interferenceCrackle);
+                if (endpoint.Source != null) endpoint.Source.loop = RepeatTrack;
+            }
             double dsp = AudioSettings.dspTime;
             if (resetRequested || dsp < lastDsp)
             {
                 // A device reset can invalidate source sample position. Resume from the last
                 // position captured before the reset, not the newly reset source cursor.
-                source.Stop();
-                running = false;
+                StopOutputs();
                 resetRequested = false;
             }
             lastDsp = dsp;
+
+            PollPreload();
 
             if (!String.Equals(requestedPath, state.TrackPath ?? "", StringComparison.Ordinal))
             {
                 ReleaseTrack();
                 requestedPath = state.TrackPath ?? "";
                 failure = null;
+                FailedPath = null;
+                TrackEnded = false;
                 TrackLabel = SafeLabel(requestedPath);
-                if (state.Powered) BeginLoad();
+                if (!AdoptPreload(requestedPath))
+                {
+                    ReleasePreload();
+                    if (state.Powered) BeginLoad();
+                }
             }
             else if (state.Powered && !wasPowered && clip == null && request == null && mp3Task == null)
             {
                 failure = null;
+                FailedPath = null;
                 BeginLoad();
             }
             wasPowered = state.Powered;
@@ -117,29 +200,41 @@ namespace SailwindRadio
                     Fail("Unable to load music", "Audio loading timed out after 60 seconds");
             }
 
-            bool shouldPlay = state.Powered && !state.Paused && !suspended && !AudioListener.pause;
+            FinishIfEnded();
+            bool shouldPlay = state.Powered && !state.Paused && !suspended && !AudioListener.pause && !TrackEnded;
             if (!shouldPlay && running)
             {
                 CapturePosition();
-                source.Stop();
-                running = false;
+                PauseOutputs();
             }
             if (shouldPlay && clip != null && clip.loadState == AudioDataLoadState.Loaded && !running)
                 StartAtSavedPosition();
             if (running) CapturePosition();
+            if (running) JoinEndpoints();
+            if (running) CheckOutputHealth();
 
             Status = !state.Powered ? "Off" : failure != null ? failure :
                 request != null || mp3Task != null || (clip != null && clip.loadState != AudioDataLoadState.Loaded) ? "Loading" : clip == null ? "No track" :
-                state.Paused ? "Paused" : suspended || AudioListener.pause ? "Suspended" : "Playing";
+                TrackEnded ? "Ended" : state.Paused ? "Paused" : suspended || AudioListener.pause ? "Suspended" : "Playing";
         }
 
         public void CapturePosition()
         {
-            if (disposed || !running || source == null || clip == null || resetRequested) return;
-            int sample = AudioSettings.dspTime < scheduledDsp ? scheduledSample : source.timeSamples;
-            state.PositionSeconds = Math.Max(0, sample) / (double)clip.frequency;
+            if (disposed || !running || clip == null || resetRequested || AudioSettings.dspTime < lastDsp) return;
+            if (FinishIfEnded()) return;
+            state.PositionSeconds = SampleAt(AudioSettings.dspTime) / (double)clip.frequency;
         }
 
+        private int SampleAt(double dsp)
+        {
+            long sample = scheduledSample + (long)Math.Round(Math.Max(0, dsp - scheduledDsp) * clip.frequency);
+            return RepeatTrack ? (int)(sample % clip.samples) : (int)Math.Min(clip.samples, sample);
+        }
+
+        internal static float DistanceGain(float distance)
+        { return RadioSpeakerOutput.DistanceGain(distance, RadioSpeakerProfile.BuiltIn.Radius); }
+
+        private static bool IsFinite(float value) { return RadioSpeakerOutput.Finite(value); }
         private void BeginLoad()
         {
             if (String.IsNullOrWhiteSpace(requestedPath)) return;
@@ -161,6 +256,7 @@ namespace SailwindRadio
                     default: throw new IOException("Choose an MP3, OGG or WAV file");
                 }
                 if (!File.Exists(fullPath)) throw new IOException("Music file is missing or inaccessible");
+                if (new FileInfo(fullPath).Length > MaximumMp3FileBytes) throw new IOException("Audio exceeds the 128 MiB file size limit");
                 loadStartedAt = Time.realtimeSinceStartup;
                 if (type == AudioType.MPEG)
                 {
@@ -189,7 +285,7 @@ namespace SailwindRadio
                     throw new IOException(request.error ?? "Audio request failed");
                 clip = DownloadHandlerAudioClip.GetContent(request);
                 if (clip == null || clip.loadState == AudioDataLoadState.Failed ||
-                    clip.samples <= 0 || clip.frequency <= 0)
+                    clip.samples <= 0 || clip.frequency <= 0 || (long)clip.samples * clip.channels > MaximumMp3Samples)
                     throw new IOException("The file could not be decoded as audio");
                 source.clip = clip;
                 request.Dispose();
@@ -309,17 +405,175 @@ namespace SailwindRadio
             double position = state.PositionSeconds;
             if (Double.IsNaN(position) || Double.IsInfinity(position) || position < 0) position = 0;
             double duration = clip.samples / (double)clip.frequency;
+            if (!RepeatTrack && position >= duration)
+            {
+                state.PositionSeconds = duration;
+                TrackEnded = true;
+                return;
+            }
             scheduledSample = (int)Math.Min(clip.samples - 1, Math.Floor((position % duration) * clip.frequency));
-            source.timeSamples = scheduledSample;
-            scheduledDsp = AudioSettings.dspTime + ScheduleLeadSeconds;
-            source.PlayScheduled(scheduledDsp);
+            double now = AudioSettings.dspTime;
+            scheduledDsp = now + (voicesPaused ? 0 : ScheduleLeadSeconds);
+            if (voicesPaused)
+            {
+                ResumeOutput(builtIn, now);
+                foreach (var endpoint in endpoints.Values) ResumeOutput(endpoint, now);
+            }
+            else
+            {
+                ScheduleEndpoint(builtIn, scheduledDsp, scheduledSample);
+                foreach (var endpoint in endpoints.Values) ScheduleEndpoint(endpoint, scheduledDsp, scheduledSample);
+            }
             running = true;
+            voicesPaused = false;
+            nextHealthCheck = now + .5;
+        }
+
+        private void ResumeOutput(RadioSpeakerOutput output, double now)
+        {
+            if (output.Paused && output.Source != null && output.Source.clip == clip) output.Resume(scheduledSample, now);
+            else ScheduleEndpoint(output, now + ScheduleLeadSeconds, SampleAt(now + ScheduleLeadSeconds));
+        }
+
+        private double EndDspTime()
+        { return clip == null ? Double.PositiveInfinity : scheduledDsp + (clip.samples - scheduledSample) / (double)clip.frequency; }
+
+        private bool FinishIfEnded()
+        {
+            if (!running || RepeatTrack || clip == null || AudioSettings.dspTime < EndDspTime()) return false;
+            state.PositionSeconds = clip.samples / (double)clip.frequency;
+            TrackEnded = true;
+            StopOutputs();
+            return true;
+        }
+
+        private void JoinEndpoints()
+        {
+            double now = AudioSettings.dspTime;
+            bool waitingForStart = now < scheduledDsp;
+            JoinOutput(builtIn, now, waitingForStart);
+            foreach (var endpoint in endpoints.Values)
+                JoinOutput(endpoint, now, waitingForStart);
+        }
+
+        private void JoinOutput(RadioSpeakerOutput output, double now, bool waitingForStart)
+        {
+            if (output.Running || output.Source == null) return;
+            double start = waitingForStart ? scheduledDsp : now + ScheduleLeadSeconds;
+            if (!RepeatTrack && start >= EndDspTime()) return;
+            ScheduleEndpoint(output, start, SampleAt(start));
+        }
+
+        private void ScheduleEndpoint(RadioSpeakerOutput endpoint, double start, int sample)
+        {
+            if (endpoint.Source == null) return;
+            if (clip == null || sample < 0 || sample >= clip.samples || (!RepeatTrack && start >= EndDspTime())) return;
+            endpoint.Source.clip = clip;
+            endpoint.Source.loop = RepeatTrack;
+            endpoint.Source.timeSamples = sample;
+            endpoint.Source.PlayScheduled(start);
+            endpoint.Running = true;
+            endpoint.Paused = false;
+            endpoint.SettlesAt = start + .3;
+            endpoint.StartsAt = start;
+        }
+
+        private void PauseOutputs()
+        {
+            // Cancel an initial scheduled start explicitly. Otherwise retain native voices:
+            // Unity 2019.1 has known filtered PlayScheduled re-trigger timing defects.
+            if (AudioSettings.dspTime < scheduledDsp) { StopOutputs(); return; }
+            running = false;
+            voicesPaused = true;
+            PauseOutput(builtIn);
+            foreach (var endpoint in endpoints.Values) PauseOutput(endpoint);
+        }
+
+        private static void PauseOutput(RadioSpeakerOutput output)
+        {
+            if (AudioSettings.dspTime < output.StartsAt) output.Stop();
+            else output.Pause();
+        }
+
+        private void StopOutputs(bool clearClip = false)
+        {
+            running = false;
+            voicesPaused = false;
+            if (builtIn != null) builtIn.Stop(clearClip);
+            foreach (var endpoint in endpoints.Values) endpoint.Stop(clearClip);
+        }
+
+        private void EnsureOwnedOutput()
+        {
+            if (emitter == null || source == null)
+            {
+                var previous = builtIn;
+                if (lifetime != null) lifetime.Playback = null;
+                builtIn = new RadioSpeakerOutput("Sailwind Radio audio", RadioSpeakerProfile.BuiltIn, warning);
+                builtIn.Carried = previous.Carried;
+                builtIn.Obstruction = previous.Obstruction;
+                previous.Dispose();
+                emitter = builtIn.Emitter;
+                source = builtIn.Source;
+                lifetime = emitter.AddComponent<RadioAudioLifetime>();
+                lifetime.Host = host;
+                lifetime.Playback = this;
+                WarnRecovery();
+            }
+            EnableOwnedOutput(builtIn);
+            foreach (var endpoint in endpoints.Values) EnableOwnedOutput(endpoint);
+        }
+
+        private void EnableOwnedOutput(RadioSpeakerOutput output)
+        {
+            if (output.Emitter == null || output.Source == null) return;
+            if (!output.Emitter.activeSelf) { output.Emitter.SetActive(true); WarnRecovery(); }
+            if (!output.Source.enabled) { output.Source.enabled = true; WarnRecovery(); }
+        }
+
+        private void WarnRecovery()
+        {
+            if (recoveryWarned) return;
+            recoveryWarned = true;
+            warning("Recovered an unavailable radio audio output");
+        }
+
+        private void CheckOutputHealth()
+        {
+            double now = AudioSettings.dspTime;
+            if (now < nextHealthCheck) return;
+            nextHealthCheck = now + .25;
+            RepairOutput(builtIn, now);
+            foreach (var endpoint in endpoints.Values) RepairOutput(endpoint, now);
+        }
+
+        private void RepairOutput(RadioSpeakerOutput output, double now)
+        {
+            if (!output.Running || output.Source == null || now < output.SettlesAt) return;
+            if (output.Source.isVirtual || output.Source.volume <= 0) { output.DriftObservations = 0; return; }
+            int expected = SampleAt(now);
+            int difference = Math.Abs(output.Source.timeSamples - expected);
+            if (RepeatTrack) difference = Math.Min(difference, clip.samples - difference);
+            int bufferLength, bufferCount;
+            AudioSettings.GetDSPBufferSize(out bufferLength, out bufferCount);
+            double tolerance = Math.Max(.05, 2d * bufferLength / Math.Max(8000, AudioSettings.outputSampleRate) + .01);
+            if (output.Source.isPlaying)
+            {
+                if (difference <= clip.frequency * tolerance) { output.DriftObservations = 0; return; }
+                if (++output.DriftObservations < 2) return;
+            }
+            output.DriftObservations = 0;
+            // Native cursors are observations, never the radio's master clock. Repair
+            // a revived/lagging output without restarting healthy neighboring voices.
+            if (output.Source.isPlaying) { output.Pause(); output.Resume(expected, now); }
+            else ScheduleEndpoint(output, now + ScheduleLeadSeconds, SampleAt(now + ScheduleLeadSeconds));
         }
 
         private void Fail(string message, string detail)
         {
             ReleaseTrack();
             failure = message;
+            FailedPath = requestedPath;
             warning(message + ": " + detail);
         }
 
@@ -332,7 +586,12 @@ namespace SailwindRadio
 
         private void ReleaseTrack()
         {
-            running = false;
+            try { StopOutputs(true); }
+            finally { ReleaseTrackResources(); }
+        }
+
+        private void ReleaseTrackResources()
+        {
             if (mp3Cancellation != null)
             {
                 Task<DecodedMp3> abandoned = mp3Task;
@@ -349,19 +608,12 @@ namespace SailwindRadio
                     cancellation.Dispose();
                 }, TaskScheduler.Default);
             }
-            if (request != null)
+            try { DiscardRequest(ref request, clip); }
+            finally
             {
-                if (!request.isDone) request.Abort();
-                request.Dispose();
-                request = null;
+                if (clip != null) UnityEngine.Object.Destroy(clip);
+                clip = null;
             }
-            if (source != null)
-            {
-                source.Stop();
-                source.clip = null;
-            }
-            if (clip != null) UnityEngine.Object.Destroy(clip);
-            clip = null;
         }
 
         private void OnAudioConfigurationChanged(bool deviceWasChanged) { resetRequested = true; }
@@ -374,10 +626,17 @@ namespace SailwindRadio
             {
                 disposed = true;
                 AudioSettings.OnAudioConfigurationChanged -= OnAudioConfigurationChanged;
-                try { ReleaseTrack(); }
+                try
+                {
+                    try { ReleaseTrack(); }
+                    finally { ReleasePreload(); }
+                }
                 finally
                 {
-                    if (emitter != null) UnityEngine.Object.Destroy(emitter);
+                    foreach (var endpoint in endpoints.Values) endpoint.Dispose();
+                    endpoints.Clear();
+                    if (builtIn != null) builtIn.Dispose();
+                    builtIn = null;
                     emitter = null;
                     source = null;
                 }
@@ -391,6 +650,7 @@ namespace SailwindRadio
         internal MonoBehaviour Host;
         internal RadioPlayback Playback;
         private void Update() { if (Host == null && Playback != null) Playback.Dispose(); }
-        private void OnDestroy() { if (Playback != null) Playback.Dispose(); }
+        // An unexpectedly removed emitter can be recreated by its still-live host.
+        private void OnDestroy() { if (Host == null && Playback != null) Playback.Dispose(); }
     }
 }

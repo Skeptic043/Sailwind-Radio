@@ -2,9 +2,22 @@ using UnityEngine;
 
 namespace SailwindRadio.Physical
 {
+    public enum RadioKnobMode
+    {
+        Volume, Master, Local, Bass
+    }
     public sealed class RadioVolumeKnob : GoPointerButton
     {
         public RadioItemController Radio;
+        public RadioKnobMode Mode;
+        public bool AdjustBass
+        {
+            get => Mode == RadioKnobMode.Bass; set
+            {
+                if (value)
+                    Mode = RadioKnobMode.Bass;
+            }
+        }
         private UnityEngine.Object capturedCharacter;
         private UnityEngine.Object capturedController;
         private UnityEngine.Object capturedCrosshair;
@@ -27,7 +40,8 @@ namespace SailwindRadio.Physical
         {
             if (!CanInteract || !WithinNativeReach(activatingPointer) || activatingPointer.GetHeldItem() ||
                 !Refs.ovrController || !Refs.charController || !Refs.mouseCrosshair ||
-                !Refs.ovrController.enabled || !Refs.charController.enabled) return;
+                !Refs.ovrController.enabled || !Refs.charController.enabled)
+                return;
             capturedCharacter = Refs.charController;
             capturedController = Refs.ovrController;
             capturedCrosshair = Refs.mouseCrosshair;
@@ -40,17 +54,27 @@ namespace SailwindRadio.Physical
 
         public override void ExtraLateUpdate()
         {
-            if (stickyClickedBy && (!CanInteract || !WithinNativeReach(stickyClickedBy))) ReleaseInteraction();
-            if (!Radio) return;
+            if (stickyClickedBy && (!CanInteract || !WithinNativeReach(stickyClickedBy)))
+                ReleaseInteraction();
+            if (!Radio)
+                return;
             if (stickyClickedBy && CanInteract)
-                Radio.State.Volume = Mathf.Clamp01(Radio.State.Volume + GameInput.GetScrollAxis() * .25f);
-            lookText = "Radio volume " + Mathf.RoundToInt(Radio.State.Volume * 100) + "%  " +
-                (stickyClickedBy ? "Scroll to adjust, click to release" : "Click to adjust");
+            {
+                if (Mode == RadioKnobMode.Bass)
+                    Radio.State.Bass = Mathf.Clamp01(Radio.State.Bass + GameInput.GetScrollAxis() * .25f);
+                else if (Mode == RadioKnobMode.Local)
+                    Radio.State.LocalVolume = Mathf.Clamp01(Radio.State.LocalVolume + GameInput.GetScrollAxis() * .25f);
+                else
+                    Radio.State.Volume = Mathf.Clamp01(Radio.State.Volume + GameInput.GetScrollAxis() * .25f);
+            }
+            float level = Mode == RadioKnobMode.Bass ? Radio.State.Bass : Mode == RadioKnobMode.Local ? Radio.State.LocalVolume : Radio.State.Volume;
+            lookText = Mode.ToString() + " " + Mathf.RoundToInt(level * 100) + "%";
         }
 
         public void ReleaseInteraction()
         {
-            if (!stickyClickedBy) return;
+            if (!stickyClickedBy)
+                return;
             // Only native states that actually own the controller flags retain them. Additive island
             // loading, a timescale-only pause and cursor menus do not own these flags. Keeping our own
             // disabled values across those transitions would permanently strand movement after release.
@@ -79,9 +103,23 @@ namespace SailwindRadio.Physical
             }
         }
 
-        private void OnDisable() { ReleaseInteraction(); }
-        private void OnDestroy() { ReleaseInteraction(); }
-        private void OnApplicationFocus(bool focused) { if (!focused) ReleaseInteraction(); }
-        private void OnApplicationPause(bool paused) { if (paused) ReleaseInteraction(); }
+        private void OnDisable()
+        {
+            ReleaseInteraction();
+        }
+        private void OnDestroy()
+        {
+            ReleaseInteraction();
+        }
+        private void OnApplicationFocus(bool focused)
+        {
+            if (!focused)
+                ReleaseInteraction();
+        }
+        private void OnApplicationPause(bool paused)
+        {
+            if (paused)
+                ReleaseInteraction();
+        }
     }
 }

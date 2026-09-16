@@ -111,6 +111,51 @@ internal static class Program
             config.Reload();
             Check(setting.Value.Equals(new KeyboardShortcut(KeyCode.F10, KeyCode.RightControl)), "typed convenience setter survives actual save/reload");
         }
+        foreach (string raw in new string[] { null, "F7", "f7", "LeftShift + F7", "o", "Home", "None", "", "not a key" })
+        {
+            string path = Path.Combine(scratch, "migration-" + Guid.NewGuid().ToString("N") + ".cfg");
+            if (raw != null) File.WriteAllText(path, "[Development]\nSpawnRadio = " + raw + "\nLegacySetting = retained\n");
+            var config = new ConfigFile(path, false);
+            bool autoSave = config.SaveOnConfigSet;
+            int saves = 0;
+            var setting = SpawnShortcut.Bind(config, _ => { }, file =>
+            {
+                saves++;
+                file.TryGetEntry<int>("Internal", "SpawnDefaultRevision", out var marker);
+                Check(marker.Value == (saves == 1 ? 0 : 1), "migration marker follows successfully persisted key");
+                file.Save();
+            });
+            string expectedRaw = raw == null || raw == "F7" ? "Home" : raw;
+            config.TryGetEntry<string>("Development", "SpawnRadio", out var entry);
+            Check(entry.Value == expectedRaw, "only exact old default migrates: " + (raw ?? "fresh"));
+            Check(saves == 2 && config.SaveOnConfigSet == autoSave, "initial migration saves then marks and restores autosave");
+            var restartedConfig = new ConfigFile(path, false);
+            var restarted = SpawnShortcut.Bind(restartedConfig, _ => { }, _ => throw new Exception("repeat migration"));
+            Check(restarted.Value.Equals(setting.Value), "completed migration survives new real config instance");
+            if(raw!=null) Check(File.ReadAllText(path).Contains("LegacySetting = retained"), "migration preserves orphan setting");
+            restartedConfig.TryGetEntry<string>("Development", "SpawnRadio", out var restartEntry);
+            restartEntry.Value = "F7";
+            var deliberate = SpawnShortcut.Bind(new ConfigFile(path, false), _ => { }, _ => throw new Exception("custom F7 migrated again"));
+            Check(deliberate.Value.MainKey == KeyCode.F7, "later explicit F7 remains user binding");
+        }
+        for(int failureAt=1;failureAt<=2;failureAt++)
+        {
+            string path=Path.Combine(scratch,"failed-migration-"+failureAt+".cfg");
+            File.WriteAllText(path,"[Development]\nSpawnRadio = F7\n");
+            var config=new ConfigFile(path,false);
+            int calls=0, warnings=0;
+            var setting=SpawnShortcut.Bind(config,_=>warnings++,file=>
+            {
+                if(++calls==failureAt) throw new IOException("Simulated persistence failure");
+                file.Save();
+            });
+            config.TryGetEntry<int>("Internal","SpawnDefaultRevision",out var marker);
+            Check(marker.Value==0 && warnings==1 && setting.Value.MainKey==KeyCode.Home,"failed save leaves retry marker and usable runtime default");
+            var restartedConfig=new ConfigFile(path,false);
+            var restarted=SpawnShortcut.Bind(restartedConfig,_=>{ });
+            restartedConfig.TryGetEntry<int>("Internal","SpawnDefaultRevision",out var restartedMarker);
+            Check(restarted.Value.MainKey==KeyCode.Home && restartedMarker.Value==1,"failed migration retries safely next launch");
+        }
         Console.WriteLine(checks + " input checks passed using the actual BepInEx config loader and installed Unity key enum. Live key events remain untested.");
     }
 }

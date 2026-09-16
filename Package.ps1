@@ -4,6 +4,25 @@ param(
     [string]$OfflineFeed = "$PSScriptRoot\.local\nuget-feed"
 )
 $ErrorActionPreference = 'Stop'
+# Keep this policy shared with Git, including when rebuilding an extracted source ZIP.
+$radioIgnoreText = Get-Content -LiteralPath "$PSScriptRoot\.gitignore" -Raw
+$radioPrivateBlock = [regex]::Match($radioIgnoreText, '(?s)# BEGIN PRIVATE WORKFLOW EXCLUSIONS\r?\n(.*?)# END PRIVATE WORKFLOW EXCLUSIONS')
+if (-not $radioPrivateBlock.Success) { throw 'Missing private workflow exclusion policy.' }
+$radioPrivatePatterns = @($radioPrivateBlock.Groups[1].Value -split '\r?\n' | Where-Object { $_ -and -not $_.StartsWith('#') })
+if ($radioPrivatePatterns.Count -eq 0) { throw 'Empty private workflow exclusion policy.' }
+function Test-RadioPrivatePath([string]$radioPath) {
+    $radioParts = $radioPath.Replace('\', '/').Split('/')
+    foreach ($radioPattern in $radioPrivatePatterns) {
+        if ($radioPattern.EndsWith('/')) {
+            foreach ($radioPart in ($radioParts | Select-Object -SkipLast 1)) {
+                if ($radioPart -like $radioPattern.TrimEnd('/')) { return $true }
+            }
+        } elseif ($radioPattern.Contains('/')) {
+            if ($radioPath.Replace('\', '/') -like $radioPattern) { return $true }
+        } elseif ($radioParts[-1] -like $radioPattern) { return $true }
+    }
+    return $false
+}
 & "$PSScriptRoot\Build.ps1" -GameDir $GameDir -LoaderPath $LoaderPath -OfflineFeed $OfflineFeed
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $radioVersion = ([xml](Get-Content -LiteralPath "$PSScriptRoot\Radio.csproj" -Raw)).Project.PropertyGroup.Version
@@ -19,24 +38,28 @@ $radioBinaryFiles = [ordered]@{
     'licenses/NLayer.txt' = "$PSScriptRoot\licenses\NLayer.txt"
     'docs/TESTING.md' = "$PSScriptRoot\docs\TESTING.md"
     'docs/BUILDING.md' = "$PSScriptRoot\docs\BUILDING.md"
-    'docs/PLAN.md' = "$PSScriptRoot\docs\PLAN.md"
-    'docs/VALIDATION.md' = "$PSScriptRoot\docs\VALIDATION.md"
+    'docs/SHOPS.md' = "$PSScriptRoot\docs\SHOPS.md"
     'tests/Audio/UNITY-PROBE.md' = "$PSScriptRoot\tests\Audio\UNITY-PROBE.md"
 }
 $radioSourceFiles = [ordered]@{}
-foreach ($radioName in @('AGENTS.md', '.gitignore', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'Radio.csproj', 'Directory.Build.props', 'Build.ps1', 'Package.ps1')) {
+foreach ($radioName in @('.gitignore', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'Radio.csproj', 'Directory.Build.props', 'Build.ps1', 'Package.ps1')) {
     $radioSourceFiles[$radioName] = Join-Path $PSScriptRoot $radioName
 }
 $radioSourceFiles['licenses/NLayer.txt'] = "$PSScriptRoot\licenses\NLayer.txt"
-foreach ($radioSourceDirectory in @('src', 'tests', 'docs')) {
+foreach ($radioSourceDirectory in @('src', 'tests', 'docs', 'assets', 'tools')) {
     Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot $radioSourceDirectory) -Recurse -File | ForEach-Object {
         $radioRelative = $_.FullName.Substring($PSScriptRoot.Length + 1).Replace('\', '/')
-        if ($radioRelative -notmatch '/(bin|obj|Library|Temp|Logs|\.local)/' -and $_.Extension -in @('.cs', '.csproj', '.ps1', '.md', '.json')) {
+        # Unity editor projects live under ignored .local. src/Library and tests/Library
+        # are production music code, not Unity's root Library cache.
+        if (-not (Test-RadioPrivatePath $radioRelative) -and $radioRelative -notmatch '/(bin|obj|Temp|Logs|\.local|__pycache__)/' -and $_.Extension -in @('.cs', '.csproj', '.ps1', '.md', '.json', '.py', '.blend', '.png')) {
             $radioSourceFiles[$radioRelative] = $_.FullName
         }
     }
 }
 function Write-RadioZip($radioDestination, $radioFiles) {
+    foreach ($radioEntryName in $radioFiles.Keys) {
+        if (Test-RadioPrivatePath $radioEntryName) { throw "Private workflow file cannot be packaged: $radioEntryName" }
+    }
     $radioTemporary = "$radioDestination.$([Guid]::NewGuid().ToString('N')).tmp"
     try {
         $radioArchive = [IO.Compression.ZipFile]::Open($radioTemporary, [IO.Compression.ZipArchiveMode]::Create)

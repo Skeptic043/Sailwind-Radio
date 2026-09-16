@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <Nullable>disable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="NLayer" Version="1.16.0" />
+    <Compile Include="Program.cs" />
+    <Compile Include="../../src/Playback/*.cs" Link="Playback/%(Filename)%(Extension)" />
+    <Compile Include="../../src/Persistence/RadioSaveStore.cs" Link="RadioSaveStore.cs" />
+    <Compile Include="../../src/Audio/*.cs" Link="Audio/%(Filename)%(Extension)" />
+    <Compile Include="../../src/RadioState.cs" Link="RadioState.cs" />
+    <Compile Include="../Audio/UnityAudioDoubles.cs" Link="UnityAudioDoubles.cs" />
+  </ItemGroup>
+</Project>

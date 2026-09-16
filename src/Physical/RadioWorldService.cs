@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using SailwindRadio.Persistence;
+using SailwindRadio.Playback;
+using SailwindRadio.Shops;
 using UnityEngine;
 
 namespace SailwindRadio.Physical
@@ -15,6 +17,7 @@ namespace SailwindRadio.Physical
         private readonly Func<string> configuredTrack;
         private readonly Action<string> warn;
         private readonly RadioSaveStore store = new RadioSaveStore();
+        private readonly GlobalRadioArbiter arbiter = new GlobalRadioArbiter();
         private readonly List<RadioItemController> items = new List<RadioItemController>();
         private readonly List<KeyValuePair<MethodInfo, MethodInfo>> patches = new List<KeyValuePair<MethodInfo, MethodInfo>>();
         private static readonly FieldInfo BusyField = AccessTools.Field(typeof(SaveLoadManager), "busy");
@@ -22,12 +25,99 @@ namespace SailwindRadio.Physical
         private bool loading;
         private bool disposed;
         public IReadOnlyList<RadioItemController> Items => items;
+        public int ActiveRadioId => arbiter.ActiveId;
         public event Action BeforeSave;
+        public event Action<RadioItemController, RadioAction> ActionRequested;
         public string PersistenceStatus => store.Writable ? "Native save ready" : "Radio data preserved: " + store.Problem;
+        internal bool ReadyForShop => !disposed && manager && manager == SaveLoadManager.instance && !loading && store.Writable &&
+            FloatingOriginManager.instance && GameState.playing && !GameState.currentlyLoading && !GameState.justStarted &&
+            !GameState.loadingBoatLocalItems && !GameState.recovering && SaveLoadManager.readyToSave && !(bool)BusyField.GetValue(manager);
+
+        internal RadioItemController CreateShopStock(Transform parent, Vector3 position, Quaternion rotation, int kind)
+        {
+            if (!ReadyForShop || !TryGetDonor(out var donor)) return null;
+            GameObject instance = null;
+            try
+            {
+                instance = UnityEngine.Object.Instantiate(donor, position, rotation);
+                instance.transform.SetParent(parent, true);
+                instance.transform.localScale = Vector3.one;
+                var item = instance.GetComponent<ShipItem>();
+                var saveable = instance.GetComponent<SaveablePrefab>();
+                item.sold = false;
+                saveable.instanceId = 0;
+                saveable.currentCrateId = 0;
+                saveable.SetParentObject(-1);
+                saveable.Start();
+                var controller = instance.AddComponent<RadioItemController>();
+                controller.Initialize(this, new RadioState
+                {
+                    Kind = kind,
+                    Volume = kind == 0 ? .5f : .75f,
+                    TrackPath = kind == 0 ? configuredTrack?.Invoke() ?? "" : ""
+                });
+                return controller;
+            }
+            catch
+            {
+                if (instance) UnityEngine.Object.Destroy(instance);
+                throw;
+            }
+        }
+
+        internal bool ReservePurchase(RadioItemController controller)
+        {
+            if (!ReadyForShop || !controller || items.Contains(controller)) return false;
+            var item = controller.GetComponent<ShipItem>();
+            var saveable = controller.GetComponent<SaveablePrefab>();
+            if (!item || item.sold || !saveable || saveable.instanceId != 0 || !TryGetDonor(out _) ||
+                saveable.prefabIndex != RadioSaveStore.DonorIndex || saveable.GetType() != typeof(SaveablePrefab)) return false;
+            try
+            {
+                // Native RegisterToSave accepts a preassigned ID. Exclude both its live/cached IDs and
+                // retained mod records. Nothing is registered as a native owned item before Sell.
+                saveable.instanceId = ShopPurchaseReservation.Reserve(store, arbiter, controller.State,
+                    () => UnityEngine.Random.Range(1, int.MaxValue),
+                    candidate => SaveablePrefab.existingInstanceIds != null && SaveablePrefab.existingInstanceIds.Contains(candidate));
+                return true;
+            }
+            catch (Exception error)
+            {
+                warn("Radio purchase unavailable: " + error.Message);
+                return false;
+            }
+        }
+
+        internal bool FinishPurchase(RadioItemController controller)
+        {
+            if (!controller) return false;
+            var item = controller.GetComponent<ShipItem>();
+            var prefab = controller.GetComponent<SaveablePrefab>();
+            bool registered = manager && manager == SaveLoadManager.instance && manager.GetCurrentPrefabs().Contains(prefab);
+            if (!item.sold || !registered)
+            {
+                ShopPurchaseReservation.Cancel(store, arbiter, prefab.instanceId);
+                if (item.sold)
+                {
+                    // Sell marks sold before RegisterToSave. A failed registration is not ownership.
+                    // Remove partial native registration rather than leave an item that cannot be saved.
+                    prefab.Unregister();
+                    UnityEngine.Object.Destroy(controller.gameObject);
+                }
+                prefab.instanceId = 0;
+                return false;
+            }
+            // The state was fully validated and reserved before native Sell. Keep ownership even if
+            // an unrelated native UI callback throws after registration, rather than lose a paid item.
+            controller.RefreshOwnership();
+            if (!items.Contains(controller)) items.Add(controller);
+            return true;
+        }
 
         public RadioWorldService(Harmony harmony, Func<string> configuredTrack, Action<string> warn)
         {
-            if (active != null) throw new InvalidOperationException("Radio world service already exists");
+            if (active != null)
+                throw new InvalidOperationException("Radio world service already exists");
             this.harmony = harmony;
             this.configuredTrack = configuredTrack;
             this.warn = warn ?? (_ => { });
@@ -39,6 +129,7 @@ namespace SailwindRadio.Physical
                 Patch(typeof(SaveLoadManager), "LoadModData", nameof(LoadPostfix), false);
                 Patch(typeof(SaveablePrefab), "Load", nameof(PrefabPostfix), false);
                 Patch(typeof(SaveablePrefab), "PrepareSaveData", nameof(CapturePrefix), true);
+                TryPatchControlHover();
             }
             catch { Dispose(); throw; }
         }
@@ -47,44 +138,87 @@ namespace SailwindRadio.Physical
         {
             MethodInfo target = AccessTools.Method(type, name);
             MethodInfo patch = AccessTools.Method(typeof(RadioWorldService), callback);
-            if (target == null || patch == null || BusyField == null) throw new MissingMethodException("Native radio save compatibility check failed");
+            if (target == null || patch == null || BusyField == null)
+                throw new MissingMethodException("Native radio save compatibility check failed");
             harmony.Patch(target, prefix ? new HarmonyMethod(patch) : null, prefix ? null : new HarmonyMethod(patch));
             patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
         }
 
+        private void TryPatchControlHover()
+        {
+            try
+            {
+                var target = typeof(LookUI).GetMethod("ShowLookText", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null, new[] { typeof(GoPointerButton) }, null);
+                if (target == null || target.ReturnType != typeof(void) || !RadioControlHover.Compatible)
+                    throw new MissingMethodException("Native control hint layout changed");
+                var patch = AccessTools.Method(typeof(RadioWorldService), nameof(ControlHoverPostfix));
+                harmony.Patch(target, postfix: new HarmonyMethod(patch));
+                patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
+            }
+            catch (Exception error) { warn("Radio control hint cleanup unavailable. Native hints remain visible. " + error.Message); }
+        }
+
         public void Tick()
         {
-            if (disposed) return;
+            if (disposed)
+                return;
             if (manager != SaveLoadManager.instance)
             {
                 items.Clear();
                 manager = SaveLoadManager.instance;
                 loading = false;
                 store.Load(null);
+                arbiter.Reset(Array.Empty<RadioRecord>());
                 // A new-game scene can retain static modData from the prior session. Native LoadGame sets
                 // manager itself in our prefix, so a completed native load never passes through this branch.
-                if (manager && manager.loaded) ReadNativeData();
-                else GameState.modData?.Remove(RadioSaveStore.Key);
+                if (manager && manager.loaded)
+                    ReadNativeData();
+                else
+                    GameState.modData?.Remove(RadioSaveStore.Key);
             }
             for (int i = items.Count - 1; i >= 0; i--)
             {
-                if (!items[i]) items.RemoveAt(i);
-                else items[i].Tick();
+                if (!items[i])
+                    items.RemoveAt(i);
+                else
+                    items[i].Tick();
             }
         }
 
         public bool TrySpawn(Vector3 position, Quaternion rotation, out string message)
+            => TrySpawn(position, rotation, RadioDeviceKind.Radio, out message);
+
+        public bool TrySpawn(Vector3 position, Quaternion rotation, RadioDeviceKind kind, out string message)
         {
             Tick();
+            if ((int)kind < 0 || (int)kind > 3)
+            {
+                message = "Unknown radio device";
+                return false;
+            }
             if (disposed || !manager || !FloatingOriginManager.instance || !GameState.playing || GameState.currentlyLoading ||
                 GameState.justStarted || GameState.loadingBoatLocalItems || GameState.recovering || loading ||
                 !SaveLoadManager.readyToSave || (bool)BusyField.GetValue(manager))
-            { message = "Wait until the game finishes loading or saving"; return false; }
-            if (!store.Writable) { message = PersistenceStatus; return false; }
+            {
+                message = "Wait until the game finishes loading or saving";
+                return false;
+            }
+            if (!store.Writable)
+            {
+                message = PersistenceStatus;
+                return false;
+            }
             if (!TryGetDonor(out GameObject donor))
-            { message = "The installed game's radio item reference did not match"; return false; }
-            if (!RadioPlacement.IsClear(position, rotation))
-            { message = "Move to a clear spot before spawning a radio"; return false; }
+            {
+                message = "The installed game's radio item reference did not match";
+                return false;
+            }
+            if (!RadioPlacement.IsClear(position, rotation, RadioDevice.Size((int)kind) * .5f + new Vector3(.02f, .02f, .06f), RadioDevice.Center((int)kind)))
+            {
+                message = "Move to a clear spot before spawning this device";
+                return false;
+            }
             GameObject instance = null;
             int createdId = 0;
             try
@@ -102,10 +236,16 @@ namespace SailwindRadio.Physical
                 saveable.Start();
                 saveable.RegisterToSave();
                 createdId = saveable.instanceId;
-                var state = new RadioState { TrackPath = configuredTrack?.Invoke() ?? "" };
+                var state = new RadioState
+                {
+                    Kind = (int)kind,
+                    Volume = kind == RadioDeviceKind.Radio ? .5f : .75f,
+                    TrackPath = kind == RadioDeviceKind.Radio ? configuredTrack?.Invoke() ?? "" : ""
+                };
                 store.Put(RadioRecord.Capture(saveable.instanceId, saveable.prefabIndex, state));
-                if (!Convert(saveable, state)) throw new InvalidOperationException("The native radio could not be initialized");
-                message = "Radio spawned. Click its power button to play";
+                if (!Convert(saveable, state))
+                    throw new InvalidOperationException("The native radio could not be initialized");
+                message = RadioDevice.Name((int)kind) + " spawned";
                 return true;
             }
             catch (Exception ex)
@@ -113,8 +253,10 @@ namespace SailwindRadio.Physical
                 if (instance)
                 {
                     var controller = instance.GetComponent<RadioItemController>();
-                    if (controller) items.Remove(controller);
+                    if (controller)
+                        items.Remove(controller);
                     store.Remove(createdId);
+                    arbiter.Remove(createdId);
                     instance.GetComponent<SaveablePrefab>()?.Unregister();
                     UnityEngine.Object.Destroy(instance);
                 }
@@ -128,9 +270,11 @@ namespace SailwindRadio.Physical
         {
             donor = null;
             var directory = PrefabsDirectory.instance;
-            if (!directory || directory.directory == null || directory.directory.Length <= RadioSaveStore.DonorIndex) return false;
+            if (!directory || directory.directory == null || directory.directory.Length <= RadioSaveStore.DonorIndex)
+                return false;
             donor = directory.directory[RadioSaveStore.DonorIndex];
-            if (!donor || donor.name != DonorName || (donor.transform.localScale - Vector3.one).sqrMagnitude > .0001f) return false;
+            if (!donor || donor.name != DonorName || (donor.transform.localScale - Vector3.one).sqrMagnitude > .0001f)
+                return false;
             var item = donor.GetComponent<ShipItem>();
             var save = donor.GetComponent<SaveablePrefab>();
             return item && item.GetType() == typeof(ShipItem) && !item.big && !item.wallAttachment && save &&
@@ -140,27 +284,80 @@ namespace SailwindRadio.Physical
 
         private bool Convert(SaveablePrefab saveable, RadioState state)
         {
-            if (!saveable) return false;
+            if (!saveable)
+                return false;
             var existing = saveable.GetComponent<RadioItemController>();
-            if (existing) return items.Contains(existing);
+            if (existing)
+                return items.Contains(existing);
             var item = saveable.GetComponent<ShipItem>();
             if (!TryGetDonor(out _) || !item || item.GetType() != typeof(ShipItem) ||
                 !item.sold || saveable.GetType() != typeof(SaveablePrefab) || saveable.prefabIndex != RadioSaveStore.DonorIndex ||
                 saveable.gameObject.name != DonorName + "(Clone)" || !saveable.GetComponent<BoxCollider>())
-            { warn("A saved radio did not match its expected native item and was left unchanged"); return false; }
+            {
+                warn("A saved radio did not match its expected native item and was left unchanged");
+                return false;
+            }
             var controller = saveable.gameObject.AddComponent<RadioItemController>();
-            controller.Initialize(this, state);
+            controller.Initialize(this, arbiter.Register(saveable.instanceId, state));
             items.Add(controller);
             return true;
         }
 
         internal void Report(string message) => warn(message);
 
+        internal void TogglePower(RadioItemController item)
+        {
+            if (disposed || loading || !store.Writable || !items.Contains(item) || manager != SaveLoadManager.instance)
+                return;
+            try
+            {
+                if (item.State.Kind != 0)
+                {
+                    item.State.SpeakerEnabled = !item.State.SpeakerEnabled;
+                    WriteCanonical(item.InstanceId);
+                    return;
+                }
+                arbiter.Toggle(item.InstanceId, CaptureAndStop);
+                arbiter.WriteTo(store);
+                ActionRequested?.Invoke(item, RadioAction.Power);
+            }
+            catch (Exception ex) { warn("Could not switch the active radio: " + ex.Message); }
+        }
+
+        internal void RequestAction(RadioItemController item, RadioAction action)
+        {
+            if (disposed || loading || !store.Writable || !items.Contains(item) ||
+                manager != SaveLoadManager.instance || !item.IsPlacedForControls)
+                return;
+            if (action == RadioAction.Power)
+            {
+                TogglePower(item);
+                return;
+            }
+            if (item.State.Kind != 0)
+                return;
+            ActionRequested?.Invoke(item, action);
+        }
+
+        private void CaptureAndStop(int id)
+        {
+            foreach (var item in items)
+            {
+                if (!item || item.InstanceId != id)
+                    continue;
+                item.CapturePosition?.Invoke();
+                item.SuspendPlayback?.Invoke();
+            }
+        }
+
         internal void Forget(RadioItemController item)
         {
             // Streaming also destroys objects. Retain its record so native cached reload can reconstruct it.
             if (items.Contains(item) && !disposed && !loading && manager == SaveLoadManager.instance && store.Writable)
-                try { store.Put(RadioRecord.Capture(item.InstanceId, RadioSaveStore.DonorIndex, item.State)); }
+                try
+                {
+                    WriteCanonical(item.InstanceId);
+                }
                 catch (Exception ex) { warn("Could not capture radio state during unload: " + ex.Message); }
             items.Remove(item);
         }
@@ -168,16 +365,21 @@ namespace SailwindRadio.Physical
         private void Save()
         {
             Tick();
-            if (!store.Writable || loading) return;
+            if (!store.Writable || loading)
+                return;
             BeforeSave?.Invoke();
             foreach (var item in items)
             {
-                if (!item) continue;
+                if (!item)
+                    continue;
                 item.CapturePosition?.Invoke();
-                store.Put(RadioRecord.Capture(item.InstanceId, RadioSaveStore.DonorIndex, item.State));
             }
+            // Includes cached radios displaced while no live object existed. Never let an old DTO
+            // reintroduce its former power state on the next native cached-item restoration.
+            arbiter.WriteTo(store);
             string json = store.Save();
-            if (GameState.modData == null) GameState.modData = new Dictionary<string, string>();
+            if (GameState.modData == null)
+                GameState.modData = new Dictionary<string, string>();
             GameState.modData[RadioSaveStore.Key] = json;
         }
 
@@ -187,6 +389,7 @@ namespace SailwindRadio.Physical
             loading = true;
             items.Clear();
             store.Load(null);
+            arbiter.Reset(Array.Empty<RadioRecord>());
             // Native LoadGame does not clear a static dictionary when the old save has null modData.
             GameState.modData?.Remove(RadioSaveStore.Key);
         }
@@ -196,9 +399,17 @@ namespace SailwindRadio.Physical
             string json = null;
             GameState.modData?.TryGetValue(RadioSaveStore.Key, out json);
             loading = false;
-            if (!store.Load(json)) { warn(PersistenceStatus); return; }
-            if (!manager) return;
-            foreach (var prefab in manager.GetCurrentPrefabs()) Restore(prefab);
+            if (!store.Load(json))
+            {
+                arbiter.Reset(Array.Empty<RadioRecord>());
+                warn(PersistenceStatus);
+                return;
+            }
+            arbiter.Reset(store.Records);
+            if (!manager)
+                return;
+            foreach (var prefab in manager.GetCurrentPrefabs())
+                Restore(prefab);
         }
 
         private void Restore(SaveablePrefab prefab)
@@ -213,28 +424,49 @@ namespace SailwindRadio.Physical
         private static void LoadPostfix() => Guard(() => active.ReadNativeData());
         private static void PrefabPostfix(SaveablePrefab __instance) => Guard(() => active.Restore(__instance));
         private static void CapturePrefix(SaveablePrefab __instance) => Guard(() => active.Capture(__instance));
+        private static void ControlHoverPostfix(LookUI __instance, GoPointerButton button) => Guard(() => RadioControlHover.ClearPickupHint(__instance, button));
         private void Capture(SaveablePrefab prefab)
         {
             var item = prefab.GetComponent<RadioItemController>();
-            if (!item || !items.Contains(item) || !store.Writable || loading) return;
+            if (!item || !items.Contains(item) || !store.Writable || loading)
+                return;
             item.CapturePosition?.Invoke();
-            store.Put(RadioRecord.Capture(item.InstanceId, prefab.prefabIndex, item.State));
+            WriteCanonical(item.InstanceId);
+        }
+
+        private void WriteCanonical(int id)
+        {
+            if (arbiter.TryGet(id, out var state))
+                store.Put(RadioRecord.Capture(id, RadioSaveStore.DonorIndex, state));
         }
         private static void Guard(Action action)
         {
-            if (active == null || active.disposed) return;
-            try { action(); } catch (Exception ex) { active.warn("Radio native integration failed: " + ex.Message); }
+            if (active == null || active.disposed)
+                return;
+            try
+            {
+                action();
+            }
+            catch (Exception ex) { active.warn("Radio native integration failed: " + ex.Message); }
         }
 
         public void Dispose()
         {
-            if (disposed) return;
+            if (disposed)
+                return;
             disposed = true;
-            foreach (var item in items) if (item) item.CapturePosition = null;
+            foreach (var item in items)
+                if (item)
+                {
+                    item.CapturePosition = null;
+                    item.SuspendPlayback = null;
+                }
             items.Clear();
-            foreach (var pair in patches) harmony.Unpatch(pair.Key, pair.Value);
+            foreach (var pair in patches)
+                harmony.Unpatch(pair.Key, pair.Value);
             patches.Clear();
-            if (active == this) active = null;
+            if (active == this)
+                active = null;
         }
     }
 }

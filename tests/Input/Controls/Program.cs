@@ -106,6 +106,19 @@ internal static class Program
         Refs.charController = null; Refs.ovrController = null; Refs.mouseCrosshair = null; GameState.playing = false;
         Callback(knob, "OnDestroy");
         Check(!knob.IsStickyClicked() && !pointer.Sticky, "teardown detaches pointer after native UI and controllers disappear");
+        (knob,pointer)=Fresh(); knob.AdjustBass=true; knob.Radio.State.Kind=3;
+        knob.OnActivate(pointer); GameInput.Scroll=1; knob.ExtraLateUpdate();
+        Check(knob.Radio.State.Bass==.75f && knob.Radio.State.Volume==.5f,"woofer bass knob changes bass independently from local volume");
+        GameInput.Scroll=100; knob.ExtraLateUpdate(); Check(knob.Radio.State.Bass==1,"bass clamps upper bound");
+        GameInput.Scroll=-100; knob.ExtraLateUpdate(); Check(knob.Radio.State.Bass==0,"bass clamps lower bound");
+        pointer.MainClick(); GameInput.Scroll=1; knob.ExtraLateUpdate();
+        Check(knob.Radio.State.Bass==0 && Refs.charController.enabled,"second click releases bass without leaking scroll");
+        (knob,pointer)=Fresh();knob.Mode=RadioKnobMode.Local;knob.OnActivate(pointer);GameInput.Scroll=-1;knob.ExtraLateUpdate();
+        Check(knob.Radio.State.LocalVolume==.75f&&knob.Radio.State.Volume==.5f&&knob.Radio.State.Bass==.5f,"radio local knob never changes master or bass");
+        pointer.MainClick();
+        (knob,pointer)=Fresh();knob.Mode=RadioKnobMode.Master;knob.OnActivate(pointer);GameInput.Scroll=1;knob.ExtraLateUpdate();
+        Check(knob.Radio.State.Volume==.75f&&knob.Radio.State.LocalVolume==1,"master knob changes shared volume independently");
+        pointer.MainClick();
         Console.WriteLine(checks + " production knob lifecycle checks passed with explicit native input doubles. Live click, scroll and menu behavior remain acceptance gates.");
     }
 }
