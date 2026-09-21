@@ -55,16 +55,15 @@ Prices use the game's local currency and reputation discounts. The initial Emera
 
 The current wood-and-brass appearance is the Al'Ankh style. Other regional appearances are planned later.
 
-### Current limits
+### Current limits/Known Issues
+
+- Reverb is heard in some ports when near places that NANDtweaks adds reverb. Working on a fix for this to allow both mods to coexist peacefully.
+- Only one shop is currently place in game in GRC, and it is a rough and bad shop placement. It needs a dedicated spot + actual NPC vendor and the correct stall, plus rearranging of the layout of the items.
+- Occasional stutters/freeze when loading a new track.
+- Radio amber dot display font doesn't correctly show special characters ($, &, etc).
+- Small speaker volume indicator on volume knob is visibly floating below the knob.
+- Buttons currently change to indicate their status. This will be changed to a subtle glow.
+- Storm interference setting currently is admittedly terrible. Will either be reworked completely or removed.
+
 
 One radio plays at a time. FLAC and playlist files remain later work. Cabin muffling follows native interior areas rather than every wall in the world.
-
-The active radio prepares one upcoming song while the current song plays. Initial playback and an uncached skip can still take time to load. This is not gapless playback. Speakers share decoded music rather than loading their own copies.
-
-Each audio file is limited to 128 MiB on disk and 256 MiB of decoded samples. A current track and prepared next track can together retain 512 MiB of native samples. MP3 upload can temporarily add another 256 MiB of samples, plus runtime overhead. Other radios can retain their current clips. Start with normal-length songs.
-
-See [the test checklist](docs/TESTING.md), [build instructions](docs/BUILDING.md) and [shop prices](docs/SHOPS.md).
-
-## License
-
-[MIT](LICENSE), including the original model sources. You may reuse this code and these models in your own game, including a commercial game. See [source attribution and dependencies](THIRD_PARTY_NOTICES.md).
