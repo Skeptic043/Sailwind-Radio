@@ -12,6 +12,22 @@ namespace UnityEngine
         public static implicit operator bool(Object x)=>x!=null&&!x.Destroyed;
         public static readonly List<Object> Found=new();
         public static T[] FindObjectsOfType<T>() where T:Object=>Found.FindAll(x=>x is T&&!x.Destroyed).ConvertAll(x=>(T)x).ToArray();
+        public static GameObject Instantiate(GameObject source,Transform parent)
+        {
+            var clone=new GameObject(source.name+"(Clone)");
+            clone.transform.SetParent(parent,false);
+            if(source.GetComponent<global::Shopkeeper>() is global::Shopkeeper)clone.AddComponent<global::Shopkeeper>();
+            if(source.GetComponent<Renderer>() is Renderer)clone.AddComponent<Renderer>();
+            if(source.GetComponent<SphereCollider>() is SphereCollider sourceSphere)
+            {
+                var sphere=clone.AddComponent<SphereCollider>();sphere.isTrigger=sourceSphere.isTrigger;sphere.radius=sourceSphere.radius;
+            }
+            else if(source.GetComponent<Collider>() is Collider sourceCollider)
+                clone.AddComponent<Collider>().isTrigger=sourceCollider.isTrigger;
+            foreach(var child in GameObject.All.ToArray())
+                if(child.transform.parent==source.transform)Instantiate(child,clone.transform);
+            return clone;
+        }
         public static void Destroy(Object x)
         {
             if(x==null||x.Destroyed)return;
@@ -29,12 +45,32 @@ namespace UnityEngine
         public Transform transform=>gameObject.transform;
         public string name=>gameObject.name;
         public T GetComponent<T>() where T:class=>gameObject.GetComponent<T>();
+        public T GetComponentInChildren<T>() where T:class=>null;
+        public T[] GetComponentsInChildren<T>(bool includeInactive=false) where T:class
+        {
+            var found=new List<T>();
+            foreach(var candidate in GameObject.All)
+                for(var parent=candidate.transform;parent!=null;parent=parent.parent)
+                    if(parent==transform)
+                    {
+                        if((includeInactive||candidate.activeInHierarchy) && candidate.GetComponent<T>() is T component)
+                            found.Add(component);
+                        break;
+                    }
+            return found.ToArray();
+        }
+        public T GetComponentInParent<T>() where T:class
+        {
+            for(var parent=transform;parent!=null;parent=parent.parent)
+                if(parent.gameObject.GetComponent<T>() is T component)return component;
+            return null;
+        }
     }
     public class MonoBehaviour:Component { public bool enabled=true; }
     public class Transform:Component
     {
         public Transform parent;
-        public Vector3 position,localScale=Vector3.one;
+        public Vector3 position,localPosition,localScale=Vector3.one;
         public Quaternion rotation;
         public Vector3 lossyScale=>localScale;
         public void SetParent(Transform value,bool world){parent=value;}
@@ -55,23 +91,40 @@ namespace UnityEngine
             if(value is ShopItemSpawner) AddComponent<MeshRenderer>();
             return value;
         }
-        public T GetComponent<T>() where T:class=>parts.TryGetValue(typeof(T),out var value)?value as T:null;
+        public T GetComponent<T>() where T:class
+        {
+            if(parts.TryGetValue(typeof(T),out var value))return value as T;
+            foreach(var part in parts.Values)if(part is T match)return match;
+            return null;
+        }
+        public T[] GetComponentsInChildren<T>(bool includeInactive=false) where T:class=>transform.GetComponentsInChildren<T>(includeInactive);
         public void SetActive(bool value){activeInHierarchy=value;}
     }
-    public class MeshRenderer:MonoBehaviour { }
-    public class Collider:Component { }
+    public class Renderer:MonoBehaviour { }
+    public class MeshRenderer:Renderer { }
+    public class Collider:Component { public bool enabled=true,isTrigger; }
+    public class SphereCollider:Collider { public float radius=2f; }
+    public class BoxCollider:Collider { public Vector3 center,size; }
+    public class Rigidbody:Component { public bool isKinematic,useGravity; }
+    public enum QueryTriggerInteraction { Collide }
     public class MissingComponentException:Exception { public MissingComponentException(string message):base(message){} }
     public class Camera:Component { public static Camera main; }
     public struct Vector3
     {
         public float x,y,z;
         public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}
-        public static Vector3 one=>new(1,1,1);
+        public static Vector3 one=>new(1,1,1);public static Vector3 zero=>new(0,0,0);
         public static Vector3 operator +(Vector3 a,Vector3 b)=>new(a.x+b.x,a.y+b.y,a.z+b.z);
         public static float Distance(Vector3 a,Vector3 b)=>MathF.Sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y)+(a.z-b.z)*(a.z-b.z));
     }
-    public struct Quaternion { public static Quaternion identity=>new(); }
-    public static class Physics { public static void SyncTransforms(){} }
+    public struct Quaternion { public static Quaternion identity=>new(); public static Quaternion Euler(float x,float y,float z)=>new();public static Quaternion operator *(Quaternion a,Quaternion b)=>new(); }
+    public static class Mathf { public static float Min(float a,float b)=>MathF.Min(a,b); }
+    public static class Physics
+    {
+        public static Collider[] Nearby=Array.Empty<Collider>();
+        public static void SyncTransforms(){}
+        public static Collider[] OverlapSphere(Vector3 p,float radius,int mask,QueryTriggerInteraction query)=>Nearby;
+    }
     public static class Time { public static float unscaledTime,deltaTime; }
 }
 namespace HarmonyLib
@@ -85,14 +138,24 @@ namespace HarmonyLib
     public class HarmonyMethod { public HarmonyMethod(Type type,string name){} }
 }
 public class SaveLoadManager:UnityEngine.Object { public static SaveLoadManager instance=new(); }
+public class IslandSceneryScene:UnityEngine.Component { public int parentIslandIndex; }
 public static class GameState { public static bool currentlyLoading; public static UnityEngine.Transform World=new UnityEngine.GameObject("world").transform; }
 public class Sun:UnityEngine.Object { public static Sun sun=new();public float localTime=12; }
 public class SaveablePrefab:UnityEngine.Component { public int instanceId;public bool registered; public void RegisterToSave(){registered=true;} }
-public static class PlayerGold { public static int[] currency={10000}; }
-public class Region:UnityEngine.Object { }
+public static class PlayerGold { public static int[] currency={10000,10000,10000,10000}; }
+public static class PlayerReputation { public static float[] retailDiscounts={0,0,0,0}; }
+public class CurrencyMarket:UnityEngine.Object { public static CurrencyMarket instance=new(); }
+public class UISoundPlayer:UnityEngine.Object { public static UISoundPlayer instance=new(); }
+public class BuyItemUI:UnityEngine.Object { public static BuyItemUI instance=new(); }
+public class DayLog:UnityEngine.Object { }
+public class DayLogs:UnityEngine.Object { public static DayLogs instance=new();public DayLog[] dayLogs={new(),new(),new(),new()}; }
+public class MoneyNotification:UnityEngine.Object { public static MoneyNotification instance=new(); }
+public enum PortRegion { alankh=0,emerald=1,medi=2,none=3 }
+public class Region:UnityEngine.Component { public static PortRegion DefaultPortRegion=PortRegion.emerald;public PortRegion portRegion=DefaultPortRegion; }
 public class ShipItem:UnityEngine.Component
 {
     public bool sold;
+    public int value=100;
     public bool held;
     public int Returns;
     public void ReturnToShopPos(){held=false;Returns++;}
@@ -104,18 +167,30 @@ public class Shopkeeper:UnityEngine.Component
 {
     private Region parentRegion=new();
     private ShopArea shop;
+    private object economy=new();
+    private UnityEngine.Transform homePos=new UnityEngine.GameObject("home").transform;
     internal void Register(ShopArea area){shop=area;}
-    internal bool FieldsUsed()=>parentRegion!=null&&shop!=null;
+    public void RegisterShop(ShopArea area){shop=area;}
+    internal bool FieldsUsed()=>parentRegion!=null&&shop!=null&&homePos!=null;
     private void SellItem(ShipItem item,int price,int currency){item.Sell();PlayerGold.currency[currency]-=price;}
     private int GetPrice(ShipItem item)=>1;
+    private void OnTriggerEnter(UnityEngine.Collider other){}
     internal void UnsafeSale(ShipItem item,int price,int currency){PlayerGold.currency[currency]-=price;item.Sell();}
 }
 public class ShopArea:UnityEngine.Component
 {
     public bool openAtNight;
-    public Shopkeeper Keeper;
-    public List<ShipItem> itemsForSale=new();
-    public Shopkeeper GetShopkeeper()=>Keeper;
+    private Shopkeeper keeper;
+    public Shopkeeper Keeper { get=>keeper; set=>keeper=value; }
+    // Unity does not call the managed field initializer of the installed native
+    // ShopArea when the component is created dynamically.
+    public List<ShipItem> itemsForSale;
+    public Shopkeeper GetShopkeeper()=>keeper;
+    private void OnTriggerEnter(UnityEngine.Collider other)
+    {
+        var item=other.GetComponent<ShipItem>();
+        if(item!=null && !itemsForSale.Contains(item))item.AddToShop(this);
+    }
 }
 public class ShopItemSpawner:UnityEngine.MonoBehaviour { public float priceMult; }
 public class NotificationUi:UnityEngine.Object { public static NotificationUi instance=new();public void ShowNotification(string text){} }
@@ -154,22 +229,24 @@ namespace SailwindRadio.Shops
     internal static class RadioShopCatalog
     {
         internal static readonly int[] StockKinds={3,2,2,0,0,1,1};
-        internal static bool Matches(ShopArea area)=>true;
     }
     internal static class RadioShopPlacement
     {
         internal static bool Clear=true;
         internal static int FailSlot=-1;
-        internal static bool TryStand(ShopArea a,out UnityEngine.Vector3 p,out UnityEngine.Quaternion r,out string reason){p=default;r=default;reason=Clear?"":"blocked";return Clear;}
+        internal static bool TryStand(IslandSceneryScene a,out UnityEngine.Vector3 p,out UnityEngine.Quaternion r,out string reason){RadioStandLayout.TryAnchor(a.parentIslandIndex,out var anchor,out _);p=a.transform.TransformPoint(anchor);r=default;reason=Clear?"":"blocked";return Clear;}
         internal static bool SlotClear(RadioShopStand stand,int index,int kind,out string reason){reason="blocked";return index!=FailSlot;}
     }
     internal sealed class RadioShopStand:UnityEngine.Component
     {
         internal static int Created;
-        internal static RadioShopStand Create(UnityEngine.Transform scenery,UnityEngine.Vector3 position,UnityEngine.Quaternion rotation)
+        internal bool Visible=true;
+        internal void SetVisible(bool visible){Visible=visible;}
+        internal UnityEngine.GameObject VendorVisual { get; private set; }
+        internal static RadioShopStand Create(UnityEngine.Transform scenery,UnityEngine.Vector3 position,UnityEngine.Quaternion rotation,int island)
         {
             Created++;var go=new UnityEngine.GameObject("test stand");go.transform.SetParent(scenery,false);go.transform.position=position;go.transform.rotation=rotation;
-            return go.AddComponent<RadioShopStand>();
+            var stand=go.AddComponent<RadioShopStand>();stand.VendorVisual=new UnityEngine.GameObject("vendor body");stand.VendorVisual.transform.SetParent(go.transform,false);stand.VendorVisual.AddComponent<UnityEngine.Collider>();return stand;
         }
     }
 }

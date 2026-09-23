@@ -25,6 +25,7 @@ namespace SailwindRadio.UI
         public bool IsOpen => lease.Owned;
         public RadioItemController CollectionRadio { get; private set; }
         public event Action<RadioDeviceKind> SpawnRequested;
+        public event Action StandPositionRequested;
         public event Action<RadioItemController,string[]> CollectionsChanged;
 
         public void ShowSpawnChooser()
@@ -83,7 +84,7 @@ namespace SailwindRadio.UI
         {
             if (!IsOpen) return;
             float width=Mathf.Min(440,Screen.width-24);
-            float height=Mathf.Min(CollectionRadio ? 430 : 310,Screen.height-24);
+            float height=Mathf.Min(CollectionRadio ? 430 : 380,Screen.height-24);
             GUILayout.Window(194043,new Rect((Screen.width-width)*.5f,(Screen.height-height)*.5f,width,height),
                 DrawWindow,CollectionRadio ? "Radio collections" : "Place a radio device");
         }
@@ -117,6 +118,7 @@ namespace SailwindRadio.UI
                         SpawnRequested?.Invoke((RadioDeviceKind)i);
                         break;
                     }
+                if (GUILayout.Button("Log stall position here")) StandPositionRequested?.Invoke();
                 if (!string.IsNullOrEmpty(message)) GUILayout.Label(message);
             }
             if (GUILayout.Button("Close")) Close();

@@ -1,13 +1,13 @@
 {
   "status": "passed",
   "blender": "4.5.13 LTS",
-  "runtime_sha256": "e97332d993642937f560d5591b2197d0a546dd1bdb4fd6413d49d9eb0a375fdd",
+  "runtime_sha256": "66f3bdc86a0fd06534d4af9fd91afdff9e98303eb649eb5000686e7410644aaf",
   "models": [
     {
       "kind": 0,
-      "authoring_objects": 83,
-      "parts": 24,
-      "triangles": 1834
+      "authoring_objects": 81,
+      "parts": 23,
+      "triangles": 1832
     },
     {
       "kind": 1,

@@ -15,13 +15,11 @@ namespace SailwindRadio.Models
         private readonly bool[] fallbackRequired = new bool[3];
         private readonly byte[] mask = new byte[DotMatrixFont.Width * DotMatrixFont.Height];
         private readonly Color32[] pixels = new Color32[DotMatrixFont.Width * DotMatrixFont.Height];
-        private bool fitPending;
-
         internal DotMatrixDisplay(Transform parent, Shader shader, List<UnityEngine.Object> owned)
         {
             root = new GameObject("Recessed dot matrix display");
             root.transform.SetParent(parent, false);
-            root.transform.localPosition = new Vector3(.104f, .248f, -.087f);
+            root.transform.localPosition = new Vector3(.075f, .18f, -.099f);
             texture = new Texture2D(DotMatrixFont.Width, DotMatrixFont.Height, TextureFormat.RGBA32, false)
             {
                 name = "Original radio glyph bitmap", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp
@@ -32,8 +30,8 @@ namespace SailwindRadio.Models
             var mesh = new Mesh
             {
                 name = "Radio display window",
-                vertices = new[] { new Vector3(-.133f, -.039f, 0), new Vector3(-.133f, .039f, 0),
-                    new Vector3(.133f, .039f, 0), new Vector3(.133f, -.039f, 0) },
+                vertices = new[] { new Vector3(-.166f, -.07f, 0), new Vector3(-.166f, .07f, 0),
+                    new Vector3(.166f, .07f, 0), new Vector3(.166f, -.07f, 0) },
                 uv = new[] { new Vector2(0, 0), new Vector2(0, 1), new Vector2(1, 1), new Vector2(1, 0) },
                 triangles = new[] { 0, 1, 2, 0, 2, 3 },
                 colors = new[] { Color.white, Color.white, Color.white, Color.white }
@@ -53,7 +51,7 @@ namespace SailwindRadio.Models
             {
                 var label = new GameObject("Unicode metadata " + index);
                 label.transform.SetParent(root.transform, false);
-                label.transform.localPosition = new Vector3(0, (50f - index * 50f) / DotMatrixFont.Height * .078f, -.0002f);
+                label.transform.localPosition = new Vector3(0, (56f - index * 56f) / DotMatrixFont.Height * .14f, -.0002f);
                 var text = label.AddComponent<TextMesh>();
                 text.font = font;
                 text.anchor = TextAnchor.MiddleCenter;
@@ -102,32 +100,11 @@ namespace SailwindRadio.Models
             texture.Apply(false, false);
             for (int index = 0; index < fallback.Length; index++)
                 fallback[index].text = fallbackRequired[index] ? marquee[index] : "";
-            fitPending = true;
         }
 
         internal void Tick()
         {
             RefreshBitmap();
-            if (!fitPending)
-                return;
-            fitPending = false;
-            for (int index = 0; index < fallback.Length; index++)
-            {
-                var text = fallback[index];
-                if (string.IsNullOrEmpty(text.text))
-                    continue;
-                Quaternion rotation = text.transform.rotation;
-                text.transform.localScale = Vector3.one;
-                text.transform.rotation = Quaternion.identity;
-                Vector3 size = text.GetComponent<Renderer>().bounds.size;
-                text.transform.rotation = rotation;
-                Vector3 scale = root.transform.lossyScale;
-                float height = index == 0 ? .018f : .015f;
-                float fit = size.y > 0 ? height * Mathf.Abs(scale.y) / size.y : 1;
-                if (size.x > 0)
-                    fit = Mathf.Min(fit, .255f * Mathf.Abs(scale.x) / size.x);
-                text.transform.localScale = Vector3.one * fit;
-            }
         }
 
         private void FontRebuilt(Font font)
@@ -135,7 +112,6 @@ namespace SailwindRadio.Models
             if (fallback[0] && fallbackMaterial && font == fallback[0].font)
             {
                 fallbackMaterial.mainTexture = font.material.mainTexture;
-                fitPending = true;
             }
         }
 

@@ -24,6 +24,8 @@ namespace SailwindRadio.Physical
         private SaveLoadManager manager;
         private bool loading;
         private bool disposed;
+        private bool malformedHouseReported;
+        internal static bool HookCompatible { get; private set; }
         public IReadOnlyList<RadioItemController> Items => items;
         public int ActiveRadioId => arbiter.ActiveId;
         public event Action BeforeSave;
@@ -130,6 +132,9 @@ namespace SailwindRadio.Physical
                 Patch(typeof(SaveablePrefab), "Load", nameof(PrefabPostfix), false);
                 Patch(typeof(SaveablePrefab), "PrepareSaveData", nameof(CapturePrefix), true);
                 TryPatchControlHover();
+                TryPatchHammerNail();
+                TryPatchNativeHooks();
+                TryPatchHouseTriggers();
             }
             catch { Dispose(); throw; }
         }
@@ -157,6 +162,109 @@ namespace SailwindRadio.Physical
                 patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
             }
             catch (Exception error) { warn("Radio control hint cleanup unavailable. Native hints remain visible. " + error.Message); }
+        }
+
+        private void TryPatchHammerNail()
+        {
+            try
+            {
+                var target = typeof(ShipItemHammer).GetMethod("CanNail", BindingFlags.Public | BindingFlags.Static,
+                    null, new[] { typeof(ShipItem) }, null);
+                if (target == null || target.ReturnType != typeof(bool))
+                    throw new MissingMethodException("Native hammer item check changed");
+                var patch = AccessTools.Method(typeof(RadioWorldService), nameof(HammerCanNailPostfix));
+                harmony.Patch(target, postfix: new HarmonyMethod(patch));
+                patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
+            }
+            catch (Exception error) { warn("Radio hammer locking unavailable. " + error.Message); }
+        }
+
+        private static void HammerCanNailPostfix(ShipItem item, ref bool __result)
+        {
+            if (__result || !item || !item.sold || active == null || active.disposed)
+                return;
+            var radio = item.GetComponent<RadioItemController>();
+            if (radio && radio.State != null && radio.State.Kind == 0 && active.items.Contains(radio))
+                __result = true;
+        }
+
+        private void TryPatchNativeHooks()
+        {
+            int first = patches.Count;
+            try
+            {
+                if (!RadioNativeHooks.Compatible)
+                    throw new MissingFieldException("Native HangableItem.currentHook contract changed");
+                PatchNativeHook(typeof(ShipItem), "OnPickup", Type.EmptyTypes, nameof(HookReleasePostfix), false);
+                PatchNativeHook(typeof(ShipItem), "OnEnterInventory", Type.EmptyTypes, nameof(HookInventoryPostfix), false);
+                PatchNativeHook(typeof(HangableItem), "LateUpdate", Type.EmptyTypes, nameof(HookPositionPrefix), true);
+                PatchNativeHook(typeof(HangableItem), "LateUpdate", Type.EmptyTypes, nameof(HookPositionPostfix), false);
+                HookCompatible = true;
+            }
+            catch (Exception error)
+            {
+                for (int i = patches.Count - 1; i >= first; i--)
+                {
+                    harmony.Unpatch(patches[i].Key, patches[i].Value);
+                    patches.RemoveAt(i);
+                }
+                HookCompatible = false;
+                warn("Radio hook placement unavailable on this game version. " + error.Message);
+            }
+        }
+
+        private void TryPatchHouseTriggers()
+        {
+            int first = patches.Count;
+            try
+            {
+                PatchNativeHook(typeof(ShipItem), "OnTriggerEnter", new[] { typeof(Collider) }, nameof(HouseTriggerPrefix), true);
+                PatchNativeHook(typeof(ShipItem), "OnTriggerExit", new[] { typeof(Collider) }, nameof(HouseTriggerPrefix), true);
+            }
+            catch (Exception error)
+            {
+                for (int i = patches.Count - 1; i >= first; i--)
+                {
+                    harmony.Unpatch(patches[i].Key, patches[i].Value);
+                    patches.RemoveAt(i);
+                }
+                warn("Radio house-trigger cleanup unavailable. " + error.Message);
+            }
+        }
+
+        private void PatchNativeHook(Type type, string name, Type[] arguments, string callback, bool prefix)
+        {
+            var target = type.GetMethod(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                null, arguments, null);
+            var patch = AccessTools.Method(typeof(RadioWorldService), callback);
+            if (target == null || target.ReturnType != typeof(void) || patch == null)
+                throw new MissingMethodException("Native radio hook contract changed: " + type.Name + "." + name);
+            harmony.Patch(target, prefix ? new HarmonyMethod(patch) : null, prefix ? null : new HarmonyMethod(patch));
+            patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
+        }
+
+        private static void HookReleasePostfix(ShipItem __instance) => Guard(() => { RadioNativeHooks.Release(__instance); });
+        private static void HookInventoryPostfix(ShipItem __instance) => Guard(() => RadioNativeHooks.EnterInventory(__instance));
+        private static void HookPositionPrefix(HangableItem __instance) => Guard(() => RadioNativeHooks.RejectPhantomHook(__instance));
+        private static void HookPositionPostfix(HangableItem __instance) => Guard(() => RadioNativeHooks.PositionBelowHook(__instance));
+        private static bool HouseTriggerPrefix(ShipItem __instance, Collider other)
+        {
+            if (active == null || active.disposed) return true;
+            try
+            {
+                if (RadioNativeHooks.AllowHouseTrigger(__instance, other)) return true;
+                if (!active.malformedHouseReported)
+                {
+                    active.malformedHouseReported = true;
+                    active.warn("Radio ignored a House trigger without a native SaveableObject");
+                }
+                return false;
+            }
+            catch (Exception error)
+            {
+                active.warn("Radio house-trigger compatibility check failed: " + error.Message);
+                return true;
+            }
         }
 
         public void Tick()
@@ -221,6 +329,7 @@ namespace SailwindRadio.Physical
             }
             GameObject instance = null;
             int createdId = 0;
+            bool nativeRegistrationAttempted = false;
             try
             {
                 instance = UnityEngine.Object.Instantiate(donor, position, rotation);
@@ -231,18 +340,23 @@ namespace SailwindRadio.Physical
                 saveable.instanceId = 0;
                 saveable.currentCrateId = 0;
                 saveable.SetParentObject(-1);
-                // A native save coroutine may already be resuming at this frame's end. Initialize its
-                // private component cache before adding this instance to the collection it enumerates.
-                saveable.Start();
-                saveable.RegisterToSave();
-                createdId = saveable.instanceId;
                 var state = new RadioState
                 {
                     Kind = (int)kind,
                     Volume = kind == RadioDeviceKind.Radio ? .5f : .75f,
                     TrackPath = kind == RadioDeviceKind.Radio ? configuredTrack?.Invoke() ?? "" : ""
                 };
-                store.Put(RadioRecord.Capture(saveable.instanceId, saveable.prefabIndex, state));
+                // A native save coroutine may already be resuming at this frame's end. Initialize its
+                // private component cache before adding this instance to the collection it enumerates.
+                saveable.Start();
+                // Native random allocation excludes only live native IDs. Reserve against retained
+                // radio records as well, before the object becomes visible to a native save.
+                createdId = ShopPurchaseReservation.Reserve(store, arbiter, state,
+                    () => UnityEngine.Random.Range(1, int.MaxValue),
+                    candidate => SaveablePrefab.existingInstanceIds != null && SaveablePrefab.existingInstanceIds.Contains(candidate));
+                saveable.instanceId = createdId;
+                nativeRegistrationAttempted = true;
+                saveable.RegisterToSave();
                 if (!Convert(saveable, state))
                     throw new InvalidOperationException("The native radio could not be initialized");
                 message = RadioDevice.Name((int)kind) + " spawned";
@@ -257,7 +371,8 @@ namespace SailwindRadio.Physical
                         items.Remove(controller);
                     store.Remove(createdId);
                     arbiter.Remove(createdId);
-                    instance.GetComponent<SaveablePrefab>()?.Unregister();
+                    if (nativeRegistrationAttempted)
+                        instance.GetComponent<SaveablePrefab>()?.Unregister();
                     UnityEngine.Object.Destroy(instance);
                 }
                 warn("Radio spawn failed: " + ex.Message);
@@ -466,7 +581,10 @@ namespace SailwindRadio.Physical
                 harmony.Unpatch(pair.Key, pair.Value);
             patches.Clear();
             if (active == this)
+            {
+                HookCompatible = false;
                 active = null;
+            }
         }
     }
 }

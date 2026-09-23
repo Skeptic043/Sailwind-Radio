@@ -8,6 +8,7 @@ namespace UnityEngine
  public class Component:Object
  {
   public Transform transform;
+  public GameObject gameObject=>transform.gameObject;
   public string name=>transform.name;
   public T GetComponent<T>() where T:Component=>transform.GetComponent<T>();
   public T GetComponentInParent<T>() where T:Component=>transform.GetComponentInParent<T>();
@@ -15,7 +16,8 @@ namespace UnityEngine
  public class Transform:Object
  {
   public string name="fixture";public Transform parent;public Vector3 position,localPosition,localScale=Vector3.one,lossyScale=Vector3.one;public Quaternion rotation=Quaternion.identity;
-  public Vector3 up=>rotation*Vector3.up;
+  public GameObject gameObject=new();
+  public Vector3 up=>rotation*Vector3.up;public Vector3 forward=>rotation*Vector3.forward;
   public Dictionary<Type,Component> Components=new();
   public T Add<T>() where T:Component,new(){var c=new T{transform=this};Components[typeof(T)]=c;return c;}
   public T GetComponent<T>() where T:Component=>Components.TryGetValue(typeof(T),out var c)?(T)c:null;
@@ -24,15 +26,17 @@ namespace UnityEngine
   public Vector3 TransformPoint(Vector3 v)=>position+rotation*Vector3.Scale(v,lossyScale);
   public Vector3 InverseTransformPoint(Vector3 v){var p=Quaternion.Inverse(rotation)*(v-position);return new(p.x/lossyScale.x,p.y/lossyScale.y,p.z/lossyScale.z);}
  }
+ public class GameObject:Object{public bool activeInHierarchy=true;}
  public struct Vector3
  {
   public float x,y,z;public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}
-  public static Vector3 one=>new(1,1,1);public static Vector3 up=>new(0,1,0);public static Vector3 down=>new(0,-1,0);
+  public static Vector3 one=>new(1,1,1);public static Vector3 up=>new(0,1,0);public static Vector3 down=>new(0,-1,0);public static Vector3 forward=>new(0,0,1);
   public float sqrMagnitude=>x*x+y*y+z*z;public float magnitude=>MathF.Sqrt(sqrMagnitude);public Vector3 normalized=>this*(1/magnitude);
   public static Vector3 operator +(Vector3 a,Vector3 b)=>new(a.x+b.x,a.y+b.y,a.z+b.z);
   public static Vector3 operator -(Vector3 a,Vector3 b)=>new(a.x-b.x,a.y-b.y,a.z-b.z);
   public static Vector3 operator *(Vector3 a,float b)=>new(a.x*b,a.y*b,a.z*b);
   public static Vector3 Scale(Vector3 a,Vector3 b)=>new(a.x*b.x,a.y*b.y,a.z*b.z);
+  public static Vector3 ProjectOnPlane(Vector3 vector,Vector3 normal)=>vector-normal*Dot(vector,normal);
   public static float Dot(Vector3 a,Vector3 b)=>a.x*b.x+a.y*b.y+a.z*b.z;
  }
  public struct Quaternion
@@ -48,7 +52,7 @@ namespace UnityEngine
  public class BoxCollider:Collider{public Vector3 center,size=Vector3.one;}
  public struct RaycastHit{public Collider collider;public Vector3 point,normal;}
  public enum QueryTriggerInteraction{Ignore,Collide}
- public static class Mathf{public static float Abs(float x)=>MathF.Abs(x);public static int FloorToInt(float x)=>(int)MathF.Floor(x);public static int Min(int x,int y)=>Math.Min(x,y);public static float Min(float x,float y)=>Math.Min(x,y);}
+ public static class Mathf{public const float Rad2Deg=180f/MathF.PI;public static float Abs(float x)=>MathF.Abs(x);public static float Atan2(float y,float x)=>MathF.Atan2(y,x);public static int FloorToInt(float x)=>(int)MathF.Floor(x);public static int Min(int x,int y)=>Math.Min(x,y);public static float Min(float x,float y)=>Math.Min(x,y);}
  public static class Physics
  {
   public static Collider Ground=new Transform().Add<Collider>();

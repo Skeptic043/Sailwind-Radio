@@ -6,7 +6,7 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <AssemblyName>SailwindRadio</AssemblyName>
     <RootNamespace>SailwindRadio</RootNamespace>
-    <Version>0.4.1</Version>
+    <Version>0.5.5</Version>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
     <!-- Source ZIP builds must match checkouts without inheriting an enclosing repository's metadata. -->

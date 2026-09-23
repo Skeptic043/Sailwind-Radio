@@ -3,44 +3,9 @@ using UnityEngine;
 
 namespace SailwindRadio
 {
-    public struct WeatherInterferenceSample
+    /// <summary>Low-frequency processing for the Turbo Wolfer output only.</summary>
+    public sealed class RadioBassFilter : MonoBehaviour
     {
-        public float Gain, Cutoff, Crackle;
-        public WeatherInterferenceSample(float gain, float cutoff, float crackle)
-        { Gain = gain; Cutoff = cutoff; Crackle = crackle; }
-    }
-
-    /// <summary>Pure rain-to-output tuning. Does not read or modify native game weather.</summary>
-    public static class WeatherInterference
-    {
-        public static WeatherInterferenceSample Sample(float rainIntensity, double realTime, bool enabled, float strength)
-        {
-            if (!enabled || Double.IsNaN(realTime) || Double.IsInfinity(realTime)) return new WeatherInterferenceSample(1, 22000, 0);
-            float rain = RadioSpeakerOutput.Clamp((rainIntensity - 2f) / 8f);
-            float amount = rain * (float)Math.Sqrt(RadioSpeakerOutput.Clamp(strength));
-            if (amount <= 0) return new WeatherInterferenceSample(1, 22000, 0);
-            // One short, softly edged event per five-second window. Pure deterministic phase
-            // avoids affecting Unity's global random sequence or playback progression.
-            double cycle = Math.Floor(Math.Max(0, realTime) / 5);
-            double pulseAt = 2 + 2 * (0.5 + 0.5 * Math.Sin(cycle * 12.9898));
-            double phase = Math.Max(0, realTime) - cycle * 5 - pulseAt;
-            float pulse = phase >= 0 && phase < .18 ? (float)Math.Pow(Math.Sin(Math.PI * phase / .18), 2) : 0f;
-            return new WeatherInterferenceSample(1f - .95f * amount * pulse,
-                22000f - 13000f * amount, amount * pulse);
-        }
-    }
-
-    /// <summary>Low-level static added only to the output buffer, never to shared clip PCM.</summary>
-    public sealed class RadioStaticFilter : MonoBehaviour
-    {
-        private volatile float amplitude;
-        private uint randomState = 0x6d2b79f5;
-        internal void SetLevel(float crackle, float outputGain)
-        {
-            // AudioSource applies endpoint gain to the filtered signal. Applying it here
-            // too made static vanish at ordinary knob settings. Keep only the mute gate.
-            amplitude = outputGain > 0 ? RadioSpeakerOutput.Clamp(crackle) * .18f : 0f;
-        }
         private volatile BassFilter bass;
         internal void SetProfile(int sampleRate, bool woofer)
         {
@@ -91,19 +56,13 @@ namespace SailwindRadio
         private void OnAudioFilterRead(float[] data, int channels) { Process(data, channels); }
         internal void Process(float[] data, int channels)
         {
-            float level = amplitude;
             BassFilter filter = bass;
-            if (channels <= 0 || (level <= 0 && filter == null)) return;
+            if (channels <= 0 || filter == null) return;
             for (int i = 0; i < data.Length; i += channels)
             {
-                randomState ^= randomState << 13;
-                randomState ^= randomState >> 17;
-                randomState ^= randomState << 5;
-                float noise = ((randomState & 0xffff) / 32767.5f - 1f) * level;
                 for (int channel = 0; channel < channels && i + channel < data.Length; channel++)
                 {
-                    float value = data[i + channel] + noise;
-                    if (filter != null) value = filter.Apply(value, channel);
+                    float value = filter.Apply(data[i + channel], channel);
                     data[i + channel] = RadioSpeakerOutput.Finite(value) ? Math.Max(-1f, Math.Min(1f, value)) : 0f;
                 }
             }

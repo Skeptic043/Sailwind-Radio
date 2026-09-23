@@ -56,6 +56,57 @@ internal static class Program
         Check(RadioDevice.Size(1).x==.14f&&RadioDevice.Size(1).y==.20f&&RadioDevice.Size(1).z==.12f,"satellite is compact surround size");
         Check(RadioDevice.Size(2).x==.367f&&RadioDevice.Size(2).y==.75f&&RadioDevice.Size(2).z==.4f,"normal speaker is narrower and taller");
         Check(RadioDevice.Size(3).x<1&&RadioDevice.Size(3).y<1&&RadioDevice.Size(3).z<1,"woofer fits within one metre cargo volume");
+        var hookRoot=new Transform{position=new Vector3(0,1,0)};
+        var radioBody=new Rigidbody();
+        var hookedRadio=new ShipItem{transform=hookRoot,nailed=true,itemRigidbodyC=new ItemRigidbody{Body=radioBody}};
+        var hookController=new RadioItemController{transform=hookRoot,State=new SailwindRadio.RadioState{Kind=0}};
+        var hangable=new HangableItem{transform=hookRoot};
+        var hookCollider=new Collider();
+        var hookBody=new ItemRigidbody();
+        var hookJoint=new ConfigurableJoint{connectedBody=radioBody};
+        hookBody.transform.Components.Add(typeof(ConfigurableJoint),hookJoint);
+        hookCollider.transform.Components.Add(typeof(ShipItemLampHook),new ShipItemLampHook{transform=hookCollider.transform,itemRigidbodyC=hookBody});
+        hangable.SetHook(hookCollider);
+        hookRoot.Components.Add(typeof(ShipItem),hookedRadio);
+        hookRoot.Components.Add(typeof(RadioItemController),hookController);
+        hookRoot.Components.Add(typeof(HangableItem),hangable);
+        RadioNativeHooks.PositionBelowHook(hangable);
+        Check(MathF.Abs(hookRoot.position.y-(1-RadioDevice.Size(0).y))<.0001f,"radio hook meets cabinet top instead of base");
+        RadioNativeHooks.Release(hookedRadio);
+        Check(!hangable.IsHanging()&&hangable.Disconnects==1&&hookedRadio.nailed,
+            "radio pickup releases native hook without changing hammer lock");
+        Check(!hookedRadio.DisembarkRestricted&&hookedRadio.DisembarkChanges==2,
+            "radio hook release undoes native stale disembark restriction");
+        RadioNativeHooks.EnterInventory(hookedRadio);
+        Check(hangable.Disconnects==1&&hookedRadio.DisembarkChanges==3&&!hookedRadio.DisembarkRestricted,
+            "inventory callback after pickup cannot release hook twice or retain boat restriction");
+        hangable.SetHook(hookCollider);hookController.State.Kind=1;
+        RadioNativeHooks.Release(hookedRadio);
+        Check(hangable.IsHanging()&&hangable.Disconnects==1,"speaker hook behavior remains native-owned");
+        hookController.State.Kind=0;hangable.SetHook(null);hookRoot.position=new Vector3(0,2,0);
+        RadioNativeHooks.PositionBelowHook(hangable);
+        Check(hookRoot.position.y==2,"unhooked radio retains placement position");
+        hangable.SetHook(hookCollider);hookJoint.connectedBody=new Rigidbody();
+        RadioNativeHooks.RejectPhantomHook(hangable);
+        Check(!hangable.IsHanging()&&hangable.Disconnects==1,"occupied hook marker is cleared without disconnecting another item's joint");
+        hookRoot.position=new Vector3(0,2,0);hangable.SetHook(hookCollider);
+        RadioNativeHooks.PositionBelowHook(hangable);
+        Check(hookRoot.position.y==2&&!hangable.IsHanging(),"occupied hook cannot move radio to a phantom attachment");
+        RadioNativeHooks.Release(hookedRadio);
+        Check(hangable.Disconnects==1&&hookedRadio.DisembarkChanges==3,"phantom hook does not invoke native disconnect on absent joint");
+        hookJoint.connectedBody=radioBody;hangable.SetHook(hookCollider);
+        hangable.DisconnectJoint();
+        Check(hookedRadio.DisembarkRestricted,"native unheld inventory path reproduces stale disembark restriction");
+        RadioNativeHooks.EnterInventory(hookedRadio);
+        Check(!hookedRadio.DisembarkRestricted&&hangable.Disconnects==2,
+            "inventory callback clears native restriction when native ExitBoat already disconnected");
+        var invalidHouse=new Collider{Tag="House"};
+        var validHouse=new Collider{Tag="House"};
+        validHouse.transform.Components.Add(typeof(SaveableObject),new SaveableObject());
+        Check(!RadioNativeHooks.AllowHouseTrigger(hookedRadio,invalidHouse),"radio ignores malformed native House trigger");
+        Check(RadioNativeHooks.AllowHouseTrigger(hookedRadio,validHouse),"valid House trigger still reaches native parent assignment");
+        Check(RadioNativeHooks.AllowHouseTrigger(hookedRadio,new Collider{Tag="EmbarkCol"}),"boat embark trigger remains native-owned");
+        Check(RadioNativeHooks.AllowHouseTrigger(new ShipItem(),invalidHouse),"ordinary vanilla donor item is unaffected");
         // Installed level24 PlayerNeedsUI PCParent and inventory_parent rotations, after
         // UpdateAnchor resets the UI root locally. The slots themselves have identity rotation.
         var pcParent=new System.Numerics.Quaternion(0,.840093613f,-.542441487f,0);
@@ -71,8 +122,8 @@ internal static class Program
         Check(front.Z<-.9f&&right.X>.99f&&up.Y>.9f,"native inventory correction faces camera with upright unmirrored controls");
         for(int kind=0;kind<4;kind++)Check(RadioDevice.SoundOrigin(kind).y>0.1f,"device sound originates above floor pivot");
         var visualState=new SailwindRadio.RadioState{Powered=true,Shuffle=true};
-        Check(DeviceControlVisuals.IsLit(visualState,"power",false)&&DeviceControlVisuals.IsLit(visualState,"playpause",false),"playing radio shows power and play lights");
-        visualState.Paused=true;Check(DeviceControlVisuals.IsLit(visualState,"power",false)&&!DeviceControlVisuals.IsLit(visualState,"playpause",false),"pause keeps power light but extinguishes play");
+        Check(DeviceControlVisuals.IsLit(visualState,"power",false)&&!DeviceControlVisuals.IsLit(visualState,"playpause",false),"playing radio shows power but no pause light");
+        visualState.Paused=true;Check(DeviceControlVisuals.IsLit(visualState,"power",false)&&DeviceControlVisuals.IsLit(visualState,"playpause",false),"pause keeps power light and illuminates pause");
         Check(DeviceControlVisuals.IsLit(visualState,"shuffle",false),"enabled shuffle remains indicated when paused");
         visualState.Powered=false;Check(!DeviceControlVisuals.IsLit(visualState,"power",false)&&!DeviceControlVisuals.IsLit(visualState,"shuffle",false)&&!DeviceControlVisuals.IsLit(visualState,"next",true),"power off extinguishes all state and momentary lights");
         visualState.Kind=3;visualState.SpeakerEnabled=true;Check(DeviceControlVisuals.IsLit(visualState,"power",false),"speaker uses its independent enabled state");
@@ -100,6 +151,12 @@ internal static class Program
             menus.ShowSpawnChooser();GUILayout.Click="Turbo Wolfer";menus.Draw();
             Check(spawned==RadioDeviceKind.TurboWoofer,"spawn chooser routes correct fourth device kind");
             menus.SetMessage("Move to a clear spot");menus.Draw();Check(menus.IsOpen&&GUILayout.Labels.Contains("Move to a clear spot"),"spawn failure is visible in chooser");
+            int markerCalls=0;
+            menus.StandPositionRequested+=()=>{markerCalls++;menus.SetMessage("Radio stand marker: local test");};
+            GUILayout.Click="Log stall position here";menus.Draw();
+            Check(markerCalls==1&&menus.IsOpen&&GUILayout.Labels.Contains("Radio stand marker: local test"),
+                "marker button reports once without closing or spawning");
+            menus.Draw();Check(markerCalls==1,"marker does not repeat without another click");
             menus.Close();var radio=new RadioItemController();
             menus.ShowCollections(radio,new[]{new CollectionChoice("A","Ocean",true),new CollectionChoice("B","Local",false)});
             GUILayout.ToggleLabel="Local";menus.Draw();GUILayout.ToggleLabel=null;

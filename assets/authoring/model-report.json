@@ -1,12 +1,12 @@
 {
   "blender": "4.5.13 LTS",
-  "source_sha256": "3b0aed3c29b24903c105f65d3c0ec558f9d443515fcd0fda878f0e3b74f713b6",
-  "runtime_sha256": "e97332d993642937f560d5591b2197d0a546dd1bdb4fd6413d49d9eb0a375fdd",
+  "source_sha256": "bfac2478f35332ba79fe18684a64f09a2ec598cb4652b67209718ce104783a2b",
+  "runtime_sha256": "66f3bdc86a0fd06534d4af9fd91afdff9e98303eb649eb5000686e7410644aaf",
   "models": [
     {
       "kind": 0,
-      "parts": 24,
-      "triangles": 1834
+      "parts": 23,
+      "triangles": 1832
     },
     {
       "kind": 1,

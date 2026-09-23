@@ -33,8 +33,8 @@ namespace SailwindRadio.Physical
         {
             internal string Key;
             internal Material Material;
+            internal Light Light;
             internal bool Active;
-            internal Color RestColor;
         }
         private readonly List<Glow> glows = new List<Glow>();
         private int renderedLayer = -1;
@@ -95,10 +95,18 @@ namespace SailwindRadio.Physical
             // Our models face -Z, so a local half-turn restores front-facing text and controls.
             item.inventoryRotation = RadioDevice.InventoryYaw;
             item.inventoryRotationX = 0;
+            // Native small-item holding positions the root at the pointer. The
+            // radio's root is at its base, so lower it by half its height to
+            // put the face and controls near the player's sight line.
+            item.holdHeight = State.Kind == 0 ? -RadioDevice.Center(0).y : 0f;
             if (item.wallAttachment && item.itemRigidbodyC && !item.held)
                 item.itemRigidbodyC.attached = true;
             item.value = SailwindRadio.Shops.RadioShopCatalog.BasePrice(State.Kind);
             BuildModel();
+            // The native lamp hook accepts a HangableItem on the held object. It is rebuilt after
+            // load alongside our model, while the saved native item keeps its original prefab ID.
+            if (State.Kind == 0 && RadioWorldService.HookCompatible && !GetComponent<HangableItem>())
+                gameObject.AddComponent<HangableItem>();
         }
 
         internal void RefreshOwnership()
@@ -178,6 +186,12 @@ namespace SailwindRadio.Physical
                 foreach (var part in parts.Values)
                     if (part)
                         part.layer = renderedLayer;
+                foreach (var glow in glows)
+                    if (glow.Light)
+                    {
+                        glow.Light.gameObject.layer = renderedLayer;
+                        glow.Light.cullingMask = 1 << renderedLayer;
+                    }
                 display?.SetLayer(renderedLayer);
             }
             foreach (var glow in glows)
@@ -187,9 +201,10 @@ namespace SailwindRadio.Physical
                 if (glow.Active != active)
                 {
                     glow.Active = active;
-                    // Only the inset symbol glows. Button caps and cabinet remain unlit.
-                    glow.Material.color = active ? new Color(.65f, .31f, .06f) : glow.RestColor;
-                    glow.Material.SetColor("_EmissionColor", active ? new Color(.42f, .13f, .018f) : Color.black);
+                    // Preserve the ivory inset. Emission supplies the AA-gold cue.
+                    glow.Material.SetColor("_EmissionColor", active ? new Color(.9f, .43f, .06f) : Color.black);
+                    if (glow.Light)
+                        glow.Light.enabled = active;
                 }
             }
             foreach (var knob in knobs)
@@ -199,7 +214,9 @@ namespace SailwindRadio.Physical
                 float angle = DeviceControlVisuals.KnobAngle(level);
                 if (!knobAngles.TryGetValue(knob, out float previous) || previous != angle)
                 {
-                    knob.transform.localRotation = Quaternion.Euler(0, 0, angle);
+                    knob.transform.localRotation = State.Kind == 0 &&
+                        (knob.Mode == RadioKnobMode.Master || knob.Mode == RadioKnobMode.Local)
+                        ? Quaternion.Euler(0, angle, 0) : Quaternion.Euler(0, 0, angle);
                     knobAngles[knob] = angle;
                 }
             }
@@ -231,12 +248,25 @@ namespace SailwindRadio.Physical
                 else if (DeviceModel.HasOwnLightMaterial(pair.Key))
                 {
                     var material = pair.Value.GetComponent<Renderer>().sharedMaterial;
-                    glows.Add(new Glow { Key = pair.Key.Substring(5), Material = material, RestColor = material.color });
+                    var halo = new GameObject("Local control glow");
+                    halo.transform.SetParent(pair.Value.transform, false);
+                    halo.transform.position = pair.Value.GetComponent<Renderer>().bounds.center +
+                        pair.Value.transform.TransformDirection(Vector3.back) * .008f;
+                    var light = halo.AddComponent<Light>();
+                    light.type = LightType.Point;
+                    light.color = new Color(1f, .62f, .13f);
+                    light.range = State.Kind == 0 || State.Kind == 1 ? .08f : .12f;
+                    light.intensity = .12f;
+                    light.shadows = LightShadows.None;
+                    light.enabled = false;
+                    glows.Add(new Glow { Key = pair.Key.Substring(5), Material = material, Light = light });
                 }
             }
             var box = GetComponent<BoxCollider>();
-            box.center = RadioDevice.Center(State.Kind);
-            box.size = RadioDevice.Size(State.Kind);
+            // Keep the radio's top controls above the pickup collider so
+            // native pointer raycasts can hit their own colliders first.
+            box.center = State.Kind == 0 ? new Vector3(0, .165f, 0) : RadioDevice.Center(State.Kind);
+            box.size = State.Kind == 0 ? new Vector3(.6f, .33f, .2f) : RadioDevice.Size(State.Kind);
             if (item.itemRigidbodyC)
             {
                 var physicsBox = item.itemRigidbodyC.GetComponent<BoxCollider>();

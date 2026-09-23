@@ -5,32 +5,39 @@ namespace SailwindRadio.Shops
 {
     internal static class RadioShopPlacement
     {
-        internal static bool TryStand(ShopArea area, out Vector3 position, out Quaternion rotation, out string reason)
+        internal static bool TryStand(IslandSceneryScene scenery, out Vector3 position, out Quaternion rotation, out string reason)
         {
             position = default;
             rotation = Quaternion.identity;
-            reason = "vendor geometry no longer matches";
-            if (!RadioShopCatalog.Matches(area)) return false;
-            int island = area.transform.parent.GetComponent<IslandSceneryScene>().parentIslandIndex;
-            if (!RadioStandLayout.TryAnchor(island, out var offset, out float yaw)) return false;
-            Vector3 expected = area.transform.position + area.transform.rotation * offset;
-            rotation = area.transform.rotation * Quaternion.Euler(0, yaw, 0);
-            if (!Ground(expected, out float height)) { reason = "no level static ground at the authored anchor"; return false; }
-            position = new Vector3(expected.x, height + .02f, expected.z);
+            reason = "not an authored capital scene";
+            if (!scenery || !RadioStandLayout.TryAnchor(scenery.parentIslandIndex, out var scenePosition, out float yaw)) return false;
+            Vector3 expected = scenery.transform.TransformPoint(scenePosition);
+            rotation = scenery.transform.rotation * Quaternion.Euler(0, yaw, 0);
+            // The authored location is a preview until a player checks it in the live scene.
+            // Ground and overlap problems must be visible rather than hiding the display.
+            bool supported = Ground(expected, out float height);
+            // Use the authored height for the preview. A static prop above the terrain
+            // must not lift the entire vendor onto that prop.
+            position = new Vector3(expected.x, expected.y + .02f, expected.z);
+            string diagnostics = supported ? "" : "no level static ground at the authored anchor";
+            if (supported && Mathf.Abs(height - expected.y) > .15f)
+                diagnostics = Append(diagnostics, "nearby support height differs from authored height by " + (height - expected.y));
+            bool uneven = false;
             foreach (float x in new[] { -1.1f, 1.1f, 1.39f, 2.21f })
                 foreach (float z in new[] { -.39f, .39f })
                 {
                     Vector3 foot = position + rotation * new Vector3(x, 0, z);
-                    if (!Ground(foot, out float y) || Mathf.Abs(y - height) > .045f)
-                    { reason = "uneven or missing ground beneath the display"; return false; }
+                    if (!Ground(foot, out float y) || Mathf.Abs(y - expected.y) > .045f)
+                        uneven = true;
                 }
+            if (uneven) diagnostics = Append(diagnostics, "uneven or missing ground beneath the display");
             string blocked = Blocker(position + rotation * RadioStandLayout.EnvelopeCenter, RadioStandLayout.EnvelopeHalf, rotation, null);
-            if (blocked != null) { reason = "display footprint blocked by " + blocked; return false; }
+            if (blocked != null) diagnostics = Append(diagnostics, "display footprint overlaps " + blocked);
             // Check the customer's approach in front, rather than a line through the native counter
             // from the merchant standing behind it.
             blocked = Blocker(position + rotation * new Vector3(.55f, .91f, -1.02f), new Vector3(1.8f, .85f, .38f), rotation, null);
-            if (blocked != null) { reason = "customer approach blocked by " + blocked; return false; }
-            reason = "";
+            if (blocked != null) diagnostics = Append(diagnostics, "customer approach overlaps " + blocked);
+            reason = diagnostics;
             return true;
         }
 
@@ -38,16 +45,19 @@ namespace SailwindRadio.Shops
         {
             var position = stand.transform.TransformPoint(RadioStandLayout.Slots[index]);
             Vector3 half = RadioDevice.Size(kind) * .5f + new Vector3(.02f, .008f, .025f);
-            reason = Blocker(position + stand.transform.rotation * RadioDevice.Center(kind), half, stand.transform.rotation, stand.transform);
-            return reason == null;
+            var rotation = stand.transform.rotation * RadioStandLayout.SlotRotation(kind);
+            reason = Blocker(position + rotation * RadioDevice.Center(kind), half, rotation, stand.transform);
+            return true;
         }
+
+        private static string Append(string previous, string message) => previous.Length == 0 ? message : previous + "; " + message;
 
         private static bool Ground(Vector3 expected, out float height)
         {
             height = 0;
-            if (!Physics.Raycast(expected + Vector3.up * .6f, Vector3.down, out var hit, 1.2f, ~0, QueryTriggerInteraction.Ignore) ||
-                !hit.collider || hit.normal.y < .98f || hit.collider.attachedRigidbody || hit.collider.GetComponentInParent<ShipItem>() ||
-                Mathf.Abs(hit.point.y - expected.y) > .22f) return false;
+            if (!Physics.Raycast(expected + Vector3.up, Vector3.down, out var hit, 3f, ~0, QueryTriggerInteraction.Ignore) ||
+                !hit.collider || hit.normal.y < .5f || hit.collider.attachedRigidbody || hit.collider.GetComponentInParent<ShipItem>() ||
+                Mathf.Abs(hit.point.y - expected.y) > 1.5f) return false;
             height = hit.point.y;
             return true;
         }

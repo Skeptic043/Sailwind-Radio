@@ -22,9 +22,6 @@ namespace SailwindRadio
         private RadioSpeakerOutput builtIn;
         private readonly Dictionary<int, RadioSpeakerOutput> endpoints = new Dictionary<int, RadioSpeakerOutput>();
         private readonly List<int> lostEndpoints = new List<int>();
-        private float interferenceGain = 1f;
-        private float interferenceCutoff = 22000f;
-        private float interferenceCrackle;
         private Vector3 listenerPosition;
         private bool listenerKnown;
         private AudioClip clip;
@@ -88,14 +85,6 @@ namespace SailwindRadio
 
         public void SetCarried(bool carried) { if (!disposed) builtIn.Carried = carried; }
 
-        public void SetInterference(float gain, float cutoff, float crackle)
-        {
-            if (disposed) return;
-            interferenceGain = RadioSpeakerOutput.Clamp(gain);
-            interferenceCutoff = IsFinite(cutoff) ? Math.Max(20f, Math.Min(22000f, cutoff)) : 22000f;
-            interferenceCrackle = RadioSpeakerOutput.Clamp(crackle);
-        }
-
         public void BeginEndpoints()
         {
             if (disposed) return;
@@ -108,7 +97,7 @@ namespace SailwindRadio
             RadioSpeakerProfile profile = RadioSpeakerProfile.ForKind(kind);
             if (profile == null) return;
             RadioSpeakerOutput endpoint;
-            if (!endpoints.TryGetValue(id, out endpoint) || endpoint.Emitter == null || endpoint.Source == null)
+            if (!endpoints.TryGetValue(id, out endpoint) || endpoint.Emitter == null || endpoint.Source == null || endpoint.Profile != profile)
             {
                 if (endpoint != null) endpoint.Dispose();
                 endpoint = new RadioSpeakerOutput("Sailwind Radio speaker " + id, profile, warning);
@@ -150,11 +139,11 @@ namespace SailwindRadio
             state.Volume = Single.IsNaN(state.Volume) ? 0.5f : Mathf.Clamp01(state.Volume);
             // Preserve the saved knob value. A lower ceiling and squared gain provide
             // useful quiet settings for a tabletop radio without changing playback time.
-            builtIn.Update(state.Volume, listenerPosition, listenerKnown, interferenceGain, interferenceCutoff, interferenceCrackle);
+            builtIn.Update(state.Volume, listenerPosition, listenerKnown);
             source.loop = RepeatTrack;
             foreach (var endpoint in endpoints.Values)
             {
-                endpoint.Update(state.Volume, listenerPosition, listenerKnown, interferenceGain, interferenceCutoff, interferenceCrackle);
+                endpoint.Update(state.Volume, listenerPosition, listenerKnown);
                 if (endpoint.Source != null) endpoint.Source.loop = RepeatTrack;
             }
             double dsp = AudioSettings.dspTime;

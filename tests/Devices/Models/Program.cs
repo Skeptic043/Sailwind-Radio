@@ -40,8 +40,13 @@ internal static class Program
                 if(model.kind==1)Check(part.vertices.Where((_,i)=>i%3==2).Max()<=.000001f,"satellite never extends behind its native wall contact plane");
                 if(part.name.StartsWith("control_"))
                 {
-                    float front=model.kind==1?-.12f:model.kind==2?-.2f:model.kind==3?-.375f:-.1f;
-                    Check(part.vertices.Where((_,i)=>i%3==2).Min()<front,"interactive control protrudes beyond native body collider");
+                    if(model.kind==0&&(part.name=="control_master"||part.name=="control_local"))
+                        Check(part.vertices.Where((_,i)=>i%3==1).Min()>.336f,"radio top knob targets rise clear of the shortened pickup collider");
+                    else
+                    {
+                        float front=model.kind==1?-.12f:model.kind==2?-.2f:model.kind==3?-.375f:-.1f;
+                        Check(part.vertices.Where((_,i)=>i%3==2).Min()<front,"front control protrudes beyond native body collider");
+                    }
                 }
             }
         }
@@ -65,7 +70,10 @@ internal static class Program
         state.SpeakerEnabled=false;
         Check(!DeviceControlVisuals.IsLit(state,"power",false),"satellite off extinguishes icon");
         Check(DotMatrixFont.Normalize("Café déjà vu — été…")=="CAFE DEJA VU - ETE...","original bitmap alphabet normalizes accents and punctuation");
-        Check(DotMatrixFont.CanRender("Across the Blue 123")&&!DotMatrixFont.CanRender("海辺の音楽"),"unsupported scripts explicitly select the unchanged-font fallback");
+        Check(DotMatrixFont.CanRender("Across the Blue 123")&&DotMatrixFont.CanRender("Joey Bada$$")&&DotMatrixFont.CanRender("Curren$y"),"dollar-sign artist metadata stays in the amber dot alphabet");
+        const string LongPlaytestTitle="baby jesus, da baby - billion dollar baby, song she loves me [prod. by sean the first]";
+        Check(DotMatrixFont.CanRender(LongPlaytestTitle),"bracketed production credit stays in the amber bitmap rather than an overflowing fallback TextMesh");
+        Check(!DotMatrixFont.CanRender("海辺の音楽"),"unsupported scripts explicitly select the unchanged-font fallback");
         Check(!DotMatrixFont.CanRender("\ud83c"),"truncated surrogate cannot throw while evaluating metadata");
         var blank=DotMatrixFont.Rasterize("","","");
         Check(blank.Length==DotMatrixFont.Width*DotMatrixFont.Height&&blank.All(p=>p==0),"powered-off bitmap is fully transparent");
@@ -76,38 +84,105 @@ internal static class Program
         var bitmap=DotMatrixFont.Rasterize("ACROSS THE BLUE","THE TRADE WINDS","EVENING PASSAGE");
         Check(bitmap.Any(p=>p==255)&&bitmap.Any(p=>p==210),"title and metadata use distinct restrained glyph intensities");
         Check(DotMatrixFont.Rasterize("海辺の音楽","","").All(p=>p==0),"fallback lines do not also draw replacement-question-mark bitmap text");
+        var longTitle=new MetadataMarquee();
+        longTitle.Set(true,LongPlaytestTitle,"Joey Bada$$","",900);
+        Check(longTitle.Advance(900)&&longTitle[0].Length==MetadataMarquee.VisibleCharacters&&
+            DotMatrixFont.Rasterize(longTitle[0],longTitle[1],"").Any(p=>p>0),
+            "long bracketed metadata is clipped to a bitmap viewport before painting");
         var marquee=new MetadataMarquee();
-        marquee.Set(true,"ABCDEFGHIJKLMNOPQRSTUVWX","SHORT ARTIST","ALBUM",100);
-        Check(marquee.Advance(100)&&marquee[0]=="ABCDEFGHIJKLMNOPQRST","marquee first frame is a readable twenty-character window");
-        Check(!marquee.Advance(101.99)&&marquee[0]=="ABCDEFGHIJKLMNOPQRST","initial two-second dwell causes no bitmap rebuild");
-        Check(marquee.Advance(102.35)&&marquee[0]=="BCDEFGHIJKLMNOPQRSTU"&&marquee[1]=="SHORT ARTIST","long title scrolls one character without moving short metadata");
+        marquee.Set(true,"ABCDEFGHIJKLMNOPQRSTUVWX","12345678901234567890","ALBUM",100);
+        Check(marquee.Advance(100)&&marquee[0]=="ABCDEFGHIJKLMNOP"&&marquee[1]=="1234567890123456","marquee first frame shows fixed-size sixteen-character windows");
+        Check(!marquee.Advance(101.99)&&marquee[0]=="ABCDEFGHIJKLMNOP","initial two-second dwell causes no bitmap rebuild");
+        Check(marquee.Advance(102.35)&&marquee[0]=="BCDEFGHIJKLMNOPQ"&&marquee[1]=="2345678901234567","long lines advance together on one clock");
         Check(!marquee.Advance(102.4),"ordinary intermediate frames do not allocate or upload another bitmap");
-        Check(marquee.Advance(103.4)&&marquee[0]=="EFGHIJKLMNOPQRSTUVWX","marquee reaches final character without discarding suffix");
-        Check(!marquee.Advance(105.39),"final window dwells for two seconds");
-        Check(marquee.Advance(105.4)&&marquee[0]=="ABCDEFGHIJKLMNOPQRST","marquee returns to first window after end dwell");
-        marquee.Set(false,"ABCDEFGHIJKLMNOPQRSTUVWX","SHORT ARTIST","ALBUM",106);
-        Check(marquee.Advance(106)&&marquee[0]==""&&marquee[1]=="","power off blanks every metadata line");
+        Check(marquee.Advance(104.8)&&marquee[0]=="IJKLMNOPQRSTUVWX"&&marquee[1]=="5678901234567890","shorter scrolling line holds at its suffix while the longest line reaches its end");
+        Check(!marquee.Advance(106.79),"all lines share the final two-second dwell");
+        Check(marquee.Advance(106.81)&&marquee[0]=="ABCDEFGHIJKLMNOP"&&marquee[1]=="1234567890123456","all lines restart together after the longest cycle");
+        marquee.Set(false,"ABCDEFGHIJKLMNOPQRSTUVWX","12345678901234567890","ALBUM",107);
+        Check(marquee.Advance(107)&&marquee[0]==""&&marquee[1]=="","power off blanks every metadata line");
         Check(!marquee.Advance(10000),"off display never uploads periodic empty frames");
-        marquee.Set(true,"ABCDEFGHIJKLMNOPQRSTUVWX","SHORT ARTIST","ALBUM",10000);
-        Check(marquee.Advance(10000)&&marquee[0]=="ABCDEFGHIJKLMNOPQRST"&&!marquee.Advance(10001),"power on restarts readable initial dwell");
-        marquee.Set(true,"NEW TITLE","SHORT ARTIST","ALBUM",10002);
-        Check(marquee.Advance(10002)&&marquee[0]=="NEW TITLE","track change immediately resets only changed line");
-        marquee.Set(true,"1234567890123456789😀Z","SHORT ARTIST","ALBUM",11000);
+        marquee.Set(true,"ABCDEFGHIJKLMNOPQRSTUVWX","12345678901234567890","ALBUM",10000);
+        Check(marquee.Advance(10000)&&marquee[0]=="ABCDEFGHIJKLMNOP"&&!marquee.Advance(10001),"power on restarts readable initial dwell");
+        marquee.Set(true,"NEW TITLE","12345678901234567890","ALBUM",10002);
+        Check(marquee.Advance(10002)&&marquee[0]=="NEW TITLE"&&marquee[1]=="1234567890123456","track change restarts every line together");
+        marquee.Set(true,"123456789012345😀Z","12345678901234567890","ALBUM",11000);
         marquee.Advance(11000);
         Check(marquee[0].EndsWith("😀"),"viewport boundary keeps a surrogate pair intact");
         for(int line=0;line<3;line++)
         {
-            string[] text={"","",""};text[line]=new string('W',34);
+            string[] text={"","",""};text[line]=new string('W',MetadataMarquee.VisibleCharacters);
             var raster=DotMatrixFont.Rasterize(text[0],text[1],text[2]);
-            Check(raster.Any(p=>p>0),"long metadata still produces fitted dot glyphs");
-            Check(!raster.Where((p,i)=>i%DotMatrixFont.Width<16||i%DotMatrixFont.Width>=DotMatrixFont.Width-16).Any(p=>p>0),"long line respects the display side margins");
+            Check(raster.Any(p=>p>0),"each full marquee window paints at the fixed glyph size");
+            Check(!raster.Where((p,i)=>i%DotMatrixFont.Width<16||i%DotMatrixFont.Width>=DotMatrixFont.Width-16).Any(p=>p>0),"fixed-size line respects the display side margins");
         }
         var radioModel=document.models.Single(m=>m.kind==0);
         var glass=radioModel.parts.Single(p=>p.name=="screen");
-        Check(glass.vertices.Where((_,i)=>i%3==2).Min()>-.1f,"glass is recessed inside the cabinet front rather than attached on top");
-        Check(glass.vertices.Where((_,i)=>i%3==1).Max()<.30f,"screen leaves visible cabinet top margin");
-        foreach(var point in new[]{(-.025f,.213f),(.233f,.213f),(-.025f,.283f),(.233f,.283f),(.104f,.248f)})
-            Check(!radioModel.parts.Where(p=>p.name=="body").Any(p=>Occludes(p,point.Item1,point.Item2,-.087f)),"actual cabinet triangles leave the recessed glyph window visible");
+        Check(glass.vertices.Where((_,i)=>i%3==2).Min()>-.1f&&glass.vertices.Where((_,i)=>i%3==2).Min()<-.09f,"glass sits in a shallow inset inside the cabinet front");
+        Check(glass.vertices.Where((_,i)=>i%3==0).Min()>-.28f&&glass.vertices.Where((_,i)=>i%3==0).Max()<.28f,
+            "screen glass stays inside the front baffle side margins");
+        Check(glass.vertices.Where((_,i)=>i%3==1).Max()<.27f&&glass.vertices.Where((_,i)=>i%3==1).Min()>.10f,
+            "screen occupies the center of the front face with a lower control margin");
+        foreach(var point in new[]{(-.085f,.115f),(.235f,.115f),(-.085f,.245f),(.235f,.245f),(.075f,.18f)})
+            Check(!radioModel.parts.Where(p=>p.name=="body").Any(p=>Occludes(p,point.Item1,point.Item2,-.099f)),"cabinet and bezel leave the lowered shallow glyph window visible");
+        var master=radioModel.parts.Single(p=>p.name=="control_master");
+        var local=radioModel.parts.Single(p=>p.name=="control_local");
+        var power=radioModel.parts.Single(p=>p.name=="control_power");
+        Check(master.pivot[0]<-.17f&&local.pivot[0]>.17f&&
+            master.vertices.Where((_,i)=>i%3==1).Min()>.336f&&local.vertices.Where((_,i)=>i%3==1).Min()>.336f,
+            "left and right top knobs stand clear of the shortened pickup collider at y=.33");
+        Check(Math.Abs(master.pivot[0]+local.pivot[0])<.00001f&&
+            Math.Abs(master.pivot[2]-local.pivot[2])<.00001f&&
+            master.pivot[2]>-.04f,
+            "top volume knobs are symmetric and moved toward the handle");
+        var topLabels=radioModel.parts.Single(p=>p.name=="body"&&
+            document.materials[p.material].name=="Ivory control inlay");
+        Check(topLabels.vertices.Where((_,i)=>i%3==2).All(z=>z>-.075f&&z<-.055f),
+            "top control labels moved back with their knobs and remain on the cabinet");
+        var brass=radioModel.parts.Single(p=>p.name=="body"&&
+            document.materials[p.material].name=="Brushed warm brass");
+        var railPoints=Enumerable.Range(0,brass.vertices.Length/3)
+            .Select(i=>(x:brass.vertices[i*3],y:brass.vertices[i*3+1],z:brass.vertices[i*3+2]))
+            .Where(p=>Math.Abs(p.x)>.265f&&Math.Abs(p.x)<.275f&&p.y>.02f&&p.y<.05f&&p.z>-.12f&&p.z<-.105f).ToArray();
+        Check(railPoints.Any(p=>p.x<0)&&railPoints.Any(p=>p.x>0)&&
+            railPoints.Where(p=>p.x<0).All(p=>railPoints.Any(q=>q.x>0&&Math.Abs(q.x+p.x)<.00001f&&
+                Math.Abs(q.y-p.y)<.00001f&&Math.Abs(q.z-p.z)<.00001f)),
+            "left and right front brass border lines mirror each other");
+        Check(power.vertices.Where((_,i)=>i%3==0).Min()>.19f&&
+            power.vertices.Where((_,i)=>i%3==1).Max()<glass.vertices.Where((_,i)=>i%3==1).Min()&&
+            power.vertices.Where((_,i)=>i%3==2).Min()<-.13f,
+            "larger front-facing power cap is at the lower right and protrudes ahead of the pickup collider");
+        Check(Math.Abs((power.vertices.Where((_,i)=>i%3==0).Min()+power.vertices.Where((_,i)=>i%3==0).Max())*.5f-.228f)<.00001f&&
+            Math.Abs((power.vertices.Where((_,i)=>i%3==1).Min()+power.vertices.Where((_,i)=>i%3==1).Max())*.5f-.058f)<.00001f,
+            "front power button moves slightly left and up while retaining its control mesh");
+        Check(master.vertices.Where((_,i)=>i%3==1).Min()>glass.vertices.Where((_,i)=>i%3==1).Max()&&
+            local.vertices.Where((_,i)=>i%3==1).Min()>glass.vertices.Where((_,i)=>i%3==1).Max()&&
+            radioModel.parts.Where(p=>p.name=="control_previous"||p.name=="control_playpause"||p.name=="control_next"||
+                p.name=="control_shuffle"||p.name=="control_collections").All(p=>p.vertices.Where((_,i)=>i%3==1).Min()>.02f&&
+                    p.vertices.Where((_,i)=>i%3==2).Min()<-.13f),
+            "all five front actions remain separated from the screen and project ahead of the pickup collider");
+        var grille=radioModel.parts.Single(p=>p.name=="body"&&document.materials[p.material].name=="Charcoal speaker cloth");
+        Check(grille.vertices.Where((_,i)=>i%3==0).Min()>-.273f&&
+            grille.vertices.Where((_,i)=>i%3==0).Max()<-.105f,
+            "radio grille stays inside the front baffle and clear of the screen bezel");
+        Check(Math.Abs((grille.vertices.Where((_,i)=>i%3==0).Min()+grille.vertices.Where((_,i)=>i%3==0).Max())*.5f+.185f)<.00001f,
+            "radio speaker cloth is centered a little farther right in its front-face area");
+        var satellite=document.models.Single(m=>m.kind==1);
+        var volume=satellite.parts.Single(p=>p.name=="control_volume");
+        var marker=satellite.parts.Single(p=>p.name=="icon_volume");
+        Check(marker.vertices.Where((_,i)=>i%3==1).Max()<=volume.vertices.Where((_,i)=>i%3==1).Min()&&
+            volume.vertices.Where((_,i)=>i%3==1).Min()-marker.vertices.Where((_,i)=>i%3==1).Max()<.004f,
+            "small speaker volume marker sits directly below the dial");
+        Check(marker.vertices.Where((_,i)=>i%3==2).Min()>-.135f&&marker.vertices.Where((_,i)=>i%3==2).Max()<-.129f,
+            "small speaker marker rests near the front baffle instead of floating in front of it");
+        foreach(var (kind,name,faceBottom) in new[]{(2,"volume",.04125f),(3,"bass",.0495f)})
+        {
+            var speaker=document.models.Single(m=>m.kind==kind);
+            var dial=speaker.parts.Single(p=>p.name=="control_"+name);
+            var legend=speaker.parts.Single(p=>p.name=="icon_"+name);
+            Check(legend.vertices.Where((_,i)=>i%3==1).Min()>faceBottom&&
+                legend.vertices.Where((_,i)=>i%3==1).Max()<dial.vertices.Where((_,i)=>i%3==1).Min(),
+                "large speaker and Wolfer dial legends remain fully on their front baffles below the controls");
+        }
         Console.WriteLine(checks+" embedded model geometry checks passed using production JSON reader. Runtime rendering remains a live check.");
     }
 

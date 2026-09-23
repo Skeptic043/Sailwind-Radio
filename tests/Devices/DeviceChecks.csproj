@@ -6,6 +6,7 @@
     <Compile Include="..\..\src\Physical\DeviceVessels.cs" Link="DeviceVessels.cs" />
     <Compile Include="..\..\src\Physical\RadioDeviceKind.cs" Link="RadioDeviceKind.cs" />
     <Compile Include="..\..\src\Physical\RadioControlReach.cs" Link="RadioControlReach.cs" />
+    <Compile Include="..\..\src\Physical\RadioNativeHooks.cs" Link="RadioNativeHooks.cs" />
     <Compile Include="..\..\src\Physical\DeviceControlVisuals.cs" Link="DeviceControlVisuals.cs" />
     <Compile Include="..\..\src\RadioState.cs" Link="RadioState.cs" />
   </ItemGroup>

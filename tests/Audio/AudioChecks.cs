@@ -31,7 +31,8 @@ static class AudioChecks
         Check(player.Status == "Loading" && source.Schedules == 0, "Async load does not start output");
         Check(!Request.downloadHandler.streamAudio, "Single decoded clip supports exact sample seeking");
         Check(UnityWebRequestMultimedia.LastUri.Contains("%23") && UnityWebRequestMultimedia.LastUri.Contains("%25"), "File URI escapes filename symbols");
-        Check(source.pitch == 1 && source.dopplerLevel == 0 && source.spatialBlend == 1 && !source.ignoreListenerPause, "Real time positional source settings");
+        Check(source.pitch == 1 && source.dopplerLevel == 0 && source.spatialBlend == 1 && !source.ignoreListenerPause && source.bypassReverbZones,
+            "Real time positional source keeps listener pause and bypasses external reverb zones");
         Check(emitter.transform.position.x == 1 && emitter.transform.position.z == 3, "Independent emitter follows requested position");
         var firstRequest = Request;
         Request.isDone = true;
@@ -155,7 +156,6 @@ static class AudioChecks
         CheckMp3(path);
         CheckTabletopVolume();
         CheckEndpointLifecycle(path);
-        CheckWeather();
         CheckBassDsp();
         CheckPreload(path);
         CheckPauseTimeline(path);
@@ -187,9 +187,9 @@ static class AudioChecks
         player.Tick(new Vector3(), false);
         Check(source.volume == 0, "No listener provided defaults to silent output");
         player.SetAcoustics(new Vector3(), true, 0);
-        Check(highPass.cutoffFrequency == 650 && highPass.highpassResonanceQ == 1 &&
-            lowPass.cutoffFrequency == 8500 && lowPass.lowpassResonanceQ == 1,
-            "Built-in speaker uses low-resonance 650 Hz high-pass and 8500 Hz low-pass components");
+        Check(highPass.cutoffFrequency == 900 && highPass.highpassResonanceQ == 1 &&
+            lowPass.cutoffFrequency == 5000 && lowPass.lowpassResonanceQ == 1,
+            "Built-in radio uses a narrower low-resonance 900–5000 Hz bandpass");
         float[] settings = { 0f, 0.25f, 0.5f, 0.65f, 1f };
         float[] gains = { 0f, 0.015625f, 0.0625f, 0.105625f, 0.25f };
         bool valid = true;
@@ -252,7 +252,7 @@ static class AudioChecks
         Time.unscaledDeltaTime = 0.25f;
         player.SetAcoustics(new Vector3(), true, 1);
         player.Tick(new Vector3(), false);
-        Check(source.volume > 0.0875f && source.volume < 0.25f && lowPass.cutoffFrequency > 1500 && lowPass.cutoffFrequency < 8500,
+        Check(source.volume > 0.0875f && source.volume < 0.25f && lowPass.cutoffFrequency > 1500 && lowPass.cutoffFrequency < 5000,
             "Obstruction gain and tone transition smoothly during one unscaled time constant");
         for (int i = 0; i < 20; i++) player.Tick(new Vector3(), false);
         Check(Math.Abs(source.volume - 0.0875f) < 0.000001f && Math.Abs(lowPass.cutoffFrequency - 1500) < 0.01f,
@@ -264,7 +264,7 @@ static class AudioChecks
         player.Tick(new Vector3(), false);
         Check(source.volume > 0.0875f && source.volume < 0.25f, "Door reopening restores gain gradually");
         for (int i = 0; i < 20; i++) player.Tick(new Vector3(), false);
-        Check(Math.Abs(source.volume - 0.25f) < 0.000001f && Math.Abs(lowPass.cutoffFrequency - 8500) < 0.01f,
+        Check(Math.Abs(source.volume - 0.25f) < 0.000001f && Math.Abs(lowPass.cutoffFrequency - 5000) < 0.01f,
             "Clear endpoint returns to original speaker profile");
         Time.unscaledDeltaTime = 1f / 60;
         player.Dispose();
@@ -295,8 +295,10 @@ static class AudioChecks
         player.SetEndpoint(1, new Vector3(1, 0, 0), false, 1, .8f, 1, 0);
         var small = AudioSource.Last;
         var smallHigh = AudioHighPassFilter.Last;
+        var smallLow = AudioLowPassFilter.Last;
         player.SetEndpoint(2, new Vector3(2, 0, 0), false, 2, 1, 1, 0);
         var normal = AudioSource.Last;
+        var normalHigh = AudioHighPassFilter.Last;
         var normalLow = AudioLowPassFilter.Last;
         player.SetEndpoint(3, new Vector3(), false, 3, 1, .7f, 0);
         var woofer = AudioSource.Last;
@@ -313,8 +315,12 @@ static class AudioChecks
             "Initial endpoints schedule identical sample frames on the authoritative DSP start");
         Check(!radio.loop && !small.loop && !normal.loop && !woofer.loop,
             "Playlist non-repeat mode reaches every source");
-        Check(smallHigh.cutoffFrequency == 500 && small.maxDistance == 15 && normalLow.cutoffFrequency == 22000 && normal.maxDistance == 20 &&
-            wooferLow.cutoffFrequency == 140, "Small, normal and woofer outputs receive distinct native tone and range profiles");
+        Check(smallHigh.cutoffFrequency == 600 && smallLow.cutoffFrequency == 9000 && small.maxDistance == 15 &&
+            normalHigh.cutoffFrequency == 160 && normalLow.cutoffFrequency == 18000 && normal.maxDistance == 20 &&
+            wooferLow.cutoffFrequency == 140 && small.bypassReverbZones && normal.bypassReverbZones && woofer.bypassReverbZones,
+            "Small, normal and woofer outputs receive distinct native tone and range profiles without external reverb");
+        Check(Math.Abs(small.volume - .35f * .5f * .5f * .8f * .8f) < .000001f,
+            "Small speaker tone change retains its previous local and master gain");
         Check(Math.Abs(woofer.volume - .25f * (float)Math.Sqrt(.7f)) < .000001f,
             "Woofer bass strength scales only its local bass output");
 
@@ -369,14 +375,12 @@ static class AudioChecks
         Check(radio.timeSamples == 192000 && normal.timeSamples == 192000 && joined.timeSamples == 192000 &&
             radio.ScheduledAt == joined.ScheduledAt,
             "Device reset recovers radio and endpoints from one pre-reset position");
-        player.SetInterference(0, 900, .5f);
         AudioSettings.dspTime += .1;
         radio.timeSamples = 196800;
         int schedules = radio.Schedules;
         player.Tick(new Vector3(), false);
-        Check(radio.volume == 0 && normal.volume == 0 && joined.volume == 0 && state.PositionSeconds == 4.05 && radio.Schedules == schedules,
-            "Shared interference can silence output without consuming a pause or changing the authoritative timeline");
-        player.SetInterference(1, 22000, 0);
+        Check(radio.volume > 0 && normal.volume > 0 && joined.volume > 0 && state.PositionSeconds == 4.05 && radio.Schedules == schedules,
+            "Every output remains audible while the shared playback timeline advances");
 
         AudioSettings.dspTime = radio.ScheduledAt + (shared.samples - 192000) / (double)shared.frequency + .01;
         player.Tick(new Vector3(), false);
@@ -398,37 +402,6 @@ static class AudioChecks
         player.Dispose();
         Check(normal.Destroyed && joined.Destroyed && AudioSettings.Subscribers == 0,
             "Radio teardown owns and disposes all external emitters and subscriptions");
-    }
-
-    static void CheckWeather()
-    {
-        var clear = WeatherInterference.Sample(10, 8.08, false, 1);
-        Check(clear.Gain == 1 && clear.Cutoff == 22000 && clear.Crackle == 0,
-            "Disabled weather processing is neutral even in heavy rain");
-        clear = WeatherInterference.Sample(0, 8.08, true, 1);
-        Check(clear.Gain == 1 && clear.Cutoff == 22000 && clear.Crackle == 0,
-            "Clear weather does not alter source output");
-        int activeFrames = 0;
-        bool bounded = true;
-        for (int i = 0; i < 1100; i++)
-        {
-            var value = WeatherInterference.Sample(10, i / 100d, true, 1);
-            if (value.Crackle > 0) activeFrames++;
-            bounded &= value.Gain >= .0499f && value.Gain <= 1 && value.Crackle >= 0 && value.Crackle <= 1 && value.Cutoff >= 20;
-        }
-        Check(bounded && activeFrames > 0 && activeFrames <= 54,
-            "Heavy-rain interference has bounded output and no event longer than 0.18 seconds per five-second window");
-        var mild = WeatherInterference.Sample(10, 3.09, true, .35f);
-        var strong = WeatherInterference.Sample(10, 3.09, true, 1);
-        Check(mild.Gain > strong.Gain && mild.Crackle < strong.Crackle,
-            "Interference strength scales the same deterministic weather event");
-        var filter = new RadioStaticFilter();
-        var samples = new float[128];
-        filter.SetLevel(.5f, 0); filter.Process(samples, 2);
-        Check(Array.TrueForAll(samples, sample => sample == 0), "Static cannot leak from an inaudible source");
-        filter.SetLevel(.5f, .25f); filter.Process(samples, 2);
-        Check(Array.Exists(samples, sample => sample != 0) && Array.TrueForAll(samples, sample => Math.Abs(sample) <= .09001f),
-            "Static is low-amplitude output-buffer noise with no clip mutation or global random use");
     }
 
     static void CheckPauseTimeline(string path)
@@ -543,7 +516,7 @@ static class AudioChecks
     {
         foreach (int rate in new[] { 44100, 48000, 96000 })
         {
-            var filter = new RadioStaticFilter();
+            var filter = new RadioBassFilter();
             filter.SetProfile(rate, true);
             var signal = new float[rate * 2];
             for (int i = 0; i < rate; i++)
@@ -560,11 +533,11 @@ static class AudioChecks
             Array.Clear(signal, 0, signal.Length); filter.Process(signal, 2);
             Check(Array.TrueForAll(signal, value => value == 0), "Sample-rate change replaces coefficient bank and clears old delay state");
             for (int i = 0; i < signal.Length; i++) signal[i] = i % 10 == 0 ? Single.NaN : 1000;
-            filter.SetLevel(1, 1); filter.Process(signal, 2);
+            filter.Process(signal, 2);
             Check(Array.TrueForAll(signal, value => !Single.IsNaN(value) && !Single.IsInfinity(value) && Math.Abs(value) <= 1),
-                "Woofer output limiter remains finite and bounded for over-range PCM and full static");
+                "Woofer output limiter remains finite and bounded for over-range PCM");
         }
-        var mono = new RadioStaticFilter();
+        var mono = new RadioBassFilter();
         mono.SetProfile(48000, true);
         var block = new float[2048];
         mono.Process(block, 2); // JIT/warmup outside the allocation observation.

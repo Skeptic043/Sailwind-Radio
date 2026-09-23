@@ -1,43 +1,38 @@
-# Capital shops
+# Capital Radio stalls
 
-Version 0.4.1 uses dedicated displays beside the approved capital navigation vendors. The 0.4.0 Gold Rock playtest found no stock, and its log confirmed that every individual placement attempt was rejected. Native purchase and the revised placement still require in-game acceptance.
+Version 0.5.5 is a local test candidate. The three Radio stalls and merchant instances are created by the mod. Each merchant copies a native Sailwind NPC as a visual and behavior template, leaving the original untouched. Radio owns each new merchant, stand, trigger and stock. The screenshots identify approximate locations, not exact world coordinates. Live appearance and placement remain for the player's review.
 
 ## Placement
 
-Use the existing navigation-equipment vendor in Gold Rock City, Dragon Cliffs and Fort Aestrin. Their stock already includes instruments such as compasses, clocks and maps. This fits a maritime radio and reuses the game's merchant interaction, local currency, reputation discount and restocking.
+| Capital | Authored target | Added structure |
+| --- | --- | --- |
+| Gold Rock City, Al'Ankh | Beside the waterside empty stand near the trader and shipyard, away from the food bazaar | Radio stand and merchant |
+| Dragon Cliffs | Between two trees near the raw fish and boxed food sellers, merchant turned left from 0.5.1 | Radio stand, flat plank platform, canopy and merchant |
+| Fort Aestrin | Near the Inn and the foreground market path marked in the player's latest screenshot | Radio stand, canopy and merchant |
 
-Target stock is two radios, two satellites, two regular speakers and one Turbo Wolfer per vendor. The current wood-and-brass family is the Al'Ankh style at all three shops. Other regional skins remain later work.
+The screenshot with two other mod vendors is a presentation reference only. No Radio stall is placed there. The older navigation-vendor anchors have been removed. Each new location is a coordinate under its capital's scenery root. The location does not follow another merchant, stand or table if the base game moves one.
 
-A small wooden stand holds the two radios, two satellites and two regular speakers. The Turbo Wolfer sits on the ground beside it. Each capital uses an authored location beside its existing stall, with fixed item slots. Runtime checks validate support, display clearance and customer access before adding the stand. The original shop boundary and native stock are retained.
+The independent low flat table has a retaining lip. It targets two upright radios at the back, a large speaker on either side, a small speaker in front of each radio, and a Turbo Wolfer beside the table. These are original Radio objects. The Dragon Cliffs stand has darker planks under the Wolfer, a wooden awning and a short hanging fabric front. Gold Rock City's wood is warmer, while Fort Aestrin's is more muted with a canopy. Native market materials are texture atlases tied to their original meshes, so the Radio structures use their own town-colored materials. The merchant uses the game's NPC art. Gold Rock City and Fort Aestrin positioning still need the player's review. The Dragon Cliffs location and orientation are unchanged from the player's approved 0.5.2 placement.
 
-The display uses the same merchant through explicit stock registration. Unsold items retain native price and return-to-stock behavior. Placement checks include other mods' current item colliders, but cannot reserve space against objects another mod adds later. Blocked placement is reported in the log instead of forcing a stand into occupied space.
+The mod reports uneven ground and overlapping scenery or items in the log, then still shows the stand. It stages the stand, merchant and initial stock together before making them visible. If a native prerequisite remains unavailable, the stand becomes visible after a short diagnostic delay. Missing stock can appear later after that failure. Overlap does not block placement. The player can identify exact conflicts for a later coordinate correction.
 
-Stock follows the vendor's opening hours. A removed item becomes eligible for restocking after 120 simulation seconds, subject to the player being nearby and safe space being available.
+## Purchase status
 
-## Price targets
+Radio shops use Sailwind's native merchant sale path. Radio stock becomes purchasable only when the merchant, local currency region, economy, sale UI and transaction log are available and the player is near the stall. The code checks those conditions again before each sale. The player has confirmed purchases in game. The Home developer menu can create owned devices for testing placement, controls, hooks, hammer locking and save/reload independently of a shop. It also logs the player's position and facing in the capital's scenery coordinates to guide a precise stand adjustment. Restocking and merchant resale interactions remain open checks.
 
-Interpret the Emerald currency as **Emerald Dragons**. Use 1,500 Dragons for the radio, the midpoint of the requested 1,000–2,000 range.
+Radio merchants sell the mod's devices and offer the game's sell window for held goods at their own counter. The owned NPC keeps a small root interaction trigger while its much larger child trigger remains disabled. This aims to restore the Radio merchant's own sell window without claiming goods beside neighboring vendors. Confirm both interactions in game.
 
-| Item | Emerald Dragons | Al'Ankh Lions | Aestrin Crowns | Gold Lions |
-| --- | ---: | ---: | ---: | ---: |
-| Radio | 1,500 | 174 | 395 | 5 |
-| Small Speaker | 1,000 | 116 | 263 | 3 |
-| Speaker | 3,000 | 347 | 789 | 9 |
-| Turbo Wolfer | 5,000 | 579 | 1,316 | 16 |
+## Regional prices
 
-These are rounded equivalents at the inspected serialized starting rates, before reputation discounts. Sailwind saves and varies exchange rates, so actual shop prices can differ. Gold Lions are shown for comparison, not as a fourth capital-city placement.
+The native purchase path uses each capital's local currency and reputation discounts. The requested radio target is about 1,500 Emerald Dragons.
 
-The native rate vector is `[0.22, 1.9, 0.5, 0.006]`. An Emerald amount converts through `amount / 1.9 * targetRate`, then rounds to whole coins. Shop conversion does not apply the currency-exchange fee. Native item base prices are integers, so a base value of 789 yields 1,499 rather than exactly 1,500 Dragons at the initial rate. Prefer the native economy's rounding unless exact anchor prices justify a narrowly scoped price override.
+| Item | Gold Rock City, Al'Ankh Lions | Dragon Cliffs, Emerald Dragons | Fort Aestrin, Aestrin Crowns |
+| --- | ---: | ---: | ---: |
+| Radio | 174 | about 1,500 | 395 |
+| Small Speaker | 116 | about 1,000 | 263 |
+| Speaker | 347 | about 3,000 | 789 |
+| Turbo Wolfer | 579 | about 5,000 | 1,316 |
 
-## Ownership and compatibility
+These are rounded equivalents at inspected starting exchange rates, before reputation discounts. Rates change during play, and native integer rounding can yield 1,499 rather than exactly 1,500 Dragons for a radio. The fourth Gold currency is not used by these stalls.
 
-- Match the inspected capital, shop transform and collider before adding stock.
-- Keep unsold displays outside the owned device list and native save registry.
-- Reserve a unique native item identity and validate radio-state serialization capacity before the game's sale callback charges currency.
-- Promote the same display object after native ownership registration. Preserve its item value for resale and reload.
-- Use native currency conversion and reputation discounts. The mod schedules its own display restocking.
-- Inspect native sale-method ordering at startup. If the expected ownership-before-payment pattern is absent, disable radio shop stock.
-
-The callback check covers the inspected ordering. It cannot guarantee compatibility with every future control-flow change or another mod's purchase patches. Native exceptions after ownership transfer are preserved for diagnosis, and the radio retains its owned state. The mod does not provide a general rollback of the game's currency transaction.
-
-Static evidence and the retained inspection harness live under the Sailwind workspace's `docs/research/`. Check purchase, insufficient funds, save/reload, resale, restock, closed shops and additive scene unload using [TESTING.md](TESTING.md). No live purchase or vendor placement has been established.
+The static scene and shop contracts are recorded under `Sailwind/docs/research/`. Use [TESTING.md](TESTING.md) for the live placement and device checks.

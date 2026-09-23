@@ -169,6 +169,14 @@ namespace SailwindRadio.Models
                 var material = new Material(shader) { name = source.name, color = new Color(source.color[0], source.color[1], source.color[2], source.color[3]) };
                 material.SetFloat("_Metallic", source.metallic);
                 material.SetFloat("_Glossiness", source.smoothness);
+                // Reflection probes can show the moon even where scene geometry
+                // blocks it. Retain direct-lit metal highlights without that
+                // unoccluded environment contribution on portable devices.
+                if (shader.name == "Standard")
+                {
+                    material.SetFloat("_GlossyReflections", 0f);
+                    material.EnableKeyword("_GLOSSYREFLECTIONS_OFF");
+                }
                 materials[i] = material;
                 owned.Add(material);
             }
@@ -216,7 +224,9 @@ namespace SailwindRadio.Models
                 {
                     var collider = child.AddComponent<BoxCollider>();
                     collider.center = mesh.bounds.center;
-                    collider.size = mesh.bounds.size + new Vector3(.002f, .002f, .012f);
+                    // A little room around the visible cap helps native pointer
+                    // raycasts at sea without allowing adjacent controls to meet.
+                    collider.size = mesh.bounds.size + new Vector3(.012f, .012f, .018f);
                     collider.isTrigger = true;
                 }
                 objects.Add(part.name, child);

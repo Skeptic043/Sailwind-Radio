@@ -25,7 +25,7 @@ namespace SailwindRadio.Physical
     public static class RadioDevice
     {
         public const float InventoryYaw = 180f;
-        public static string Name(int kind) => kind == 1 ? "Small Speaker" : kind == 2 ? "Speaker" : kind == 3 ? "Turbo Wolfer" : "Sailwind Radio";
+        public static string Name(int kind) => kind == 1 ? "Small Speaker" : kind == 2 ? "Speaker" : kind == 3 ? "Turbo Wolfer" : "Radio";
         public static Vector3 Size(int kind) => kind == 1 ? new Vector3(.14f, .20f, .12f) :
             kind == 2 ? new Vector3(.367f, .75f, .4f) : kind == 3 ? new Vector3(.9f, .9f, .75f) : new Vector3(.6f, .38f, .2f);
         public static Vector3 Center(int kind)

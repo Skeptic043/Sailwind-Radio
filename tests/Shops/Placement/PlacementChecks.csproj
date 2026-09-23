@@ -1,4 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><TreatWarningsAsErrors>true</TreatWarningsAsErrors><UseAppHost>false</UseAppHost></PropertyGroup>
- <ItemGroup><Compile Include="../../../src/Shops/RadioShopPlacement.cs"/><Compile Include="../../../src/Shops/RadioShopCatalog.cs"/><Compile Include="../../../src/Shops/RadioStandLayout.cs"/><Compile Include="../../../src/Physical/RadioDeviceKind.cs"/></ItemGroup>
+ <ItemGroup><Compile Include="../../../src/Shops/RadioShopPlacement.cs"/><Compile Include="../../../src/Shops/RadioShopPositionMarker.cs"/><Compile Include="../../../src/Shops/RadioShopCatalog.cs"/><Compile Include="../../../src/Shops/RadioStandLayout.cs"/><Compile Include="../../../src/Physical/RadioDeviceKind.cs"/></ItemGroup>
 </Project>

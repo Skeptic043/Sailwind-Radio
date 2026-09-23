@@ -12,5 +12,7 @@ namespace SailwindRadio.Shops
         internal Transform Anchor;
         internal bool Reserved;
         internal bool Purchased;
+        // Enabled only while native region, economy, UI and save preflight are ready.
+        internal bool PurchaseEnabled=false;
     }
 }

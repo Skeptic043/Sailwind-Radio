@@ -1,70 +1,60 @@
 # Sailwind Radio
 
-A physical maritime radio for local music.
+Play your own music in Sailwind through a physical radio and speakers with 3D audio.
 
-## 0.4.1 test build
+## Install
 
-Play your own music through a wooden radio and three matching speaker types. This build gives the radio an inset amber digital display, softer illuminated button icons and a dedicated shop display stand. Sound tuning and pause handling retain the previous build's behavior. Changed visuals and shop placement need in-game testing.
+### Mod managers
 
-### Setup
+Install Sailwind Radio through **r2modman** or **Thunderstore Mod Manager**, then launch Sailwind through your manager. Dependencies are installed automatically.
 
-1. With Sailwind closed, copy both `SailwindRadio.dll` and `NLayer.dll` from the test ZIP into your active BepInEx profile's `BepInEx/plugins/SailwindRadio/` folder.
-2. Launch and close the game once to create `BepInEx/config/local.sailwind.radio.cfg`.
-3. Set `MusicFolders` to your music folders, separated by `|`. Example: `MusicFolders = D:\Music | E:\Sailing Music`. MP3, OGG and WAV are supported.
-4. Load a test save. Visit a capital navigation-equipment vendor, or press **Home** in a clear space to use the developer spawn menu.
-5. Place the radio and turn it on. Its Collections button opens checkboxes for the folders it should play.
+### Manual installation
 
-Each configured folder is one collection, including songs in every nested folder. Overlapping collections do not duplicate tracks in the queue. New radios select all collections. Select none for silence. Powering on refreshes the library in the background. Existing `MusicFile` setups work when no folders are configured.
+1. Install [BepInExPack](https://thunderstore.io/c/sailwind/p/BepInEx/BepInExPack/) in your Sailwind game folder, following its installation instructions.
+2. Download and extract the Sailwind Radio ZIP. Copy its `BepInEx/plugins/SailwindRadio` folder into `BepInEx/plugins` in your Sailwind folder.
+3. Launch Sailwind normally.
 
-Change `SpawnRadio` under `[Development]` to choose another key. Names ignore capitalization and accept spaces, such as `left shift + mouse 4`. Blank or `None` disables spawning. An unchanged old F7 default moves to Home once. Custom bindings remain as configured.
+## Controls
 
-### Controls
+- Use the radio's physical **Power**, **Previous**, **Pause**, **Next**, **Shuffle** and **Collections** buttons to control playback.
+- For volume knobs, click on the knob and scroll to adjust it, then click again to release it.
+- On the radio, master volume controls all connected outputs, while local volume controls only the radio's built-in speaker.
+- Pick up, carry, store and place the radio using Sailwind's normal item controls. Music keeps playing while the radio is carried or in inventory.
+- Place a hook somewhere clever and set the radio in a tight corner, or hammer it down if you keep grabbing it off your shelf trying to skip tracks.
+- Turning on a second radio turns the one currently playing off. Each keeps its own collection selection, volume, and song position saved.
 
-- Power turns the system on or off and preserves the song position.
-- Play/Pause holds the song while keeping the radio powered. There is no artificial startup delay.
-- Previous, Next, Shuffle and Collections have their own physical buttons. Soft amber icons show engaged controls.
-- The radio's **master volume** controls every connected output. **Local volume** controls only its built-in speaker.
-- Click a knob, scroll to adjust it, then click again to release it. Its pointer turns with the setting.
-- Pick up, carry, store and place the body using Sailwind's normal item controls. Carrying or inventory storage keeps music playing.
-- Turning on another radio turns the previous one off. Each retains its own collections and playback state.
+## Configuration
 
-The amber dot-matrix display shows the track title, with artist and album below when supported MP3 tags are present. Long lines scroll slowly. Untagged files use their filenames. Tracks advance automatically and the selected pool repeats. Shuffle avoids immediately repeating a track when another is available.
+After the first launch, close the game and edit `BepInEx/config/local.sailwind.radio.cfg` in your active game or mod manager profile.
 
-Game pause suspends music by default. Set `ContinueWhilePaused = true` under `[Audio]` to keep it playing in the pause menu. Sleep and loading still suspend playback. Alt-tab follows the game's background behavior.
+| Section | Setting | Default | What it does |
+| --- | --- | --- | --- |
+| Music | `MusicFolders` | Blank | Music folders separated by `\|`. |
+| Audio | `ContinueWhileSleeping` | `false` | Keep music playing while the player sleeps. |
+
+Example folder setup: `MusicFolders = D:\Music | E:\Sailing Music`. MP3, OGG and WAV files are supported. Each folder is one collection, including music within its subfolders.
+
+## Shop Locations
+
+There are added shop stalls in Gold Rock City, Dragon Cliffs and Fort Aestrin. GRC's stall is located between the shipyard and port office, DC's stall is located near the boxed food seller, and FA's stall is located near the Inn.
 
 ### Speakers
 
-| Device | Character | Controls | Audible range |
-| --- | --- | --- | --- |
-| Radio | Weak, tinny built-in speaker | Master and local volume | 12 m |
-| Small Speaker | Compact satellite with slightly fuller sound | Power and volume | 15 m |
-| Speaker | Taller, narrow cabinet with full-range sound | Power and volume | 20 m |
-| Turbo Wolfer | Large bass-only cabinet | Power and bass level | 20 m |
+| Device | Sound | Audible range |
+| --- | --- | --- |
+| Radio | Small, built-in speaker | 12 m |
+| Small Speaker | Compact speaker with its own power and volume | 15 m |
+| Speaker | Clearer cabinet with its own power and volume | 20 m |
+| Turbo Wolfer | Bass-only cabinet with power and bass level | 20 m |
 
-The small speaker uses the game's hook-style surface placement. Speakers follow the active radio automatically. Both devices must be on the same vessel and within **50 metres**. Ashore, including housing, both must be ashore and within that range. Leaving range or taking the radio off the boat cuts the connection. Rejoining follows the current song position.
+Speakers connect automatically to an active radio within **50 metres** when both are on the same vessel or both are ashore. The Small Speaker can mount on surfaces like a hook does. Each output gets quieter with distance, and cabins/some interiors muffle sound across their boundaries.
 
-Every output stays steady within one metre, then gradually fades over its audible range. Cabin muffling applies separately to each speaker's filtered output. Bass carries through cabin boundaries more readily than the other outputs. Carried and inventory playback is non-directional to keep it steady while moving.
+## AI Use
 
-Poor weather adds brief static and signal dips without changing song position. Disable it with `StormInterferenceEnabled = false` or adjust `StormInterferenceStrength` from 0 to 1.
+AI was used to write all of the code in this project. The original concept, design direction, testing, debugging, and release decisions are my own. If you prefer not to use mods developed with AI assistance, I understand and respect that choice.
 
-### Shops
+## Issues and links
 
-Navigation-equipment vendors in Gold Rock City, Dragon Cliffs and Fort Aestrin have a wooden display for two radios, two small speakers and two regular speakers. One Turbo Wolfer sits on the ground beside it. Clear space is checked before adding the display and before restocking its item slots. An obstructed location delays the display until it is clear.
+[Report an issue](https://github.com/Skeptic043/Sailwind-Radio/issues) with your settings and `BepInEx/LogOutput.log`.
 
-Prices use the game's local currency and reputation discounts. The initial Emerald targets are about 1,500 Dragons for a radio, 1,000 for a satellite, 3,000 for a regular speaker and 5,000 for a Wolfer. Exchange rates change during play. See [shop prices](docs/SHOPS.md).
-
-The current wood-and-brass appearance is the Al'Ankh style. Other regional appearances are planned later.
-
-### Current limits
-
-One radio plays at a time. FLAC and playlist files remain later work. Cabin muffling follows native interior areas rather than every wall in the world.
-
-The active radio prepares one upcoming song while the current song plays. Initial playback and an uncached skip can still take time to load. This is not gapless playback. Speakers share decoded music rather than loading their own copies.
-
-Each audio file is limited to 128 MiB on disk and 256 MiB of decoded samples. A current track and prepared next track can together retain 512 MiB of native samples. MP3 upload can temporarily add another 256 MiB of samples, plus runtime overhead. Other radios can retain their current clips. Start with normal-length songs.
-
-See [the test checklist](docs/TESTING.md), [build instructions](docs/BUILDING.md) and [shop prices](docs/SHOPS.md).
-
-## License
-
-[MIT](LICENSE), including the original model sources. You may reuse this code and these models in your own game, including a commercial game. See [source attribution and dependencies](THIRD_PARTY_NOTICES.md).
+[Source code](https://github.com/Skeptic043/Sailwind-Radio) · [MIT License](LICENSE) · [Build instructions](docs/BUILDING.md) · [Source attribution and dependencies](THIRD_PARTY_NOTICES.md) · [Support on Ko-fi](https://ko-fi.com/skeptic043) · skeptic043

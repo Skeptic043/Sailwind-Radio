@@ -19,17 +19,14 @@ namespace SailwindRadio
     public sealed class Plugin : BaseUnityPlugin
     {
         public const string Id = "local.sailwind.radio";
-        public const string Version = "0.4.1";
+        public const string Version = "0.5.5";
         private static Plugin instance;
         private Harmony harmony;
         private RadioWorldService world;
         private RadioAcousticsService acoustics;
         private RadioShopService shops;
-        private ConfigEntry<string> musicFile;
         private ConfigEntry<string> musicFolders;
-        private ConfigEntry<bool> stormEnabled;
-        private ConfigEntry<float> stormStrength;
-        private ConfigEntry<bool> continueWhilePaused;
+        private ConfigEntry<bool> continueWhileSleeping;
         private LibraryScanner library;
         private RadioMenus menus;
         private bool libraryReady;
@@ -47,26 +44,34 @@ namespace SailwindRadio
             instance = this;
             try
             {
-                musicFile = Config.Bind("Music", "MusicFile", "",
-                    "Optional legacy single-file path. Used when no music folders are configured.");
                 musicFolders = Config.Bind("Music", "MusicFolders", "",
                     "Music folders separated by |. Each folder is one collection including all its subfolders. Example: D:\\Music | E:\\Sailing Music");
-                stormEnabled = Config.Bind("Audio", "StormInterferenceEnabled", true,
-                    "Add occasional quiet static and brief signal dips in poor weather.");
-                stormStrength = Config.Bind("Audio", "StormInterferenceStrength", .35f,
-                    new ConfigDescription("Strength of weather interference.", new AcceptableValueRange<float>(0f, 1f)));
-                continueWhilePaused = Config.Bind("Audio", "ContinueWhilePaused", false,
-                    "Keep music playing in the game pause menu. Sleep and loading still suspend playback.");
+                continueWhileSleeping = Config.Bind("Audio", "ContinueWhileSleeping", false,
+                    "Keep music playing while the player sleeps. Loading still suspends playback.");
                 spawnKey = SpawnShortcut.Bind(Config, Warn);
+                // BepInEx 5 preserves unbound values as orphaned entries. Consume each
+                // retired key before removing it so existing config files lose the lines.
+                var oldMusicFile = Config.Bind("Music", "MusicFile", "", "Retired single-file music setting.");
+                bool legacyMusicOnly = !string.IsNullOrWhiteSpace(oldMusicFile.Value) && string.IsNullOrWhiteSpace(musicFolders.Value);
+                Config.Remove(oldMusicFile.Definition);
+                var oldStormEnabled = Config.Bind("Audio", "StormInterferenceEnabled", true, "Retired interference setting.");
+                Config.Remove(oldStormEnabled.Definition);
+                var oldStormStrength = Config.Bind("Audio", "StormInterferenceStrength", .35f, "Retired interference setting.");
+                Config.Remove(oldStormStrength.Definition);
+                var oldContinueWhilePaused = Config.Bind("Audio", "ContinueWhilePaused", false, "Retired pause setting.");
+                Config.Remove(oldContinueWhilePaused.Definition);
+                Config.Save();
+                if (legacyMusicOnly) Warn("MusicFile has been retired. Set MusicFolders to a folder containing your music.");
                 harmony = new Harmony(Id);
                 acoustics = new RadioAcousticsService();
                 library = new LibraryScanner();
                 menus = new RadioMenus();
-                world = new RadioWorldService(harmony, () => string.IsNullOrWhiteSpace(musicFolders.Value) ? musicFile.Value : "", Warn);
+                world = new RadioWorldService(harmony, () => "", Warn);
                 world.BeforeSave += CapturePositions;
                 world.ActionRequested += HandleAction;
                 shops = new RadioShopService(world, Warn);
                 menus.SpawnRequested += SpawnDevice;
+                menus.StandPositionRequested += LogStandPosition;
                 menus.CollectionsChanged += SelectCollections;
                 library.RequestScan(musicFolders.Value);
                 InstallSuspendBoundary(typeof(StartMenu), "GameToSettings");
@@ -105,7 +110,9 @@ namespace SailwindRadio
         }
 
         private bool Suspended => !GameState.playing || GameState.currentlyLoading || GameState.loadingScenes > 0 ||
-            GameState.sleeping || (Time.timeScale <= 0f && !continueWhilePaused.Value) || AudioListener.pause || applicationPaused || (!focused && !Application.runInBackground);
+            (GameState.sleeping && !continueWhileSleeping.Value) ||
+            (Time.timeScale <= 0f && !(GameState.sleeping && continueWhileSleeping.Value)) ||
+            AudioListener.pause || applicationPaused || (!focused && !Application.runInBackground);
 
         private void Update()
         {
@@ -196,9 +203,6 @@ namespace SailwindRadio
             float obstruction = pair.Key.State.Powered ? acoustics.ObstructionAt(position, carried) : 0;
             pair.Value.SetAcoustics(acoustics.ListenerPosition, acoustics.ListenerKnown, obstruction);
             pair.Value.SetCarried(carried);
-            var interference = WeatherInterference.Sample(GameState.rainIntensity, Time.realtimeSinceStartup,
-                stormEnabled.Value, stormStrength.Value);
-            pair.Value.SetInterference(interference.Gain, interference.Cutoff, interference.Crackle);
             pair.Value.BeginEndpoints();
             if (pair.Key.InstanceId == world.ActiveRadioId && pair.Key.State.Powered)
             {
@@ -287,6 +291,15 @@ namespace SailwindRadio
             bool created = world.TrySpawn(position, Quaternion.LookRotation(forward, Vector3.up), kind, out string message);
             if (created) Logger.LogInfo(message);
             else { Warn(message); menus.SetMessage(message); }
+        }
+
+        private void LogStandPosition()
+        {
+            var observer = Refs.observerMirror ? Refs.observerMirror.transform : null;
+            bool found = RadioShopPositionMarker.TryDescribe(observer,
+                UnityEngine.Object.FindObjectsOfType<IslandSceneryScene>(), out string message);
+            if (found) Logger.LogInfo(message);
+            menus.SetMessage(message);
         }
 
         private void CapturePositions()

@@ -9,9 +9,11 @@ namespace SailwindRadio
         internal readonly bool IsWoofer;
         private RadioSpeakerProfile(float gain, float radius, float highPass, float lowPass, bool woofer = false)
         { Gain = gain; Radius = radius; HighPass = highPass; LowPass = lowPass; IsWoofer = woofer; }
-        internal static readonly RadioSpeakerProfile BuiltIn = new RadioSpeakerProfile(.25f, 12f, 650f, 8500f);
-        internal static readonly RadioSpeakerProfile Small = new RadioSpeakerProfile(.35f, 15f, 500f, 10000f);
-        internal static readonly RadioSpeakerProfile Normal = new RadioSpeakerProfile(.65f, 20f, 20f, 22000f);
+        // Narrow the two smallest cabinets without changing their gain or the full-size outputs.
+        // A restrained native bandpass keeps vocals intelligible while separating their character.
+        internal static readonly RadioSpeakerProfile BuiltIn = new RadioSpeakerProfile(.25f, 12f, 900f, 5000f);
+        internal static readonly RadioSpeakerProfile Small = new RadioSpeakerProfile(.35f, 15f, 600f, 9000f);
+        internal static readonly RadioSpeakerProfile Normal = new RadioSpeakerProfile(.65f, 20f, 160f, 18000f);
         internal static readonly RadioSpeakerProfile TurboWoofer = new RadioSpeakerProfile(1f, 20f, 20f, 140f, true);
         internal static RadioSpeakerProfile ForKind(int kind)
         { return kind == 1 ? Small : kind == 2 ? Normal : kind == 3 ? TurboWoofer : null; }
@@ -30,7 +32,7 @@ namespace SailwindRadio
         internal float LocalVolume = 1f, Bass = 1f, Obstruction;
         private AudioHighPassFilter highPass;
         private AudioLowPassFilter lowPass;
-        private RadioStaticFilter staticFilter;
+        private RadioBassFilter bassFilter;
         private float smoothedObstruction;
         private bool initialized;
 
@@ -54,6 +56,9 @@ namespace SailwindRadio
             Source.pitch = 1f;
             Source.dopplerLevel = 0f;
             Source.ignoreListenerPause = false;
+            // Native pause retains the voice, while a modded port's global reverb can
+            // keep sounding after it. Keep Radio's own signal out of reverb zones.
+            Source.bypassReverbZones = true;
             try
             {
                 highPass = Emitter.AddComponent<AudioHighPassFilter>();
@@ -80,20 +85,20 @@ namespace SailwindRadio
                 lowPass = null;
                 warning("Radio low-pass filter unavailable: " + ex.Message);
             }
-            try
+            if (profile.IsWoofer) try
             {
-                staticFilter = Emitter.AddComponent<RadioStaticFilter>();
-                if (staticFilter == null) throw new InvalidOperationException("Static component unavailable");
+                bassFilter = Emitter.AddComponent<RadioBassFilter>();
+                if (bassFilter == null) throw new InvalidOperationException("Bass component unavailable");
             }
             catch (Exception ex)
             {
-                if (staticFilter != null) UnityEngine.Object.Destroy(staticFilter);
-                staticFilter = null;
-                warning("Radio static filter unavailable: " + ex.Message);
+                if (bassFilter != null) UnityEngine.Object.Destroy(bassFilter);
+                bassFilter = null;
+                warning("Radio bass filter unavailable: " + ex.Message);
             }
         }
 
-        internal void Update(float masterVolume, Vector3 listener, bool listenerKnown, float interferenceGain, float interferenceCutoff, float crackle)
+        internal void Update(float masterVolume, Vector3 listener, bool listenerKnown)
         {
             if (Emitter == null || Source == null) return;
             Emitter.transform.position = Position;
@@ -108,23 +113,18 @@ namespace SailwindRadio
             if (highPass != null) highPass.cutoffFrequency = Profile.HighPass;
             float closedCutoff = Math.Min(1500f, Profile.LowPass);
             if (lowPass != null)
-                lowPass.cutoffFrequency = Math.Min(Profile.LowPass + (closedCutoff - Profile.LowPass) * effectiveObstruction, interferenceCutoff);
+                lowPass.cutoffFrequency = Profile.LowPass + (closedCutoff - Profile.LowPass) * effectiveObstruction;
             float distanceGain = !listenerKnown ? 0f : Carried ? 1f : DistanceGain(Vector3.Distance(Position, listener), Profile.Radius);
             float local = Profile.IsWoofer ? 1f : Clamp(LocalVolume);
             float bassGain = Profile.IsWoofer ? (float)Math.Sqrt(Clamp(Bass)) : 1f;
             Source.volume = Profile.Gain * masterVolume * masterVolume * local * local * bassGain * distanceGain *
-                (1f - (Profile.IsWoofer ? .4f : .65f) * effectiveObstruction) * interferenceGain;
-            if (staticFilter != null)
-            {
-                staticFilter.SetProfile(AudioSettings.outputSampleRate, Profile.IsWoofer);
-                staticFilter.SetLevel(Running ? crackle : 0f, Source.volume);
-            }
+                (1f - (Profile.IsWoofer ? .4f : .65f) * effectiveObstruction);
+            if (bassFilter != null) bassFilter.SetProfile(AudioSettings.outputSampleRate, Profile.IsWoofer);
         }
 
         internal void Stop(bool clearClip = false)
         {
             Running = Paused = false;
-            if (staticFilter != null) staticFilter.SetLevel(0, 0);
             if (Source == null) return;
             Source.Stop();
             if (clearClip) Source.clip = null;
@@ -136,7 +136,6 @@ namespace SailwindRadio
             Source.Pause();
             Running = false;
             Paused = true;
-            if (staticFilter != null) staticFilter.SetLevel(0, 0);
         }
 
         internal void Resume(int sample, double now)
@@ -166,7 +165,7 @@ namespace SailwindRadio
                 if (Emitter != null) UnityEngine.Object.Destroy(Emitter);
                 highPass = null;
                 lowPass = null;
-                staticFilter = null;
+                bassFilter = null;
             }
         }
     }

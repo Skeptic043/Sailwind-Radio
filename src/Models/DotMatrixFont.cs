@@ -9,8 +9,8 @@ namespace SailwindRadio.Models
     // with the five low bits read from left to right. No external font data.
     internal static class DotMatrixFont
     {
-        internal const int Width = 512;
-        internal const int Height = 192;
+        internal const int Width = 640;
+        internal const int Height = 224;
         internal const string GlyphData = @"
 A:0E11111F111111
 B:1E11111E11111E
@@ -66,6 +66,10 @@ _:0000000000001F
 #:0A0A1F0A1F0A0A
 %:19190204081313
 *:000A041F040A00
+$:041F141E051F04
+[:0E08080808080E
+]:0E02020202020E
+@:0E11151717100E
 ";
         private static readonly Dictionary<char, byte[]> Glyphs = CreateGlyphs();
 
@@ -129,9 +133,11 @@ _:0000000000001F
                 string text = Normalize(lines[line]);
                 if (text.Length == 0 || !CanRender(text))
                     continue;
-                double pitch = Math.Min(line == 0 ? 6.2 : 5.0, 476.0 / (text.Length * 6 - 1));
+                // The marquee guarantees a bounded window. Keep every glyph at one
+                // stable size so a long line never silently changes the type scale.
+                const double pitch = 6.2;
                 double left = (Width - (text.Length * 6 - 1) * pitch) * .5;
-                double center = 146 - line * 50;
+                double center = 168 - line * 56;
                 for (int character = 0; character < text.Length; character++)
                 {
                     byte[] rows = Glyphs[text[character]];

@@ -103,7 +103,7 @@ namespace UnityEngine
     {
         public static AudioSource Last;
         public AudioSource() { Last = this; }
-        public bool playOnAwake, loop, ignoreListenerPause;
+        public bool playOnAwake, loop, ignoreListenerPause, bypassReverbZones;
         public float spatialBlend, minDistance, maxDistance, pitch, dopplerLevel, volume;
         public AudioRolloffMode rolloffMode;
         public AnimationCurve RolloffCurve;
