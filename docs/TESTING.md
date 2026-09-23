@@ -1,5 +1,3 @@
 # Next game check
 
-Use a test save. Check Gold Rock City's ground contact.
-
-At Gold Rock City, check that the vendor's feet and stall legs touch the visible ground after the 0.05 m downward adjustment. The approved horizontal placement and facing should remain fixed.
+No directed checks remain for this candidate. Gold Rock City's Wolfer has been lowered 0.04 m on its own, and the player chose to accept that small placement change without another visual test.

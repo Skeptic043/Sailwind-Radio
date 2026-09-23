@@ -21,8 +21,10 @@ namespace SailwindRadio.Shops
             var position = Slots[index];
             if (island == 1)
             {
-                // The Wolfer stands clear of Gold Rock's wider native counter.
-                if (index == 0) position.x = 1.9f;
+                // Gold Rock's Wolfer stands clear of the wider native counter.
+                // The player reports a small visible gap after lowering the
+                // stall, so settle this device alone another 4 cm.
+                if (index == 0) { position.x = 1.9f; position.y = -.04f; }
                 else if (nativeGoldCounter)
                 {
                     // Installed mesh triangles put the top at .916-.931 m

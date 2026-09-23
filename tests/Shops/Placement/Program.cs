@@ -53,6 +53,8 @@ static class Program
         Check(Vector3.Dot(desiredGoldForward, actualGoldForward) > .9999f,
             "Gold Rock merchant faces the player's logged direction rather than the wall");
         Check(MathF.Abs(RadioStandLayout.Slot(1, 0, true).x - 1.9f) < .001f &&
+            MathF.Abs(RadioStandLayout.Slot(1, 0, true).y + .04f) < .001f &&
+            MathF.Abs(RadioStandLayout.Slot(9, 0, false).y) < .001f &&
             MathF.Abs(RadioStandLayout.Slot(1, 3, true).y - .945f) < .001f &&
             MathF.Abs(RadioStandLayout.Slot(1, 3, false).y - .82f) < .001f &&
             MathF.Abs(RadioStandLayout.Slot(9, 0, false).x - 1.7f) < .001f &&
