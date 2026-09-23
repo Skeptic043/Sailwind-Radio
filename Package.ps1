@@ -111,7 +111,7 @@ function Write-RadioZip($radioDestination, $radioFiles) {
     }
 }
 $radioBinaryZip = Join-Path $radioOutput "SailwindRadio-$radioVersion-test.zip"
-$radioPublicZip = Join-Path $radioOutput "SailwindRadio-$radioVersion-thunderstore.zip"
+$radioPublicZip = Join-Path $radioOutput "SailwindRadio-$radioVersion.zip"
 $radioSourceZip = Join-Path $radioOutput "SailwindRadio-$radioVersion-source.zip"
 Write-RadioZip $radioBinaryZip $radioBinaryFiles
 Write-RadioZip $radioPublicZip $radioPublicFiles
