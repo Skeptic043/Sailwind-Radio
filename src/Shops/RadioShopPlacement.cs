@@ -22,10 +22,11 @@ namespace SailwindRadio.Shops
             // the authored height. A prop above the anchor cannot lift them.
             bool groundedCapital = (scenery.parentIslandIndex == 1 || scenery.parentIslandIndex == 15) && supported &&
                 height <= expected.y + .02f && height >= expected.y - .30f;
-            // Gold Rock's visual sand and the NPC's feet sit slightly below
-            // the static dock support that this ray sees. Keep the adjustment
-            // local to this stall; Fort's approved grounding remains exact.
-            float goldVisualOffset = scenery.parentIslandIndex == 1 ? -.05f : 0f;
+            // Gold Rock's visual sand and the NPC's feet sit below the static
+            // dock support that this ray sees. The player's latest live check
+            // still found a gap at -.05 m. Lower only this complete stall;
+            // Fort's approved grounding remains exact.
+            float goldVisualOffset = scenery.parentIslandIndex == 1 ? -.10f : 0f;
             position = new Vector3(expected.x, (groundedCapital ? height : expected.y + .02f) + goldVisualOffset, expected.z);
             string diagnostics = supported ? "" : "no level static ground at the authored anchor";
             if (supported && !groundedCapital && Mathf.Abs(height - expected.y) > .15f)

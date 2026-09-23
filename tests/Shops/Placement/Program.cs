@@ -75,12 +75,12 @@ static class Program
         Physics.Support = (p, _) => new RaycastHit { collider = Physics.Ground,
             point = new Vector3(p.x, 1.39f, p.z), normal = Vector3.up };
         Check(RadioShopPlacement.TryStand(scene, out var groundedGold, out _, out var goldReason) &&
-            MathF.Abs(groundedGold.y - 1.34f) < .001f && !goldReason.Contains("differs"),
-            "Gold Rock stand and keeper settle .05 m below the dock support");
+            MathF.Abs(groundedGold.y - 1.29f) < .001f && !goldReason.Contains("differs"),
+            "Gold Rock stand and keeper settle .10 m below the dock support");
         Physics.Support = (p, _) => new RaycastHit { collider = Physics.Ground,
             point = new Vector3(p.x, 1.8f, p.z), normal = Vector3.up };
         Check(RadioShopPlacement.TryStand(scene, out var unraisedGold, out _, out goldReason) &&
-            MathF.Abs(unraisedGold.y - 1.52f) < .001f && goldReason.Contains("differs"),
+            MathF.Abs(unraisedGold.y - 1.47f) < .001f && goldReason.Contains("differs"),
             "higher prop cannot lift Gold Rock stand and keeper");
         Physics.Support = originalGoldSupport;
         RadioStandLayout.TryAnchor(15, out var fort, out var fortYaw);
