@@ -119,6 +119,33 @@ internal static class Program
         (knob,pointer)=Fresh();knob.Mode=RadioKnobMode.Master;knob.OnActivate(pointer);GameInput.Scroll=1;knob.ExtraLateUpdate();
         Check(knob.Radio.State.Volume==.75f&&knob.Radio.State.LocalVolume==1,"master knob changes shared volume independently");
         pointer.MainClick();
+        (knob, pointer) = Fresh();
+        var heldRadio = new RadioItemController();
+        var next = new RadioActionButton { Radio = heldRadio, Action = RadioAction.Next };
+        var power = new RadioPowerButton { Radio = heldRadio };
+        pointer.Held = new UnityEngine.Object();
+        GoPointerButton target = next;
+        float lookDistance = 1.4f;
+        RadioHeldItemTarget.Clear(pointer, ref target, ref lookDistance);
+        Check(target == null && lookDistance == 0f, "held item clears radio button target before native drop handling");
+        next.OnActivate(pointer);
+        power.OnActivate();
+        power.OnActivate(pointer);
+        Check(heldRadio.RequestedCount == 0, "held item cannot skip a track or toggle power even if native invokes activation");
+        target = knob; lookDistance = 1.4f;
+        RadioHeldItemTarget.Clear(pointer, ref target, ref lookDistance);
+        Check(target == null && lookDistance == 0f, "held item clears knob target before native drop handling");
+        target = new GoPointerButton(); lookDistance = 1.4f;
+        RadioHeldItemTarget.Clear(pointer, ref target, ref lookDistance);
+        Check(target != null && lookDistance == 1.4f, "held item keeps unrelated native pointer targets untouched");
+        pointer.Held = null;
+        target = next; lookDistance = 1.4f;
+        RadioHeldItemTarget.Clear(pointer, ref target, ref lookDistance);
+        next.OnActivate(pointer);
+        power.OnActivate(); power.OnActivate(pointer);
+        Check(target == next && lookDistance == 1.4f && heldRadio.RequestedCount == 2 &&
+            heldRadio.LastAction == RadioAction.Power && heldRadio.RememberedPointer == pointer,
+            "unheld pointed action and power controls still activate once each");
         Console.WriteLine(checks + " production knob lifecycle checks passed with explicit native input doubles. Live click, scroll and menu behavior remain acceptance gates.");
     }
 }

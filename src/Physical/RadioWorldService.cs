@@ -138,6 +138,7 @@ namespace SailwindRadio.Physical
                 Patch(typeof(SaveablePrefab), "Load", nameof(PrefabPostfix), false);
                 Patch(typeof(SaveablePrefab), "PrepareSaveData", nameof(CapturePrefix), true);
                 TryPatchControlHover();
+                TryPatchHeldItemControlTarget();
                 TryPatchHammerNail();
                 TryPatchNativeHooks();
                 TryPatchHouseTriggers();
@@ -168,6 +169,24 @@ namespace SailwindRadio.Physical
                 patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
             }
             catch (Exception error) { warn("Radio control hint cleanup unavailable. Native hints remain visible. " + error.Message); }
+        }
+
+        private void TryPatchHeldItemControlTarget()
+        {
+            try
+            {
+                var target = typeof(GoPointer).GetMethod("LateUpdate", BindingFlags.Instance | BindingFlags.NonPublic,
+                    null, Type.EmptyTypes, null);
+                var pointedAt = typeof(GoPointer).GetField("pointedAtButton", BindingFlags.Instance | BindingFlags.NonPublic);
+                var lookDistance = typeof(GoPointer).GetField("currentLookDistance", BindingFlags.Instance | BindingFlags.NonPublic);
+                if (target == null || target.ReturnType != typeof(void) || pointedAt?.FieldType != typeof(GoPointerButton) ||
+                    lookDistance?.FieldType != typeof(float))
+                    throw new MissingMethodException("Native pointer target layout changed");
+                var patch = AccessTools.Method(typeof(RadioWorldService), nameof(HeldItemControlTargetPrefix));
+                harmony.Patch(target, prefix: new HarmonyMethod(patch));
+                patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
+            }
+            catch (Exception error) { warn("Radio held-item control filtering unavailable. " + error.Message); }
         }
 
         private void TryPatchHammerNail()
@@ -459,6 +478,9 @@ namespace SailwindRadio.Physical
         private static void PrefabPostfix(SaveablePrefab __instance) => Guard(() => active.Restore(__instance));
         private static void CapturePrefix(SaveablePrefab __instance) => Guard(() => active.Capture(__instance));
         private static void ControlHoverPostfix(LookUI __instance, GoPointerButton button) => Guard(() => RadioControlHover.ClearPickupHint(__instance, button));
+        private static void HeldItemControlTargetPrefix(GoPointer __instance, ref GoPointerButton ___pointedAtButton,
+            ref float ___currentLookDistance) =>
+            RadioHeldItemTarget.Clear(__instance, ref ___pointedAtButton, ref ___currentLookDistance);
         private void Capture(SaveablePrefab prefab)
         {
             var item = prefab.GetComponent<RadioItemController>();

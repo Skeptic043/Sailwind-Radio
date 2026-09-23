@@ -350,33 +350,4 @@ namespace SailwindRadio.Physical
             finally { try { owner?.Forget(this); } finally { foreach (var asset in assets) if (asset) Destroy(asset); } }
         }
     }
-    public sealed class RadioPowerButton : GoPointerButton
-    {
-        public RadioItemController Radio;
-        public override void OnActivate()
-        {
-            if (Radio)
-                Radio.RequestAction(RadioAction.Power);
-        }
-        public override void ExtraLateUpdate()
-        {
-            lookText = "";
-        }
-    }
-    public sealed class RadioActionButton : GoPointerButton
-    {
-        public RadioItemController Radio;
-        public RadioAction Action;
-        public override void OnActivate(GoPointer pointer)
-        {
-            if (!Radio)
-                return;
-            Radio.RememberControl(pointer, GetComponent<Collider>());
-            Radio.RequestAction(Action);
-        }
-        public override void ExtraLateUpdate()
-        {
-            lookText = "";
-        }
-    }
 }

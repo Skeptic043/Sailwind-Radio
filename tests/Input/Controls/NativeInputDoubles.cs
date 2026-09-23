@@ -56,6 +56,7 @@ public class GoPointerButton : Component
 {
     public string lookText;
     protected GoPointer stickyClickedBy;
+    public virtual void OnActivate() { }
     public virtual void OnActivate(GoPointer pointer) { }
     public virtual void OnUnactivate(GoPointer pointer) { }
     public virtual void ExtraLateUpdate() { }
@@ -80,9 +81,15 @@ public class GoPointerButton : Component
 }
 namespace SailwindRadio.Physical
 {
+    public enum RadioAction { Power, PlayPause, Previous, Next, Shuffle, Collections }
     public sealed class RadioItemController : Object
     {
         public bool IsPlacedForControls = true;
         public RadioState State = new RadioState { Volume = .5f };
+        public int RequestedCount;
+        public RadioAction LastAction;
+        public GoPointer RememberedPointer;
+        public void RequestAction(RadioAction action) { RequestedCount++; LastAction = action; }
+        public void RememberControl(GoPointer pointer, Collider control) { RememberedPointer = pointer; }
     }
 }

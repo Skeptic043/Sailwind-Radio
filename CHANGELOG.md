@@ -1,4 +1,16 @@
-# Sailwind Radio 1.0.0
+# Sailwind Radio
+
+## 1.0.1
+
+### Fixed
+
+- Dropping a held item near a radio or speaker no longer activates its controls or blocks the normal drop.
+
+### Changed
+
+- Replaced the Thunderstore icon with a simpler speaker design.
+
+## 1.0.0
 
 Play your own music in Sailwind through a portable radio and three matching speakers.
 

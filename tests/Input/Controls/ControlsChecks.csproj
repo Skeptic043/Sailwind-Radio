@@ -6,6 +6,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\..\..\src\Physical\RadioVolumeKnob.cs" Link="RadioVolumeKnob.cs" />
+    <Compile Include="..\..\..\src\Physical\RadioButtons.cs" Link="RadioButtons.cs" />
+    <Compile Include="..\..\..\src\Physical\RadioHeldItemTarget.cs" Link="RadioHeldItemTarget.cs" />
     <Compile Include="..\..\..\src\RadioState.cs" Link="RadioState.cs" />
   </ItemGroup>
 </Project>
