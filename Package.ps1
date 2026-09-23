@@ -78,6 +78,9 @@ foreach ($radioSourceDirectory in @('src', 'tests', 'docs', 'assets', 'tools')) 
         }
     }
 }
+# Include only the original synthetic audio fixture used by the focused decoder
+# checks. Do not package arbitrary music files from the working tree.
+$radioSourceFiles['tests/Audio/Fixtures/stereo-noise.mp3'] = "$PSScriptRoot\tests\Audio\Fixtures\stereo-noise.mp3"
 function Write-RadioZip($radioDestination, $radioFiles) {
     foreach ($radioEntryName in $radioFiles.Keys) {
         if (Test-RadioPrivatePath $radioEntryName) { throw "Private workflow file cannot be packaged: $radioEntryName" }

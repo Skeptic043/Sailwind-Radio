@@ -13,7 +13,7 @@ namespace SailwindRadio
         private bool preloadStarted, preloadFailed;
         private AudioClip preloadClip;
         private UnityWebRequest preloadRequest;
-        private Task<DecodedMp3> preloadTask;
+        private Task<Mp3LoadResult> preloadTask;
         private CancellationTokenSource preloadCancellation;
         private double preloadStartedAt;
 
@@ -36,7 +36,7 @@ namespace SailwindRadio
                 // Give the selected track priority and avoid a third decoded allocation.
                 if (!preloadStarted)
                 {
-                    if (!state.Powered || clip == null || clip.loadState != AudioDataLoadState.Loaded) return;
+                    if (!state.Powered || clip == null || clip.loadState != AudioDataLoadState.Loaded || streamedMp3 != null) return;
                     if (!Path.IsPathRooted(preloadPath)) throw new IOException("Expected an absolute local path");
                     string fullPath = Path.GetFullPath(preloadPath);
                     var uri = new Uri(fullPath);
@@ -50,7 +50,12 @@ namespace SailwindRadio
                         preloadCancellation = new CancellationTokenSource();
                         preloadCancellation.CancelAfter((int)(LoadTimeoutSeconds * 1000));
                         CancellationToken token = preloadCancellation.Token;
-                        preloadTask = Task.Run(() => DecodeMp3(fullPath, token), token);
+                        preloadTask = Task.Run(() =>
+                        {
+                            if (IsLongMp3(fullPath, token))
+                                throw new IOException("Long MP3 starts streaming only when selected");
+                            return new Mp3LoadResult { Decoded = DecodeMp3(fullPath, token) };
+                        }, token);
                     }
                     else
                     {
@@ -72,7 +77,7 @@ namespace SailwindRadio
                 if (preloadTask != null && preloadTask.IsCompleted)
                 {
                     if (preloadTask.IsCanceled || preloadTask.IsFaulted) throw new IOException("Upcoming MP3 decode failed");
-                    DecodedMp3 decoded = preloadTask.Result;
+                    DecodedMp3 decoded = preloadTask.Result.Decoded;
                     preloadTask = null;
                     preloadCancellation.Dispose();
                     preloadCancellation = null;
@@ -132,7 +137,7 @@ namespace SailwindRadio
         {
             if (preloadCancellation != null)
             {
-                Task<DecodedMp3> abandoned = preloadTask;
+                Task<Mp3LoadResult> abandoned = preloadTask;
                 CancellationTokenSource cancellation = preloadCancellation;
                 cancellation.Cancel();
                 if (abandoned == null) cancellation.Dispose();

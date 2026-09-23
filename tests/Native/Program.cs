@@ -138,7 +138,6 @@ internal static class Program
         Check(!store.TryGet(42, RadioSaveStore.DonorIndex, out _) && store.TryGet(91, RadioSaveStore.DonorIndex, out _),
             "spawn rollback removes only the newly created instance record");
         Console.WriteLine($"{checks} persistence checks passed. These do not execute Sailwind, Unity rendering, or native save/load.");
-        PlacementChecks.Run();
         return 0;
     }
 }

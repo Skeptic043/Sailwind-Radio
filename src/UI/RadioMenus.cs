@@ -19,33 +19,10 @@ namespace SailwindRadio.UI
         private readonly List<CollectionChoice> choices = new List<CollectionChoice>();
         private readonly Dictionary<string,bool> selected = new Dictionary<string,bool>(StringComparer.OrdinalIgnoreCase);
         private Vector2 scroll;
-        private string message = "";
         private bool disposed;
-        private bool collectionMode;
         public bool IsOpen => lease.Owned;
         public RadioItemController CollectionRadio { get; private set; }
-        public event Action<RadioDeviceKind> SpawnRequested;
-        public event Action StandPositionRequested;
         public event Action<RadioItemController,string[]> CollectionsChanged;
-
-        public void ShowSpawnChooser()
-        {
-            if (disposed) return;
-            if (IsOpen) { Close(); return; }
-            if (!lease.Acquire()) return;
-            CollectionRadio=null;
-            collectionMode=false;
-            message="";
-        }
-
-        public void SetMessage(string value)
-        {
-            if (disposed) return;
-            if (!IsOpen && !lease.Acquire()) return;
-            CollectionRadio=null;
-            collectionMode=false;
-            message=value ?? "";
-        }
 
         public void ShowCollections(RadioItemController radio, IReadOnlyList<CollectionChoice> available)
         {
@@ -60,7 +37,6 @@ namespace SailwindRadio.UI
                 scroll=Vector2.zero;
             }
             CollectionRadio=radio;
-            collectionMode=true;
             choices.Clear();
             if (available != null)
                 foreach (var choice in available)
@@ -77,16 +53,16 @@ namespace SailwindRadio.UI
             if (!MenuInputLease.GameplayAvailable || !Application.isFocused || !GameState.inCursorMenu ||
                 UnityEngine.Input.GetKeyDown(KeyCode.Escape)) { Close(); return; }
             if (CollectionRadio && (!CollectionRadio.IsPlacedForControls || !CollectionRadio.WithinMenuReach)) Close();
-            else if (!CollectionRadio && collectionMode) Close(); // Destroyed collection target cannot become a spawn menu.
+            else if (!CollectionRadio) Close();
         }
 
         public void Draw()
         {
             if (!IsOpen) return;
             float width=Mathf.Min(440,Screen.width-24);
-            float height=Mathf.Min(CollectionRadio ? 430 : 380,Screen.height-24);
+            float height=Mathf.Min(430,Screen.height-24);
             GUILayout.Window(194043,new Rect((Screen.width-width)*.5f,(Screen.height-height)*.5f,width,height),
-                DrawWindow,CollectionRadio ? "Radio collections" : "Place a radio device");
+                DrawWindow,"Radio collections");
         }
 
         private void DrawWindow(int id)
@@ -108,19 +84,6 @@ namespace SailwindRadio.UI
                     CollectionsChanged?.Invoke(radio,roots.ToArray());
                 }
             }
-            else
-            {
-                GUILayout.Label("Creates a device in front of you");
-                for (int i=0;i<4;i++)
-                    if (GUILayout.Button(RadioDevice.Name(i),GUILayout.Height(36)))
-                    {
-                        Close();
-                        SpawnRequested?.Invoke((RadioDeviceKind)i);
-                        break;
-                    }
-                if (GUILayout.Button("Log stall position here")) StandPositionRequested?.Invoke();
-                if (!string.IsNullOrEmpty(message)) GUILayout.Label(message);
-            }
             if (GUILayout.Button("Close")) Close();
         }
 
@@ -128,10 +91,8 @@ namespace SailwindRadio.UI
         {
             lease.Release();
             CollectionRadio=null;
-            collectionMode=false;
             choices.Clear();
             selected.Clear();
-            message="";
         }
 
         public void Dispose() { if (disposed) return; Close(); disposed=true; }

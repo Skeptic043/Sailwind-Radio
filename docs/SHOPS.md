@@ -18,7 +18,7 @@ The mod reports uneven ground and overlapping scenery or items in the log, then 
 
 ## Purchase status
 
-Radio shops use Sailwind's native merchant sale path. Radio stock becomes purchasable only when the merchant, local currency region, economy, sale UI and transaction log are available and the player is near the stall. The code checks those conditions again before each sale. The player has confirmed purchases and restocking in game, including buying at Dragon Cliffs, visiting Gold Rock City, and returning to replenished stock. The Home developer menu can create owned devices for testing placement, controls, hooks, hammer locking and save/reload independently of a shop. It also logs the player's position and facing in the capital's scenery coordinates to guide a precise stand adjustment.
+Radio shops use Sailwind's native merchant sale path. Radio stock becomes purchasable only when the merchant, local currency region, economy, sale UI and transaction log are available and the player is near the stall. The code checks those conditions again before each sale. The player has confirmed purchases and restocking in game, including buying at Dragon Cliffs, visiting Gold Rock City, and returning to replenished stock.
 
 Radio merchants sell the mod's devices and offer the game's sell window for held goods at their own counter. The owned NPC keeps a small root interaction trigger while its much larger child trigger remains disabled. The player has confirmed device selling and that Radio merchants claim sell interactions only at close range.
 
@@ -34,5 +34,3 @@ The native purchase path uses each capital's local currency and reputation disco
 | Turbo Wolfer | 579 | about 5,000 | 1,316 |
 
 These are rounded equivalents at inspected starting exchange rates, before reputation discounts. Rates change during play, and native integer rounding can yield 1,499 rather than exactly 1,500 Dragons for a radio. The fourth Gold currency is not used by these stalls.
-
-The static scene and shop contracts are recorded under `Sailwind/docs/research/`. Use [TESTING.md](TESTING.md) for the live placement and device checks.

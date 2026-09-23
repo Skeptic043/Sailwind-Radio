@@ -1,9 +1,5 @@
 # Source attribution and dependencies
 
-The shortcut parser, text setting wrapper and shortcut activation logic are adapted from [Sailwind Fast Forward](https://github.com/Skeptic043/Sailwind-Fast-Forward) at revision `13e44060ece3680d74472f6fb7b7b9272efba592`, specifically `src/ShortcutParser.cs`, `src/ShortcutSetting.cs` and `src/HotkeyInput.cs`.
-
-Copyright (c) 2026 skeptic043. These sources use the MIT License reproduced in [LICENSE](LICENSE).
-
 ## NLayer
 
 The package includes `NLayer.dll` from the official [NLayer 1.16.0 NuGet package](https://www.nuget.org/packages/NLayer/1.16.0). Its netstandard2.0 assembly has no additional package dependencies. The upstream package identifies source revision `c88b0d8abfa15c1e506106931ea8410170dc6326` in [naudio/NLayer](https://github.com/naudio/NLayer/tree/c88b0d8abfa15c1e506106931ea8410170dc6326).

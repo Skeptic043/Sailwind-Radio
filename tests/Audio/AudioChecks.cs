@@ -697,6 +697,7 @@ static class AudioChecks
         finally { gate.Release(); }
         Check(RadioPlayback.DecodeMp3(mp3, CancellationToken.None).SampleCount > 0,
             "Decoder slot remains usable after queued cancellation");
+        CheckStreamedMp3(mp3, RadioPlayback.DecodeMp3(mp3, CancellationToken.None));
         string corrupt = Path.Combine(AppContext.BaseDirectory, "corrupt.mp3");
         File.WriteAllText(corrupt, "This is not an MPEG stream");
         rejected = false;
@@ -750,6 +751,240 @@ static class AudioChecks
         File.Delete(mp3); File.Delete(mono); File.Delete(vbr); File.Delete(corrupt);
     }
 
+    static void CheckStreamedMp3(string path, RadioPlayback.DecodedMp3 reference)
+    {
+        string longPath = Path.Combine(AppContext.BaseDirectory, "long-stream-fixture.mp3");
+        WriteSilentMp3(longPath, false, false, 29200);
+        Check(RadioPlayback.IsLongMp3(longPath, CancellationToken.None),
+            "Speculative preload identifies a long MP3 before allocating decoded PCM");
+        var longResult = RadioPlayback.PrepareMp3(longPath, 700, CancellationToken.None);
+        Check(longResult.Stream != null && longResult.Decoded == null &&
+            (long)longResult.Stream.Frames * longResult.Stream.Channels > RadioPlayback.MaximumMp3Samples &&
+            longResult.Stream.BufferSamples <= 22 * longResult.Stream.SampleRate * longResult.Stream.Channels,
+            "A real MP3 above the 256 MiB decoded limit selects bounded streaming before PCM accumulation");
+        int savedFrame = 700 * longResult.Stream.SampleRate;
+        var longDeadline = DateTime.UtcNow.AddSeconds(10);
+        while (!longResult.Stream.Ready(savedFrame) && longResult.Stream.Fault == null && DateTime.UtcNow < longDeadline)
+            Thread.Sleep(2);
+        Check(longResult.Stream.Fault == null && longResult.Stream.Ready(savedFrame),
+            "Long streamed MP3 begins decoding at the saved position");
+        int laterFrame = 740 * longResult.Stream.SampleRate;
+        int boundedSamples = longResult.Stream.BufferSamples;
+        longResult.Stream.Request(laterFrame);
+        longDeadline = DateTime.UtcNow.AddSeconds(10);
+        while (!longResult.Stream.Ready(laterFrame) && longResult.Stream.Fault == null && DateTime.UtcNow < longDeadline)
+            Thread.Sleep(2);
+        Check(longResult.Stream.Fault == null && longResult.Stream.Ready(laterFrame) &&
+            longResult.Stream.BufferSamples == boundedSamples,
+            "Seeking within a long MP3 refills the fixed-size PCM window");
+        longResult.Stream.Dispose();
+        longDeadline = DateTime.UtcNow.AddSeconds(5);
+        while (!longResult.Stream.WorkerCompleted && DateTime.UtcNow < longDeadline) Thread.Sleep(2);
+        Check(longResult.Stream.WorkerCompleted, "Long decoder worker exits promptly after cancellation");
+        var longState = new RadioState { TrackPath = longPath, PositionSeconds = 700, Powered = true };
+        var longPlayer = new RadioPlayback(new MonoBehaviour(), longState, _ => { });
+        var builtInEmitter = GameObject.Last;
+        var radioSource = AudioSource.Last;
+        longPlayer.BeginEndpoints();
+        longPlayer.SetEndpoint(991, new Vector3(), false, 2, 1, 1, 0);
+        longPlayer.EndEndpoints();
+        var speakerSource = AudioSource.Last;
+        PumpUntil(longPlayer, false, () => longPlayer.Status == "Playing" || longPlayer.LoadFailed);
+        Check(!longPlayer.LoadFailed && radioSource.clip != null && radioSource.clip.Streaming &&
+            speakerSource.clip != null && speakerSource.clip.Streaming && radioSource.clip != speakerSource.clip &&
+            radioSource.Schedules == 1 && speakerSource.Schedules == 1 &&
+            radioSource.timeSamples == 700 * radioSource.clip.frequency &&
+            speakerSource.timeSamples == radioSource.timeSamples,
+            "Long-track playback restores saved DSP position on independently streamed radio and speaker clips");
+        var radioClip = radioSource.clip;
+        var speakerClip = speakerSource.clip;
+        UnityEngine.Object.Destroy(builtInEmitter);
+        longPlayer.Tick(new Vector3(), false);
+        var recoveredSource = AudioSource.Last;
+        var recoveredClip = recoveredSource.clip;
+        Check(!radioClip.Destroyed && !speakerClip.Destroyed && recoveredClip != null &&
+            recoveredClip.Streaming && recoveredClip != radioClip && speakerSource.clip == speakerClip,
+            "Recreating a lost built-in emitter retains the master timeline and healthy speaker clip");
+        AudioSettings.dspTime = radioSource.ScheduledAt + 1;
+        longState.Paused = true;
+        longPlayer.Tick(new Vector3(), false);
+        Check(recoveredSource.Pauses == 1 && speakerSource.Pauses == 1 && longState.PositionSeconds >= 701,
+            "Long-track pause keeps synchronized output state");
+        longPlayer.Dispose();
+        Check(radioClip.Destroyed && recoveredClip.Destroyed && speakerClip.Destroyed && AudioSettings.Subscribers == 0,
+            "Long-track disposal releases all output clips and configuration subscription");
+        var invalidState = new RadioState { TrackPath = longPath, PositionSeconds = Double.NaN, Powered = true };
+        var invalidPlayer = new RadioPlayback(new MonoBehaviour(), invalidState, _ => { });
+        var invalidSource = AudioSource.Last;
+        PumpUntil(invalidPlayer, false, () => invalidPlayer.Status == "Playing" || invalidPlayer.LoadFailed);
+        Check(!invalidPlayer.LoadFailed && invalidSource.timeSamples == 0,
+            "Malformed NaN save position safely starts a long MP3 at zero");
+        invalidState.Paused = true;
+        invalidState.PositionSeconds = Double.PositiveInfinity;
+        invalidPlayer.Tick(new Vector3(), false);
+        Check(invalidPlayer.Status == "Paused",
+            "Infinite saved position cannot index the streamed PCM buffer");
+        invalidPlayer.Dispose();
+        longDeadline = DateTime.UtcNow.AddSeconds(5);
+        bool fileClosed = false;
+        while (!fileClosed && DateTime.UtcNow < longDeadline)
+        {
+            try { using (File.Open(longPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) fileClosed = true; }
+            catch (IOException) { Thread.Sleep(2); }
+        }
+        Check(fileClosed, "Long-track disposal closes its worker-owned file promptly");
+        File.Delete(longPath);
+        var ordinary = RadioPlayback.PrepareMp3(path, 0, CancellationToken.None);
+        Check(ordinary.Decoded != null && ordinary.Stream == null,
+            "Ordinary MP3 retains the fully decoded playback path");
+        var result = RadioPlayback.PrepareMp3(path, 0.1, CancellationToken.None, 16384);
+        var stream = result.Stream;
+        Check(stream != null && result.Decoded == null && stream.Frames == reference.SampleCount / reference.Channels &&
+            stream.BufferSamples <= 22 * stream.SampleRate * stream.Channels,
+            "Oversized MP3 uses a bounded ring with known duration");
+        var first = stream.CreateReader();
+        var second = stream.CreateReader();
+        var firstClip = stream.CreateClip(first);
+        var secondClip = stream.CreateClip(second);
+        Check(firstClip.Streaming && secondClip.Streaming && firstClip != secondClip &&
+            firstClip.samples == secondClip.samples && firstClip.PcmRead != secondClip.PcmRead,
+            "Each output gets its own streaming callback and cursor");
+        int staleGeneration = first.Generation, staleCursor = first.Cursor;
+        first.SetPosition(100);
+        first.CommitRead(staleGeneration, staleCursor, staleCursor + 1024);
+        Check(first.Cursor == 100,
+            "An in-flight PCM read cannot overwrite a newer seek position");
+        var silent = new float[1024 * stream.Channels];
+        firstClip.PcmSetPosition(stream.Frames - 1024);
+        firstClip.PcmRead(silent);
+        Check(Array.TrueForAll(silent, value => value == 0),
+            "Missing streamed chunks become silence without blocking the audio callback");
+        int resume = stream.SampleRate / 10;
+        firstClip.PcmSetPosition(resume);
+        stream.Request(resume);
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!stream.Ready(resume) && stream.Fault == null && DateTime.UtcNow < deadline) Thread.Sleep(2);
+        Check(stream.Fault == null && stream.Ready(resume),
+            "Worker seeks and fills a saved position: " + (stream.Fault == null ? "not ready" : stream.Fault.ToString()));
+        secondClip.PcmSetPosition(0);
+        stream.Request(0);
+        deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!stream.Ready(0) && stream.Fault == null && DateTime.UtcNow < deadline) Thread.Sleep(2);
+        secondClip.PcmRead(silent);
+        firstClip.PcmRead(silent);
+        Check(stream.Ready(0) && Array.TrueForAll(silent, value => value == 0),
+            "Independent readers can join and read the same buffered PCM window: " +
+            (stream.Fault == null ? "no fault" : stream.Fault.ToString()) + " ready=" + stream.Ready(0));
+        firstClip.PcmSetPosition(stream.Frames - 1024);
+        firstClip.PcmSetPosition(0);
+        stream.Request(0);
+        deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!stream.Ready(0) && stream.Fault == null && DateTime.UtcNow < deadline) Thread.Sleep(2);
+        Check(stream.Fault == null && stream.Ready(0),
+            "Loop wrap requests the beginning and worker restores the shared buffer");
+        Check(stream.Ready(Int32.MinValue), "Invalid direct buffer position is clamped safely");
+#if NET10_0_OR_GREATER
+        firstClip.PcmRead(silent); // JIT callback before measuring steady-state work.
+        long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 100; i++) firstClip.PcmRead(silent);
+        Check(GC.GetAllocatedBytesForCurrentThread() == allocatedBefore,
+            "Steady streamed audio callback allocates no managed memory");
+#endif
+        stream.Dispose();
+        Array.Fill(silent, 0.8f);
+        firstClip.PcmRead(silent);
+        Check(Array.TrueForAll(silent, value => value == 0),
+            "Disposed stream returns silence to a late native callback");
+        UnityEngine.Object.Destroy(firstClip);
+        UnityEngine.Object.Destroy(secondClip);
+        using (var cancelled = new CancellationTokenSource())
+        {
+            cancelled.Cancel();
+            bool rejected = false;
+            try { StreamedMp3.Open(path, 0, cancelled.Token); }
+            catch (OperationCanceledException) { rejected = true; }
+            Check(rejected, "Cancelled long-track open releases without starting a worker");
+        }
+        CheckNonzeroStreamedMp3();
+    }
+
+    static void CheckNonzeroStreamedMp3()
+    {
+        // Original deterministic pink-noise fixture, generated with ffmpeg's
+        // anoisesrc at seeds 12345 and 54321. It carries no personal music.
+        string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "stereo-noise.mp3");
+        var reference = RadioPlayback.DecodeMp3(path, CancellationToken.None);
+        Check(reference.Blocks.Exists(block => Array.Exists(block, sample => Math.Abs(sample) > .001f)),
+            "Deterministic stereo fixture contains audible nonzero PCM");
+        var stream = RadioPlayback.PrepareMp3(path, 8, CancellationToken.None, 16384).Stream;
+        Check(stream != null, "Nonzero stereo fixture uses forced streamed path");
+        var clipA = stream.CreateClip(stream.CreateReader());
+        var clipB = stream.CreateClip(stream.CreateReader());
+        int seek = 8 * stream.SampleRate;
+        clipA.PcmSetPosition(seek);
+        clipB.PcmSetPosition(seek);
+        stream.Request(seek);
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!stream.Ready(seek) && stream.Fault == null && DateTime.UtcNow < deadline) Thread.Sleep(2);
+        Check(stream.Fault == null && stream.Ready(seek), "Nonzero seek fills streaming window: " +
+            (stream.Fault == null ? "not ready" : stream.Fault.ToString()));
+        var a = new float[1024 * stream.Channels];
+        var b = new float[a.Length];
+        clipA.PcmRead(a);
+        clipB.PcmRead(b);
+        bool seekMatches = true, readersMatch = true;
+        int seekMismatch = -1;
+        for (int i = 0; i < a.Length; i++)
+        {
+            if (Math.Abs(a[i] - DecodedSample(reference, seek * stream.Channels + i)) > .00001f)
+            { seekMatches = false; if (seekMismatch < 0) seekMismatch = i; }
+            if (Math.Abs(a[i] - b[i]) > .00001f) readersMatch = false;
+        }
+        Check(seekMatches && readersMatch && Array.Exists(a, sample => Math.Abs(sample) > .001f),
+            "After seek, two independent readers reproduce the same nonzero full-decode PCM: mismatch=" +
+            seekMismatch + " a=" + (seekMismatch < 0 ? 0 : a[seekMismatch]) + " ref=" +
+            (seekMismatch < 0 ? 0 : DecodedSample(reference, seek * stream.Channels + seekMismatch)));
+        clipA.PcmSetPosition(stream.Frames - 1024);
+        clipA.PcmSetPosition(0);
+        clipB.PcmSetPosition(0);
+        stream.Request(0);
+        deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!stream.Ready(0) && stream.Fault == null && DateTime.UtcNow < deadline) Thread.Sleep(2);
+        Check(stream.Fault == null && stream.Ready(0), "Nonzero loop wrap refills the start of the file: " +
+            (stream.Fault == null ? "not ready" : stream.Fault.ToString()));
+        bool loopMatches = true, loopNonzero = false;
+        int firstMismatch = -1;
+        for (int block = 0; block < 4; block++)
+        {
+            clipA.PcmRead(a);
+            clipB.PcmRead(b);
+            for (int i = 0; i < a.Length; i++)
+            {
+                if (Math.Abs(a[i]) > .001f) loopNonzero = true;
+                if (Math.Abs(a[i] - b[i]) > .00001f ||
+                    Math.Abs(a[i] - DecodedSample(reference, block * a.Length + i)) > .00001f)
+                { loopMatches = false; if (firstMismatch < 0) firstMismatch = block * a.Length + i; }
+            }
+        }
+        Check(loopMatches && loopNonzero,
+            "After loop wrap, both readers reproduce nonzero full-decode PCM from the start: mismatch=" +
+            firstMismatch);
+        stream.Dispose();
+        UnityEngine.Object.Destroy(clipA);
+        UnityEngine.Object.Destroy(clipB);
+    }
+
+    static float DecodedSample(RadioPlayback.DecodedMp3 decoded, int index)
+    {
+        foreach (float[] block in decoded.Blocks)
+        {
+            if (index < block.Length) return block[index];
+            index -= block.Length;
+        }
+        throw new ArgumentOutOfRangeException("index");
+    }
+
+
     static void PumpUntil(RadioPlayback player, bool suspended, Func<bool> done)
     {
         var deadline = DateTime.UtcNow.AddSeconds(5);
@@ -759,10 +994,10 @@ static class AudioChecks
 
     // Original synthesized MPEG-1 Layer III frames. Zero side information means zero
     // spectral data, giving valid silent audio without copyrighted recordings or encoders.
-    static void WriteSilentMp3(string path, bool mono, bool variableBitrate)
+    static void WriteSilentMp3(string path, bool mono, bool variableBitrate, int frameCount = 20)
     {
         using (var output = File.Create(path))
-            for (int frame=0; frame<20; frame++)
+            for (int frame=0; frame<frameCount; frame++)
             {
                 bool high = variableBitrate && frame % 2 != 0;
                 int bitrate = high ? 160000 : 128000;

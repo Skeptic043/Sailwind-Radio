@@ -221,6 +221,44 @@ internal static class Program
                 Check(snapshot.GetTrackInfo(path).Album == "Album", "snapshot provides cached structured metadata " + version + "/" + encoding);
             }
         }
+        var comments = new List<byte> { 3 };
+        comments.AddRange(Encoding.ASCII.GetBytes("vorbis"));
+        AddLittleEndian(comments, 6); comments.AddRange(Encoding.ASCII.GetBytes("vendor"));
+        AddLittleEndian(comments, 4);
+        foreach (string field in new[] { "COMMENT=" + new string('x', 300), "TITLE=Blue 水", "ARTIST=The Sailors", "ALBUM=At Sea" })
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes(field);
+            AddLittleEndian(comments, bytes.Length); comments.AddRange(bytes);
+        }
+        var identification = new byte[] { 1, 118, 111, 114, 98, 105, 115 };
+        string ogg = FileAt("tags/vorbis.ogg", OggPage(identification).Concat(OggPage(comments.ToArray())).ToArray());
+        var oggInfo = TrackMetadata.ReadInfo(ogg);
+        Check(oggInfo.Title == "Blue 水" && oggInfo.Artist == "The Sailors" && oggInfo.Album == "At Sea", "Ogg Vorbis comments preserve Unicode title artist album");
+        Check(Scan(Path.GetDirectoryName(ogg)).GetTrackInfo(ogg).Title == "Blue 水", "scanner reads Ogg metadata through cache");
+        var infoList = new List<byte>(Encoding.ASCII.GetBytes("INFO"));
+        infoList.AddRange(WaveChunk("INAM", Encoding.UTF8.GetBytes("Harbor 夜\0")));
+        infoList.AddRange(WaveChunk("IART", Encoding.UTF8.GetBytes("Crew\0")));
+        infoList.AddRange(WaveChunk("IPRD", Encoding.UTF8.GetBytes("Voyage\0")));
+        string wave = FileAt("tags/info.wav", WaveFile(WaveChunk("LIST", infoList.ToArray())));
+        var waveInfo = TrackMetadata.ReadInfo(wave);
+        Check(waveInfo.Title == "Harbor 夜" && waveInfo.Artist == "Crew" && waveInfo.Album == "Voyage", "WAV RIFF INFO title artist album");
+        Check(Scan(Path.GetDirectoryName(wave)).GetTrackInfo(wave).Album == "Voyage", "scanner reads WAV metadata through cache");
+        var id3Frames = new List<byte>();
+        AddFrame(id3Frames, "TIT2", "WAV ID3 title", 3, 3);
+        AddFrame(id3Frames, "TPE1", "WAV artist", 3, 3);
+        AddFrame(id3Frames, "TALB", "WAV album", 3, 3);
+        var id3Header = new byte[] { 73, 68, 51, 3, 0, 0, 0, 0, (byte)(id3Frames.Count >> 7), (byte)(id3Frames.Count & 127) };
+        string waveId3 = FileAt("tags/id3.wav", WaveFile(WaveChunk("id3 ", id3Header.Concat(id3Frames).ToArray())));
+        Check(TrackMetadata.ReadInfo(waveId3).Label == "WAV artist - WAV ID3 title" && TrackMetadata.ReadInfo(waveId3).Album == "WAV album", "WAV embedded ID3 text");
+        string brokenOgg = FileAt("tags/broken.ogg", OggPage(identification).Concat(new byte[] { 79, 103, 103, 83, 0 }).ToArray());
+        Check(TrackMetadata.ReadLabel(brokenOgg) == "broken", "truncated Ogg returns filename");
+        string brokenWave = FileAt("tags/broken.wav", WaveFile(WaveChunk("LIST", new byte[] { 73, 78, 70, 79, 73, 78, 65, 77, 255, 255, 255, 255 })));
+        Check(TrackMetadata.ReadLabel(brokenWave) == "broken", "malformed WAV INFO size returns filename");
+        var formatCache = new MetadataCache();
+        Check(formatCache.GetInfo(ogg).Title == "Blue 水" && formatCache.GetInfo(wave).Title == "Harbor 夜" && formatCache.Count == 2, "OGG and WAV metadata cached");
+        File.WriteAllBytes(ogg, OggPage(identification).Concat(OggPage(new byte[] { 3, 118, 111, 114, 98, 105, 115 })).ToArray());
+        File.SetLastWriteTimeUtc(ogg, DateTime.UtcNow.AddSeconds(5));
+        Check(formatCache.GetInfo(ogg).Title == "vorbis" && formatCache.Count == 2, "OGG cache invalidates on changed file");
         string huge = FileAt("tags/huge_tag.mp3", new byte[] { 73, 68, 51, 4, 0, 0, 127, 127, 127, 127 });
         Check(TrackMetadata.ReadLabel(huge) == "huge tag", "oversized tag never allocates unchecked length");
         string truncated = FileAt("tags/truncated.mp3", new byte[] { 73, 68, 51, 3, 0, 0, 0, 0, 0, 100 });
@@ -295,5 +333,35 @@ internal static class Program
         body.AddRange(Encoding.ASCII.GetBytes(id));
         body.AddRange(new byte[] { 0, 0, 0, (byte)payload.Count, 0, 0 });
         body.AddRange(payload);
+    }
+
+    private static void AddLittleEndian(List<byte> bytes, int value)
+    {
+        bytes.Add((byte)value); bytes.Add((byte)(value >> 8)); bytes.Add((byte)(value >> 16)); bytes.Add((byte)(value >> 24));
+    }
+    private static byte[] OggPage(byte[] packet)
+    {
+        var bytes = new List<byte>(new byte[27]);
+        bytes[0] = (byte)'O'; bytes[1] = (byte)'g'; bytes[2] = (byte)'g'; bytes[3] = (byte)'S';
+        int remaining = packet.Length;
+        while (remaining >= 255) { bytes.Add(255); remaining -= 255; }
+        bytes.Add((byte)remaining);
+        bytes[26] = (byte)(bytes.Count - 27);
+        bytes.AddRange(packet);
+        return bytes.ToArray();
+    }
+    private static byte[] WaveChunk(string id, byte[] payload)
+    {
+        var bytes = new List<byte>(Encoding.ASCII.GetBytes(id));
+        AddLittleEndian(bytes, payload.Length); bytes.AddRange(payload);
+        if ((payload.Length & 1) != 0) bytes.Add(0);
+        return bytes.ToArray();
+    }
+    private static byte[] WaveFile(byte[] chunk)
+    {
+        var bytes = new List<byte>(Encoding.ASCII.GetBytes("RIFF"));
+        AddLittleEndian(bytes, chunk.Length + 4);
+        bytes.AddRange(Encoding.ASCII.GetBytes("WAVE")); bytes.AddRange(chunk);
+        return bytes.ToArray();
     }
 }

@@ -24,6 +24,7 @@ namespace SailwindRadio
     {
         internal readonly GameObject Emitter;
         internal readonly AudioSource Source;
+        internal AudioClip StreamClip;
         internal RadioSpeakerProfile Profile;
         internal Vector3 Position;
         internal bool Carried, Seen, Running, Paused;
@@ -162,11 +163,18 @@ namespace SailwindRadio
             try { Stop(true); }
             finally
             {
+                ReleaseStreamClip();
                 if (Emitter != null) UnityEngine.Object.Destroy(Emitter);
                 highPass = null;
                 lowPass = null;
                 bassFilter = null;
             }
+        }
+
+        internal void ReleaseStreamClip()
+        {
+            if (StreamClip != null) UnityEngine.Object.Destroy(StreamClip);
+            StreamClip = null;
         }
     }
 }

@@ -6,7 +6,7 @@ namespace SailwindRadio.Library
 {
     internal static class TrackMetadata
     {
-        // Best effort ID3 text only. Never decode audio during discovery or allocate from an unchecked tag size.
+        // Read bounded text headers only. Discovery must never decode audio or trust a claimed tag size.
         private const int MaximumTagBytes = 65536;
         internal static string ReadLabel(string path) => ReadInfo(path).Label;
         internal static TrackInfo ReadInfo(string path)
@@ -17,13 +17,24 @@ namespace SailwindRadio.Library
         internal static TrackInfo ReadInfo(string path, out bool readable)
         {
             readable = false;
-            if (!LibraryPaths.Comparer.Equals(System.IO.Path.GetExtension(path), ".mp3")) return new TrackInfo(path);
+            string extension = System.IO.Path.GetExtension(path);
+            if (!LibraryPaths.Supported(path)) return new TrackInfo(path);
             string title = null, artist = null, album = null;
             try
             {
                 using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
                 {
                     readable = true;
+                    if (LibraryPaths.Comparer.Equals(extension, ".ogg"))
+                    {
+                        ReadOgg(stream, ref title, ref artist, ref album);
+                        return new TrackInfo(path, title, artist, album);
+                    }
+                    if (LibraryPaths.Comparer.Equals(extension, ".wav"))
+                    {
+                        ReadWave(stream, ref title, ref artist, ref album);
+                        return new TrackInfo(path, title, artist, album);
+                    }
                     var header = new byte[10];
                     if (Read(stream, header, header.Length) && header[0] == 'I' && header[1] == 'D' && header[2] == '3' &&
                         (header[3] == 3 || header[3] == 4) && header[5] == 0)
@@ -52,6 +63,149 @@ namespace SailwindRadio.Library
             catch (Exception error) when (LibraryPaths.FilesystemError(error)) { readable = false; }
             return new TrackInfo(path, title, artist, album);
         }
+
+        private static void ReadOgg(Stream stream, ref string title, ref string artist, ref string album)
+        {
+            var header = new byte[27];
+            var packet = new MemoryStream();
+            int completed = 0;
+            // Vorbis identification and comment packets are at the beginning of one logical stream.
+            for (int page = 0; page < 16 && completed < 2; page++)
+            {
+                if (!Read(stream, header, header.Length) || Encoding.ASCII.GetString(header, 0, 4) != "OggS" || header[4] != 0) return;
+                int segments = header[26];
+                var lacing = new byte[segments];
+                if (!Read(stream, lacing, segments)) return;
+                long payload = 0;
+                foreach (byte size in lacing) payload += size;
+                if (payload > stream.Length - stream.Position) return;
+                for (int segment = 0; segment < segments; segment++)
+                {
+                    int size = lacing[segment];
+                    if (packet.Length + size > MaximumTagBytes) return;
+                    var bytes = new byte[size];
+                    if (!Read(stream, bytes, size)) return;
+                    packet.Write(bytes, 0, size);
+                    if (size == 255) continue;
+                    byte[] data = packet.ToArray();
+                    packet.SetLength(0);
+                    if (completed == 0 && !VorbisPacket(data, 1)) return;
+                    if (completed == 1)
+                    {
+                        if (VorbisPacket(data, 3)) ReadVorbisComments(data, ref title, ref artist, ref album);
+                        return;
+                    }
+                    completed++;
+                }
+            }
+        }
+
+        private static bool VorbisPacket(byte[] data, byte kind) => data.Length >= 7 && data[0] == kind &&
+            Encoding.ASCII.GetString(data, 1, 6) == "vorbis";
+
+        private static void ReadVorbisComments(byte[] data, ref string title, ref string artist, ref string album)
+        {
+            int offset = 7;
+            if (!ReadLength(data, ref offset, out int vendor) || vendor > data.Length - offset) return;
+            offset += vendor;
+            if (!ReadLength(data, ref offset, out int count) || count > 1024) return;
+            for (int i = 0; i < count; i++)
+            {
+                if (!ReadLength(data, ref offset, out int length) || length > data.Length - offset) return;
+                string entry = Encoding.UTF8.GetString(data, offset, length);
+                offset += length;
+                int equals = entry.IndexOf('=');
+                if (equals < 1) continue;
+                string key = entry.Substring(0, equals);
+                string value = Clean(entry.Substring(equals + 1));
+                if (key.Equals("TITLE", StringComparison.OrdinalIgnoreCase)) title = value;
+                else if (key.Equals("ARTIST", StringComparison.OrdinalIgnoreCase)) artist = value;
+                else if (key.Equals("ALBUM", StringComparison.OrdinalIgnoreCase)) album = value;
+            }
+        }
+
+        private static void ReadWave(Stream stream, ref string title, ref string artist, ref string album)
+        {
+            var header = new byte[12];
+            if (!Read(stream, header, header.Length) || Encoding.ASCII.GetString(header, 0, 4) != "RIFF" ||
+                Encoding.ASCII.GetString(header, 8, 4) != "WAVE") return;
+            long limit = Math.Min(stream.Length, 8L + UnsignedLittleEndian(header, 4));
+            var chunk = new byte[8];
+            // A malformed file can contain millions of empty chunks. Stop discovery
+            // after a modest scan rather than let metadata parsing stall a library refresh.
+            int scannedChunks = 0;
+            while (stream.Position <= limit - 8 && scannedChunks++ < 4096)
+            {
+                if (!Read(stream, chunk, chunk.Length)) return;
+                long size = UnsignedLittleEndian(chunk, 4);
+                long end = stream.Position + size;
+                if (end > limit) return;
+                if (Encoding.ASCII.GetString(chunk, 0, 4) == "LIST" && size >= 4 && size <= MaximumTagBytes)
+                {
+                    var list = new byte[(int)size];
+                    if (!Read(stream, list, list.Length)) return;
+                    ReadWaveInfo(list, ref title, ref artist, ref album);
+                }
+                else if ((Encoding.ASCII.GetString(chunk, 0, 4) == "id3 " || Encoding.ASCII.GetString(chunk, 0, 4) == "ID3 ") &&
+                    size >= 10 && size <= MaximumTagBytes + 10)
+                {
+                    var id3 = new byte[(int)size];
+                    if (!Read(stream, id3, id3.Length)) return;
+                    if (id3[0] == 'I' && id3[1] == 'D' && id3[2] == '3' && (id3[3] == 3 || id3[3] == 4) && id3[5] == 0)
+                    {
+                        int tagSize = SyncSafe(id3, 6);
+                        if (tagSize >= 0 && tagSize <= size - 10)
+                        {
+                            var tag = new byte[tagSize];
+                            Array.Copy(id3, 10, tag, 0, tagSize);
+                            ReadFrames(tag, id3[3], ref title, ref artist, ref album);
+                        }
+                    }
+                }
+                stream.Position = end + (size & 1);
+                if (title != null && artist != null && album != null) return;
+            }
+        }
+
+        private static void ReadWaveInfo(byte[] list, ref string title, ref string artist, ref string album)
+        {
+            if (Encoding.ASCII.GetString(list, 0, 4) != "INFO") return;
+            for (int offset = 4; offset <= list.Length - 8;)
+            {
+                string id = Encoding.ASCII.GetString(list, offset, 4);
+                long size = UnsignedLittleEndian(list, offset + 4);
+                offset += 8;
+                if (size > list.Length - offset) return;
+                if (size > 0 && size <= 16384 && (id == "INAM" || id == "IART" || id == "IPRD"))
+                {
+                    string value = Clean(DecodeWaveText(list, offset, (int)size));
+                    if (id == "INAM") title = value;
+                    else if (id == "IART") artist = value;
+                    else album = value;
+                }
+                offset += (int)size + ((int)size & 1);
+            }
+        }
+
+        private static string DecodeWaveText(byte[] bytes, int offset, int length)
+        {
+            try { return new UTF8Encoding(false, true).GetString(bytes, offset, length); }
+            catch (DecoderFallbackException) { return Encoding.GetEncoding(28591).GetString(bytes, offset, length); }
+        }
+
+        private static bool ReadLength(byte[] bytes, ref int offset, out int length)
+        {
+            length = 0;
+            if (offset > bytes.Length - 4) return false;
+            uint value = UnsignedLittleEndian(bytes, offset);
+            offset += 4;
+            if (value > int.MaxValue) return false;
+            length = (int)value;
+            return true;
+        }
+
+        private static uint UnsignedLittleEndian(byte[] bytes, int offset) =>
+            (uint)(bytes[offset] | bytes[offset + 1] << 8 | bytes[offset + 2] << 16 | bytes[offset + 3] << 24);
 
         private static void ReadFrames(byte[] tag, int version, ref string title, ref string artist, ref string album)
         {

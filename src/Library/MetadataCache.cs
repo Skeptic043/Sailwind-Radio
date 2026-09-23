@@ -19,7 +19,7 @@ namespace SailwindRadio.Library
         internal string GetLabel(string path) => GetInfo(path).Label;
         internal TrackInfo GetInfo(string path)
         {
-            if (!LibraryPaths.Comparer.Equals(Path.GetExtension(path), ".mp3")) return new TrackInfo(path);
+            if (!LibraryPaths.Supported(path)) return new TrackInfo(path);
             try
             {
                 var file = new FileInfo(path);

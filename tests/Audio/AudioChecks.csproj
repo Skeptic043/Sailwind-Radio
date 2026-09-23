@@ -11,5 +11,6 @@
     <Compile Include="../../src/RadioState.cs" Link="RadioState.cs" />
     <Compile Include="AudioChecks.cs" />
     <Compile Include="UnityAudioDoubles.cs" />
+    <Content Include="Fixtures/stereo-noise.mp3" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

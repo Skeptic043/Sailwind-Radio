@@ -134,7 +134,7 @@ internal static class Program
         Check(!RadioControlReach.Contains(null,nearSurface),"destroyed activating pointer closes menu");
         foreach(string boundary in new[]{"focus","scenes","pause","camera","sleep","load","exit"})
         {
-            Reset();using var menus=new RadioMenus();menus.ShowSpawnChooser();
+            Reset();using var menus=new RadioMenus();menus.ShowCollections(new RadioItemController(),Array.Empty<CollectionChoice>());
             Check(menus.IsOpen&&!Refs.charController.enabled&&!MouseLook.Enabled&&GameState.inCursorMenu,"menu acquires input and cursor");
             switch(boundary){case "focus":Application.isFocused=false;break;case "scenes":GameState.loadingScenes=1;break;
                 case "pause":Time.timeScale=0;break;case "camera":BoatCamera.on=true;break;case "sleep":GameState.sleeping=true;break;
@@ -146,34 +146,26 @@ internal static class Program
         }
         Reset();using(var menus=new RadioMenus())
         {
-            RadioDeviceKind? spawned=null;
-            menus.SpawnRequested+=kind=>{Check(!menus.IsOpen&&!GameState.inCursorMenu&&Refs.charController.enabled,"spawn callback runs after native input release");spawned=kind;};
-            menus.ShowSpawnChooser();GUILayout.Click="Turbo Wolfer";menus.Draw();
-            Check(spawned==RadioDeviceKind.TurboWoofer,"spawn chooser routes correct fourth device kind");
-            menus.SetMessage("Move to a clear spot");menus.Draw();Check(menus.IsOpen&&GUILayout.Labels.Contains("Move to a clear spot"),"spawn failure is visible in chooser");
-            int markerCalls=0;
-            menus.StandPositionRequested+=()=>{markerCalls++;menus.SetMessage("Radio stand marker: local test");};
-            GUILayout.Click="Log stall position here";menus.Draw();
-            Check(markerCalls==1&&menus.IsOpen&&GUILayout.Labels.Contains("Radio stand marker: local test"),
-                "marker button reports once without closing or spawning");
-            menus.Draw();Check(markerCalls==1,"marker does not repeat without another click");
-            menus.Close();var radio=new RadioItemController();
+            var radio=new RadioItemController();
             menus.ShowCollections(radio,new[]{new CollectionChoice("A","Ocean",true),new CollectionChoice("B","Local",false)});
+            menus.Tick();Check(menus.IsOpen,"reachable collection menu stays open");
             GUILayout.ToggleLabel="Local";menus.Draw();GUILayout.ToggleLabel=null;
             menus.ShowCollections(radio,new[]{new CollectionChoice("A","Ocean",true),new CollectionChoice("B","Local",false)});
             Check(radio.Releases==1&&menus.CollectionRadio==radio,"scan refresh keeps same lease and collection target");
             string[] roots=null;menus.CollectionsChanged+=(target,selection)=>{Check(target==radio&&!menus.IsOpen,"apply closes before callback");roots=selection;};
             GUILayout.Click="Apply";menus.Draw();Check(roots.Length==2,"scan refresh preserves user checkbox edits");
             menus.ShowCollections(radio,Array.Empty<CollectionChoice>());radio.Destroyed=true;menus.Tick();
-            Check(!menus.IsOpen,"destroyed empty collection target never turns into spawn menu");
+            Check(!menus.IsOpen,"destroyed collection target closes menu");
             radio=new RadioItemController();menus.ShowCollections(radio,Array.Empty<CollectionChoice>());radio.WithinMenuReach=false;menus.Tick();
             Check(!menus.IsOpen,"leaving native interaction reach closes collections");
-            menus.ShowSpawnChooser();Input.Escape=true;menus.Tick();Check(!menus.IsOpen,"escape closes menu");Input.Escape=false;
-            menus.ShowSpawnChooser();Refs.charController=new(){enabled=false};Refs.ovrController=new(){enabled=false};menus.Close();
+            radio=new RadioItemController();menus.ShowCollections(radio,Array.Empty<CollectionChoice>());
+            Input.Escape=true;menus.Tick();Check(!menus.IsOpen,"escape closes menu");Input.Escape=false;
+            menus.ShowCollections(radio,Array.Empty<CollectionChoice>());
+            Refs.charController=new(){enabled=false};Refs.ovrController=new(){enabled=false};menus.Close();
             Check(!Refs.charController.enabled&&!Refs.ovrController.enabled,"lease cannot enable replacement scene controllers");
         }
-        Reset();Refs.charController.enabled=false;using(var menus=new RadioMenus()){menus.ShowSpawnChooser();Check(!menus.IsOpen,"another native control owner prevents menu acquisition");}
-        Reset();using(var menus=new RadioMenus()){menus.ShowSpawnChooser();menus.Dispose();Check(!GameState.inCursorMenu&&Refs.charController.enabled,"dispose returns owned input state");}
-        Console.WriteLine(checks+" device association and menu lifecycle checks passed with production rules and native API doubles. Physical placement and UI remain live checks.");
+        Reset();Refs.charController.enabled=false;using(var menus=new RadioMenus()){menus.ShowCollections(new RadioItemController(),Array.Empty<CollectionChoice>());Check(!menus.IsOpen,"another native control owner prevents menu acquisition");}
+        Reset();using(var menus=new RadioMenus()){menus.ShowCollections(new RadioItemController(),Array.Empty<CollectionChoice>());menus.Dispose();Check(!GameState.inCursorMenu&&Refs.charController.enabled,"dispose returns owned input state");}
+        Console.WriteLine(checks+" device association and collection menu lifecycle checks passed with production rules and native API doubles. Physical placement and UI remain live checks.");
     }
 }

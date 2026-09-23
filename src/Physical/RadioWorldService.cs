@@ -14,7 +14,6 @@ namespace SailwindRadio.Physical
         public const string DonorName = "138 model ship junk (small)";
         private static RadioWorldService active;
         private readonly Harmony harmony;
-        private readonly Func<string> configuredTrack;
         private readonly Action<string> warn;
         private readonly RadioSaveStore store = new RadioSaveStore();
         private readonly GlobalRadioArbiter arbiter = new GlobalRadioArbiter();
@@ -64,7 +63,7 @@ namespace SailwindRadio.Physical
                 {
                     Kind = kind,
                     Volume = kind == 0 ? .5f : .75f,
-                    TrackPath = kind == 0 ? configuredTrack?.Invoke() ?? "" : ""
+                    TrackPath = ""
                 });
                 return controller;
             }
@@ -124,12 +123,11 @@ namespace SailwindRadio.Physical
             return true;
         }
 
-        public RadioWorldService(Harmony harmony, Func<string> configuredTrack, Action<string> warn)
+        public RadioWorldService(Harmony harmony, Action<string> warn)
         {
             if (active != null)
                 throw new InvalidOperationException("Radio world service already exists");
             this.harmony = harmony;
-            this.configuredTrack = configuredTrack;
             this.warn = warn ?? (_ => { });
             active = this;
             try
@@ -299,93 +297,6 @@ namespace SailwindRadio.Physical
                     items.RemoveAt(i);
                 else
                     items[i].Tick();
-            }
-        }
-
-        public bool TrySpawn(Vector3 position, Quaternion rotation, out string message)
-            => TrySpawn(position, rotation, RadioDeviceKind.Radio, out message);
-
-        public bool TrySpawn(Vector3 position, Quaternion rotation, RadioDeviceKind kind, out string message)
-        {
-            Tick();
-            if ((int)kind < 0 || (int)kind > 3)
-            {
-                message = "Unknown radio device";
-                return false;
-            }
-            if (disposed || !manager || !FloatingOriginManager.instance || !GameState.playing || GameState.currentlyLoading ||
-                GameState.justStarted || GameState.loadingBoatLocalItems || GameState.recovering || loading ||
-                !SaveLoadManager.readyToSave || (bool)BusyField.GetValue(manager))
-            {
-                message = "Wait until the game finishes loading or saving";
-                return false;
-            }
-            if (!store.Writable)
-            {
-                message = PersistenceStatus;
-                return false;
-            }
-            if (!TryGetDonor(out GameObject donor))
-            {
-                message = "The installed game's radio item reference did not match";
-                return false;
-            }
-            if (!RadioPlacement.IsClear(position, rotation, RadioDevice.Size((int)kind) * .5f + new Vector3(.02f, .02f, .06f), RadioDevice.Center((int)kind)))
-            {
-                message = "Move to a clear spot before spawning this device";
-                return false;
-            }
-            GameObject instance = null;
-            int createdId = 0;
-            bool nativeRegistrationAttempted = false;
-            try
-            {
-                instance = UnityEngine.Object.Instantiate(donor, position, rotation);
-                instance.transform.localScale = Vector3.one;
-                var item = instance.GetComponent<ShipItem>();
-                var saveable = instance.GetComponent<SaveablePrefab>();
-                item.sold = true;
-                saveable.instanceId = 0;
-                saveable.currentCrateId = 0;
-                saveable.SetParentObject(-1);
-                var state = new RadioState
-                {
-                    Kind = (int)kind,
-                    Volume = kind == RadioDeviceKind.Radio ? .5f : .75f,
-                    TrackPath = kind == RadioDeviceKind.Radio ? configuredTrack?.Invoke() ?? "" : ""
-                };
-                // A native save coroutine may already be resuming at this frame's end. Initialize its
-                // private component cache before adding this instance to the collection it enumerates.
-                saveable.Start();
-                // Native random allocation excludes only live native IDs. Reserve against retained
-                // radio records as well, before the object becomes visible to a native save.
-                createdId = ShopPurchaseReservation.Reserve(store, arbiter, state,
-                    () => UnityEngine.Random.Range(1, int.MaxValue),
-                    candidate => SaveablePrefab.existingInstanceIds != null && SaveablePrefab.existingInstanceIds.Contains(candidate));
-                saveable.instanceId = createdId;
-                nativeRegistrationAttempted = true;
-                saveable.RegisterToSave();
-                if (!Convert(saveable, state))
-                    throw new InvalidOperationException("The native radio could not be initialized");
-                message = RadioDevice.Name((int)kind) + " spawned";
-                return true;
-            }
-            catch (Exception ex)
-            {
-                if (instance)
-                {
-                    var controller = instance.GetComponent<RadioItemController>();
-                    if (controller)
-                        items.Remove(controller);
-                    store.Remove(createdId);
-                    arbiter.Remove(createdId);
-                    if (nativeRegistrationAttempted)
-                        instance.GetComponent<SaveablePrefab>()?.Unregister();
-                    UnityEngine.Object.Destroy(instance);
-                }
-                warn("Radio spawn failed: " + ex.Message);
-                message = "Radio could not be spawned. See the BepInEx log";
-                return false;
             }
         }
 

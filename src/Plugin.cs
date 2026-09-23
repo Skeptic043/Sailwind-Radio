@@ -4,7 +4,6 @@ using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
 using SailwindRadio.Acoustics;
-using SailwindRadio.Input;
 using SailwindRadio.Library;
 using SailwindRadio.Physical;
 using SailwindRadio.Playback;
@@ -30,7 +29,6 @@ namespace SailwindRadio
         private LibraryScanner library;
         private RadioMenus menus;
         private bool libraryReady;
-        private ShortcutSetting spawnKey;
         private readonly Dictionary<RadioItemController, RadioPlayback> playback = new Dictionary<RadioItemController, RadioPlayback>();
         private readonly Dictionary<RadioItemController, RadioQueue> queues = new Dictionary<RadioItemController, RadioQueue>();
         private readonly HashSet<RadioItemController> seen = new HashSet<RadioItemController>();
@@ -48,9 +46,12 @@ namespace SailwindRadio
                     "Music folders separated by |. Each folder is one collection including all its subfolders. Example: D:\\Music | E:\\Sailing Music");
                 continueWhileSleeping = Config.Bind("Audio", "ContinueWhileSleeping", false,
                     "Keep music playing while the player sleeps. Loading still suspends playback.");
-                spawnKey = SpawnShortcut.Bind(Config, Warn);
                 // BepInEx 5 preserves unbound values as orphaned entries. Consume each
                 // retired key before removing it so existing config files lose the lines.
+                var oldSpawn = Config.Bind("Development", "SpawnRadio", "", "Retired developer spawn shortcut.");
+                Config.Remove(oldSpawn.Definition);
+                var oldSpawnRevision = Config.Bind("Internal", "SpawnDefaultRevision", 0, "Retired spawn shortcut migration marker.");
+                Config.Remove(oldSpawnRevision.Definition);
                 var oldMusicFile = Config.Bind("Music", "MusicFile", "", "Retired single-file music setting.");
                 bool legacyMusicOnly = !string.IsNullOrWhiteSpace(oldMusicFile.Value) && string.IsNullOrWhiteSpace(musicFolders.Value);
                 Config.Remove(oldMusicFile.Definition);
@@ -66,18 +67,16 @@ namespace SailwindRadio
                 acoustics = new RadioAcousticsService();
                 library = new LibraryScanner();
                 menus = new RadioMenus();
-                world = new RadioWorldService(harmony, () => "", Warn);
+                world = new RadioWorldService(harmony, Warn);
                 world.BeforeSave += CapturePositions;
                 world.ActionRequested += HandleAction;
                 shops = new RadioShopService(world, Warn);
-                menus.SpawnRequested += SpawnDevice;
-                menus.StandPositionRequested += LogStandPosition;
                 menus.CollectionsChanged += SelectCollections;
                 library.RequestScan(musicFolders.Value);
                 InstallSuspendBoundary(typeof(StartMenu), "GameToSettings");
                 InstallSuspendBoundary(typeof(Sleep), "FallAsleep");
                 ready = true;
-                Logger.LogInfo("Sailwind Radio " + Version + " ready. Configure MusicFolders, then press " + spawnKey.Value.Serialize() + " for the spawn menu.");
+                Logger.LogInfo("Sailwind Radio " + Version + " ready. Configure MusicFolders to load music.");
             }
             catch (Exception error)
             {
@@ -135,12 +134,6 @@ namespace SailwindRadio
                 bool suspended = Suspended;
                 PlaybackOrder.Tick(playback, world.ActiveRadioId, pair => pair.Key ? pair.Key.InstanceId : 0,
                     TickPlayback, suspended);
-                if (!suspended && (menus.IsOpen || !GameState.inCursorMenu) && HotkeyInput.IsDown(spawnKey.Value,
-                    focused && Application.isFocused, UnityEngine.Input.GetKeyDown, UnityEngine.Input.GetKey))
-                {
-                    if (menus.IsOpen) menus.Close();
-                    else { ReleaseRadioControls(); menus.ShowSpawnChooser(); }
-                }
             }
             catch (Exception error)
             {
@@ -280,27 +273,6 @@ namespace SailwindRadio
         }
 
         private void OnGUI() { if (ready) menus?.Draw(); }
-
-        private void SpawnDevice(RadioDeviceKind kind)
-        {
-            if (!Refs.observerMirror) return;
-            Transform player = Refs.observerMirror.transform;
-            Vector3 forward = Vector3.ProjectOnPlane(player.forward, Vector3.up).normalized;
-            if (forward.sqrMagnitude < 0.1f) forward = Vector3.forward;
-            Vector3 position = player.position + Vector3.up * 0.8f + forward * 1.2f;
-            bool created = world.TrySpawn(position, Quaternion.LookRotation(forward, Vector3.up), kind, out string message);
-            if (created) Logger.LogInfo(message);
-            else { Warn(message); menus.SetMessage(message); }
-        }
-
-        private void LogStandPosition()
-        {
-            var observer = Refs.observerMirror ? Refs.observerMirror.transform : null;
-            bool found = RadioShopPositionMarker.TryDescribe(observer,
-                UnityEngine.Object.FindObjectsOfType<IslandSceneryScene>(), out string message);
-            if (found) Logger.LogInfo(message);
-            menus.SetMessage(message);
-        }
 
         private void CapturePositions()
         {

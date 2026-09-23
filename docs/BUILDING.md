@@ -9,11 +9,11 @@ Run these commands from an extracted source package or the source checkout.
 & .\Package.ps1 -GameDir 'C:\Steam Games\steamapps\common\Sailwind' -LoaderPath '<your BepInEx core directory>'
 ```
 
-Set `-LoaderPath` to an installed BepInEx `core` directory containing `BepInEx.dll`, `0Harmony.dll` and `MonoMod.Utils.dll`. The keybind checks use the actual loader's configuration reader.
+Set `-LoaderPath` to an installed BepInEx `core` directory containing `BepInEx.dll`, `0Harmony.dll` and `MonoMod.Utils.dll`.
 
 NuGet restores the pinned NLayer 1.16.0 decoder and target-framework reference package. An optional `-OfflineFeed` can point at an existing local feed containing `NLayer` 1.16.0, `NETStandard.Library` 2.0.3 and `Microsoft.NETCore.Platforms` 1.1.0. Downloaded packages remain ignored. Packaging includes NLayer's runtime DLL and its MIT notice.
 
-`Build.ps1` builds the production DLL and runs audio and synchronized-output lifecycle, weather, persistence, placement, keybind, volume control, single-radio playback, acoustic-service, library, device/menu, model and shop checks. These do not load the game. `Package.ps1` verifies every ZIP entry by hash, extracts the source ZIP to a fresh unique directory, and builds and checks that extraction. It retains a validation JSON alongside the ZIP files in `artifacts/packages/`.
+`Build.ps1` builds the production DLL and runs audio and synchronized-output lifecycle, weather, persistence, volume control, single-radio playback, acoustic-service, library, device/collection-menu, model and shop checks. These do not load the game. `Package.ps1` verifies every ZIP entry by hash, extracts the source ZIP to a fresh unique directory, and builds and checks that extraction. It retains a validation JSON alongside the ZIP files in `artifacts/packages/`.
 
 `Package.ps1` writes a local test ZIP, a source ZIP, and a separate Thunderstore-ready ZIP containing only the player-facing release files, the plugin, and its decoder. Creating a ZIP does not upload or publish it.
 

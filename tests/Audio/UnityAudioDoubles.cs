@@ -78,6 +78,11 @@ namespace UnityEngine
     public enum AudioType { MPEG, OGGVORBIS, WAV, UNKNOWN }
     public class AudioClip : Object
     {
+        public delegate void PCMReaderCallback(float[] data);
+        public delegate void PCMSetPositionCallback(int position);
+        public PCMReaderCallback PcmRead;
+        public PCMSetPositionCallback PcmSetPosition;
+        public bool Streaming;
         public int samples = 480000, channels = 1;
         public int frequency = 48000;
         public AudioDataLoadState loadState = AudioDataLoadState.Loaded;
@@ -88,7 +93,15 @@ namespace UnityEngine
         public static AudioClip Create(string name, int lengthSamples, int channels, int frequency, bool stream)
         {
             CreateThread = Environment.CurrentManagedThreadId;
-            return LastCreated = new AudioClip { samples = lengthSamples, channels = channels, frequency = frequency };
+            return LastCreated = new AudioClip { samples = lengthSamples, channels = channels, frequency = frequency, Streaming = stream };
+        }
+        public static AudioClip Create(string name, int lengthSamples, int channels, int frequency, bool stream,
+            PCMReaderCallback read, PCMSetPositionCallback setPosition)
+        {
+            var clip = Create(name, lengthSamples, channels, frequency, stream);
+            clip.PcmRead = read;
+            clip.PcmSetPosition = setPosition;
+            return clip;
         }
         public bool SetData(float[] values, int offset)
         {
@@ -119,6 +132,7 @@ namespace UnityEngine
                 if (Destroyed) throw new InvalidOperationException("Destroyed native AudioSource");
                 if (value < 0 || (clip != null && value >= clip.samples)) throw new ArgumentOutOfRangeException("timeSamples");
                 cursor=value;
+                if (clip != null && clip.Streaming) clip.PcmSetPosition?.Invoke(value);
             }
         }
         public int Schedules;

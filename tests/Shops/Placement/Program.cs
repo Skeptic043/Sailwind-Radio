@@ -14,7 +14,6 @@ static class Program
     }
     private static void Run()
     {
-        CheckMarker();
         var sceneTransform = new Transform { position = new Vector3(0, 0, 0) };
         var scene = sceneTransform.Add<IslandSceneryScene>();
         foreach (int island in new[] { 1, 9, 15 })
@@ -169,44 +168,4 @@ static class Program
         Check(MathF.Abs(face.y)<.01f && face.z<-.99f,"radio front remains upright toward customer");
     }
 
-    private static void CheckMarker()
-    {
-        Check(!RadioShopPositionMarker.TryDescribe(null, Array.Empty<IslandSceneryScene>(), out var message) &&
-            message.Contains("player"), "marker explains missing observer");
-        var observer = new Transform();
-        Check(!RadioShopPositionMarker.TryDescribe(observer, Array.Empty<IslandSceneryScene>(), out message) &&
-            message.Contains("capital"), "marker explains missing capital scenery");
-        var noncapital = new Transform().Add<IslandSceneryScene>();
-        noncapital.parentIslandIndex = 10;
-        Check(!RadioShopPositionMarker.TryDescribe(observer, new[] { noncapital }, out _),
-            "marker excludes noncapital scenery");
-
-        var goldRoot = new Transform {
-            position = new Vector3(50, 2, 100), rotation = Quaternion.Euler(0, 90, 0),
-            lossyScale = new Vector3(.5f, .5f, .5f)
-        };
-        var goldScene = goldRoot.Add<IslandSceneryScene>();
-        goldScene.parentIslandIndex = 1;
-        RadioStandLayout.TryAnchor(1, out var anchor, out _);
-        Vector3 intendedLocal = anchor + new Vector3(1.25f, .50f, -.75f);
-        observer.position = goldRoot.TransformPoint(intendedLocal);
-        observer.rotation = goldRoot.rotation * Quaternion.Euler(0, -45, 0);
-        var distantScene = new Transform { position = new Vector3(5000, 0, 0) }.Add<IslandSceneryScene>();
-        distantScene.parentIslandIndex = 15;
-        Check(RadioShopPositionMarker.TryDescribe(observer, new[] { noncapital, distantScene, goldScene }, out message) &&
-            message.Contains("Gold Rock City (1)") && message.Contains("(1597.86, 3.60, -437.06)") &&
-            message.Contains("facing yaw -45.0, stand yaw 135.0"),
-            "marker handles scaled and rotated scenery and converts customer facing to stand yaw");
-        observer.rotation = goldRoot.rotation * Quaternion.Euler(0, 135, 0);
-        Check(RadioShopPositionMarker.TryDescribe(observer, new[] { goldScene }, out message) &&
-            message.Contains("facing yaw 135.0, stand yaw -45.0"),
-            "suggested stand yaw wraps into signed range");
-        goldRoot.gameObject.activeInHierarchy = false;
-        Check(!RadioShopPositionMarker.TryDescribe(observer, new[] { goldScene }, out message),
-            "marker ignores inactive scenery");
-        goldRoot.gameObject.activeInHierarchy = true;
-        observer.position = goldRoot.TransformPoint(intendedLocal) + new Vector3(120, 0, 0);
-        Check(!RadioShopPositionMarker.TryDescribe(observer, new[] { goldScene }, out message) &&
-            message.Contains("capital"), "marker rejects distant loaded capital");
-    }
 }
