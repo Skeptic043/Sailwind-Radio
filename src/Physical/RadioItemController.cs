@@ -37,6 +37,8 @@ namespace SailwindRadio.Physical
             internal bool Active;
         }
         private readonly List<Glow> glows = new List<Glow>();
+        private static readonly Color LitIconColor = new Color(.8f, .75f, .54f);
+        private static readonly Color UnlitIconColor = new Color(.30f, .23f, .15f);
         private int renderedLayer = -1;
         private DotMatrixDisplay display;
         private Material screenMaterial;
@@ -201,7 +203,8 @@ namespace SailwindRadio.Physical
                 if (glow.Active != active)
                 {
                     glow.Active = active;
-                    // Preserve the ivory inset. Emission supplies the AA-gold cue.
+                    // Diffuse contrast keeps the state legible in direct sunlight.
+                    glow.Material.SetColor("_Color", active ? LitIconColor : UnlitIconColor);
                     glow.Material.SetColor("_EmissionColor", active ? new Color(.9f, .43f, .06f) : Color.black);
                     if (glow.Light)
                         glow.Light.enabled = active;
@@ -248,6 +251,7 @@ namespace SailwindRadio.Physical
                 else if (DeviceModel.HasOwnLightMaterial(pair.Key))
                 {
                     var material = pair.Value.GetComponent<Renderer>().sharedMaterial;
+                    material.SetColor("_Color", UnlitIconColor);
                     var halo = new GameObject("Local control glow");
                     halo.transform.SetParent(pair.Value.transform, false);
                     halo.transform.position = pair.Value.GetComponent<Renderer>().bounds.center +
@@ -263,10 +267,18 @@ namespace SailwindRadio.Physical
                 }
             }
             var box = GetComponent<BoxCollider>();
-            // Include the radio's thin feet in its contact box while keeping
-            // the top at .33 so pointer raycasts still reach the top controls.
-            box.center = State.Kind == 0 ? new Vector3(0, .16f, 0) : RadioDevice.Center(State.Kind);
-            box.size = State.Kind == 0 ? new Vector3(.6f, .34f, .2f) : RadioDevice.Size(State.Kind);
+            // Keep the radio's top at .33 for pointer raycasts; include each
+            // floor speaker's visible feet without raising its cabinet top.
+            var contactCenter = State.Kind == 0 ? new Vector3(0, .16f, 0) : RadioDevice.Center(State.Kind);
+            var contactSize = State.Kind == 0 ? new Vector3(.6f, .34f, .2f) : RadioDevice.Size(State.Kind);
+            float footDepth = State.Kind == 2 ? .012f : State.Kind == 3 ? .015f : 0f;
+            if (footDepth > 0f)
+            {
+                contactCenter.y -= footDepth * .5f;
+                contactSize.y += footDepth;
+            }
+            box.center = contactCenter;
+            box.size = contactSize;
             if (item.itemRigidbodyC)
             {
                 var physicsBox = item.itemRigidbodyC.GetComponent<BoxCollider>();

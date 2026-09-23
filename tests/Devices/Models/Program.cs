@@ -178,6 +178,17 @@ internal static class Program
         var satellite=document.models.Single(m=>m.kind==1);
         var volume=satellite.parts.Single(p=>p.name=="control_volume");
         var marker=satellite.parts.Single(p=>p.name=="icon_volume");
+        var satelliteWood=satellite.parts.Single(p=>p.name=="body"&&
+            document.materials[p.material].name=="Oiled walnut");
+        var satelliteBrass=satellite.parts.Single(p=>p.name=="body"&&
+            document.materials[p.material].name=="Brushed warm brass");
+        Check(satelliteWood.vertices.Where((_,i)=>i%3==2).Max()<-.007f&&
+            satelliteBrass.vertices.Where((_,i)=>i%3==2).Max()>=-.000001f,
+            "small speaker wall shoe projects clear of its recessed cabinet back without crossing the wall contact plane");
+        Check(volume.vertices.Where((_,i)=>i%3==2).Min()>-.155f&&
+            volume.vertices.Where((_,i)=>i%3==2).Min()<-.145f&&
+            Math.Abs(volume.pivot[2]+.139f)<.00001f,
+            "small speaker volume knob has a compact front projection and a matching control pivot");
         Check(marker.vertices.Where((_,i)=>i%3==1).Max()<=volume.vertices.Where((_,i)=>i%3==1).Min()&&
             volume.vertices.Where((_,i)=>i%3==1).Min()-marker.vertices.Where((_,i)=>i%3==1).Max()<.004f,
             "small speaker volume marker sits directly below the dial");
@@ -186,6 +197,14 @@ internal static class Program
         foreach(var (kind,name,faceBottom) in new[]{(2,"volume",.04125f),(3,"bass",.0495f)})
         {
             var speaker=document.models.Single(m=>m.kind==kind);
+            var speakerRubber=speaker.parts.Single(p=>p.name=="body"&&
+                document.materials[p.material].name=="Rubber and leather");
+            var supportPoints=Enumerable.Range(0,speakerRubber.vertices.Length/3)
+                .Select(i=>(x:speakerRubber.vertices[i*3],y:speakerRubber.vertices[i*3+1],z:speakerRubber.vertices[i*3+2]))
+                .Where(p=>p.y<-.008f).ToArray();
+            Check(supportPoints.Length>0&&supportPoints.Min(p=>p.y)<(kind==2?-.011f:-.014f)&&
+                new[]{(-1,-1),(-1,1),(1,-1),(1,1)}.All(q=>supportPoints.Any(p=>Math.Sign(p.x)==q.Item1&&Math.Sign(p.z)==q.Item2)),
+                "four visible speaker feet extend below the cabinet instead of remaining buried in its base");
             var dial=speaker.parts.Single(p=>p.name=="control_"+name);
             var legend=speaker.parts.Single(p=>p.name=="icon_"+name);
             Check(legend.vertices.Where((_,i)=>i%3==1).Min()>faceBottom&&

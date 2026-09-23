@@ -145,7 +145,10 @@ def driver(x,y,z,r,cloth=False):
 
 def cabinet(w,h,d,wall=False):
     z=-d*.5 if wall else 0
-    shell=box('Rounded walnut cabinet',(0,h*.5,z),(w,h,d),WOOD,.016 if KIND==0 else min(w*.07,.028))
+    # Leave a shallow recess at the satellite's rear so its wall shoe is
+    # visible, while keeping the front face and the z=0 wall contact plane.
+    shell=box('Rounded walnut cabinet',(0,h*.5,z-.004 if wall else z),
+              (w,h,d-.008 if wall else d),WOOD,.016 if KIND==0 else min(w*.07,.028))
     baffle=box('Inset dark front baffle',(0,h*.5,z-d*.5-.003),(w*.91,h*.89,.015),EDGE,.01)
     if KIND==0:
         # A real opening through the front shell and baffle. The glass sits inside
@@ -159,7 +162,7 @@ def cabinet(w,h,d,wall=False):
             bpy.context.view_layer.objects.active=surface
             bpy.ops.object.modifier_apply(modifier=modifier.name)
         bpy.data.objects.remove(cutter,do_unlink=True)
-    box('Rear inset panel',(0,h*.5,-.004 if wall else z+d*.5+.001),(w*.80,h*.72,.008),EDGE,.008)
+    box('Rear inset panel',(0,h*.5,-.010 if wall else z+d*.5+.001),(w*.80,h*.72,.008),EDGE,.008)
     for side in (-1,1):
         rail_x=side*w*.45
         box('Brass corner rail',(rail_x,h*.5,z-d*.5-.012),(.007,h*.8,.007),BRASS)
@@ -171,9 +174,11 @@ def cabinet(w,h,d,wall=False):
                     # overlap to hide the seam. The earlier tall blocks were
                     # buried almost entirely inside the cabinet.
                     box('Rubber foot',(x,-.004,zz),(.04,.012,.038),RUBBER)
+                elif KIND==2:
+                    box('Rubber foot',(x,-.005,zz),(.045,.014,.05),RUBBER)
                 else:
-                    box('Rubber foot',(x,.014,zz),(.04,.028,.038),RUBBER)
-    for i in range(4):box('Rear ventilation',(0,h*(.32+i*.10),-.004 if wall else z+d*.5+.006),(w*.55,.008,.008),RUBBER)
+                    box('Rubber foot',(x,-.006,zz),(.06,.018,.065),RUBBER)
+    for i in range(4):box('Rear ventilation',(0,h*(.32+i*.10),-.008 if wall else z+d*.5+.006),(w*.55,.008,.008),RUBBER)
 
 SIZES=[(.6,.38,.2),(.14,.20,.12),(.367,.75,.4),(.9,.9,.75)]
 for KIND in range(4):
@@ -195,7 +200,7 @@ for KIND in range(4):
     elif KIND==1:
         driver(0,.123,front-.012,.05,True)
         button('power',-.034,.041,front-.016,.017)
-        knob('volume',.030,.041,front-.016,.016)
+        knob('volume',.030,.041,front-.004,.016)
         box('Wall mount shoe',(0,.10,-.006),(.065,.115,.012),BRASS,.007)
     elif KIND==2:
         driver(0,.44,front-.014,.145)
