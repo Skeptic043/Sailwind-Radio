@@ -44,14 +44,15 @@ namespace SailwindRadio.Shops
             // Face the player's logged -126.6 degree yaw, then move the NPC
             // .25 world metres forward and .25 left in that new facing. The
             // later .25 m forward correction is another .5 scenery-local m.
-            // For this pass, advance the merchant another .0625 m, rotate its
-            // facing 5 degrees clockwise, and shift it .06 m to its new right.
+            // Later corrections advanced the merchant .0625 m, rotated its
+            // facing 5 degrees clockwise, shifted it .06 m right, then
+            // advanced the whole stand another .0625 m in that facing.
             // The scenery's half scale makes each world metre two local metres.
             // Subtract the rotated 1.04 m keeper offset to locate the stand.
             // Fort keeps its approved facing and moves .30 m forward. Dragon
             // Cliffs keeps its approved location and facing.
             yaw = island == 1 ? 58.4f : island == 9 ? 45f : 180f;
-            sceneryLocalPosition = island == 1 ? new Vector3(1596.7175f, 3.1f, -436.2411f) :
+            sceneryLocalPosition = island == 1 ? new Vector3(1596.6110f, 3.1f, -436.3066f) :
                 island == 9 ? new Vector3(-104.6f, 2.1f, -530f) : new Vector3(-136.97f, 2.3f, 43.95f);
             return island == 1 || island == 9 || island == 15;
         }

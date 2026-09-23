@@ -83,14 +83,16 @@ namespace SailwindRadio.Shops
                     for (int z = -1; z <= 1; z += 2)
                         stand.Board("Left platform cross beam", new Vector3(3.2f, -.135f, .7f + z * 1.8f), new Vector3(4.2f, .15f, .1f),stand.platformWood);
                 }
-                var nativeDragonCliffsCover = island == 9 && stand.NativeDragonCliffsVisual(scenery, "east_market_roof", "east_market_roof", "Dragon Cliffs native canopy", new Vector3(0, 2.05f, 0), .65f, false);
+                const float dragonCliffsCoverSetback = .1875f;
+                var nativeDragonCliffsCover = island == 9 && stand.NativeDragonCliffsVisual(scenery, "east_market_roof", "east_market_roof", "Dragon Cliffs native canopy", new Vector3(0, 2.05f, dragonCliffsCoverSetback), .65f, false);
                 if ((island == 9 && !nativeDragonCliffsCover) || island == 15)
                 {
+                    var coverSetback = island == 9 ? dragonCliffsCoverSetback : 0f;
                     for (int x = -1; x <= 1; x += 2)
                         for (int z = -1; z <= 1; z += 2)
                         {
                             var height = island == 9 ? (z < 0 ? 2.36f : 2.66f) : 2.5f;
-                            stand.Board("Canopy post", new Vector3(x * 1.34f, height / 2, .35f + z * 1.05f),
+                            stand.Board("Canopy post", new Vector3(x * 1.34f, height / 2, .35f + z * 1.05f + coverSetback),
                                 new Vector3(.065f, height, .065f));
                         }
                     if(island==9)
@@ -98,12 +100,12 @@ namespace SailwindRadio.Shops
                         // The neighboring stalls have a broad, slightly pitched
                         // reddish-brown cover rather than exposed roof planks.
                         for (int i = -1; i <= 1; i++)
-                            stand.Board("Dragon Cliffs canvas roof panel", new Vector3(i * .98f, 2.53f, .35f),
+                            stand.Board("Dragon Cliffs canvas roof panel", new Vector3(i * .98f, 2.53f, .35f + coverSetback),
                                 new Vector3(.99f, .04f, 2.45f), stand.canvas)
                                 .transform.localRotation = Quaternion.Euler(-7f, 0, 0);
-                        stand.Board("Dragon Cliffs hanging front fabric", new Vector3(0, 2.29f, -.88f),
+                        stand.Board("Dragon Cliffs hanging front fabric", new Vector3(0, 2.29f, -.88f + coverSetback),
                             new Vector3(2.9f, .18f, .045f), stand.canvas);
-                        stand.Board("Dragon Cliffs front wood rail", new Vector3(0, 2.39f, -.88f),
+                        stand.Board("Dragon Cliffs front wood rail", new Vector3(0, 2.39f, -.88f + coverSetback),
                             new Vector3(2.9f, .075f, .065f), stand.roofWood);
                     }
                     else
@@ -155,10 +157,10 @@ namespace SailwindRadio.Shops
             // The native mesh's Z axis is up, Y runs along the counter, and X
             // runs from the keeper toward the customer. Its half-size scene
             // scale yields a 2.7 m counter with 1.3 m depth and a full canopy.
-            copy.transform.localRotation = Quaternion.Euler(0, 180f, 0) * Quaternion.LookRotation(Vector3.up, Vector3.left);
+            copy.transform.localRotation = Quaternion.Euler(0, 181f, 0) * Quaternion.LookRotation(Vector3.up, Vector3.left);
             copy.transform.localScale = source.transform.lossyScale;
             // The mesh's horizontal counter spans raw X [-1.06, .20]. After
-            // the half-scale and 180-degree flip, a .24 m Z offset places its
+            // the half-scale and near-180-degree flip, a .24 m Z offset places its
             // top from about -.29 to +.34 m in stand space. The canopy still
             // reaches the keeper at +1.04 m.
             copy.transform.localPosition = new Vector3(0, 1.045f, .24f);
@@ -172,7 +174,7 @@ namespace SailwindRadio.Shops
             // simple physics support close beneath it rather than letting
             // gravity settle stock into the visible mesh.
             support.transform.localPosition = new Vector3(0, .897f, .025f);
-            support.transform.localRotation = Quaternion.Euler(-4.3f, 0, 0);
+            support.transform.localRotation = Quaternion.Euler(0, 1f, 0) * Quaternion.Euler(-4.3f, 0, 0);
             var collider = support.AddComponent<BoxCollider>();
             collider.size = new Vector3(2.7f, .06f, .65f);
             structureColliders.Add(collider);

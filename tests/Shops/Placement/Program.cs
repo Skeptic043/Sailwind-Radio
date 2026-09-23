@@ -38,13 +38,13 @@ static class Program
         var goldNpcLocal = gold + (Quaternion.Euler(0, goldYaw, 0) * RadioStandLayout.MerchantOffset) * 2f;
         var goldForward = Quaternion.Euler(0, -121.6f, 0) * Vector3.forward;
         var goldRight = Quaternion.Euler(0, -121.6f, 0) * new Vector3(1, 0, 0);
-        var priorGoldNpcLocal = new Vector3(1596.9886f, gold.y, -436.4281f) +
-            Quaternion.Euler(0, 53.4f, 0) * RadioStandLayout.MerchantOffset * 2f;
+        var priorGoldNpcLocal = new Vector3(1596.7175f, gold.y, -436.2411f) +
+            Quaternion.Euler(0, 58.4f, 0) * RadioStandLayout.MerchantOffset * 2f;
         var goldNudgeWorld = (goldNpcLocal - priorGoldNpcLocal) * .5f;
         Check(MathF.Abs(Vector3.Dot(goldNudgeWorld, goldForward) - .0625f) < .001f &&
-            MathF.Abs(Vector3.Dot(goldNudgeWorld, goldRight) - .06f) < .001f &&
+            MathF.Abs(Vector3.Dot(goldNudgeWorld, goldRight)) < .001f &&
             MathF.Abs(gold.y-3.1f)<.001f && MathF.Abs(goldYaw-58.4f)<.001f,
-            "Gold Rock merchant advances a sixteenth metre, moves right .06 m and turns 5 degrees");
+            "Gold Rock merchant and stand advance another sixteenth metre at their approved yaw");
         var goldNpcWorld = goldWorld + goldRotation * RadioStandLayout.MerchantOffset;
         Check(MathF.Abs(goldNpcWorld.x-goldNpcLocal.x*.5f)<.001f && MathF.Abs(goldNpcWorld.z-goldNpcLocal.z*.5f)<.001f,
             "Gold Rock merchant offset respects half-scale scenery");
@@ -192,7 +192,7 @@ static class Program
         var distantScene = new Transform { position = new Vector3(5000, 0, 0) }.Add<IslandSceneryScene>();
         distantScene.parentIslandIndex = 15;
         Check(RadioShopPositionMarker.TryDescribe(observer, new[] { noncapital, distantScene, goldScene }, out message) &&
-            message.Contains("Gold Rock City (1)") && message.Contains("(1597.97, 3.60, -436.99)") &&
+            message.Contains("Gold Rock City (1)") && message.Contains("(1597.86, 3.60, -437.06)") &&
             message.Contains("facing yaw -45.0, stand yaw 135.0"),
             "marker handles scaled and rotated scenery and converts customer facing to stand yaw");
         observer.rotation = goldRoot.rotation * Quaternion.Euler(0, 135, 0);

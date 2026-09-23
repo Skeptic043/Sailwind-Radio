@@ -18,9 +18,9 @@ The mod reports uneven ground and overlapping scenery or items in the log, then 
 
 ## Purchase status
 
-Radio shops use Sailwind's native merchant sale path. Radio stock becomes purchasable only when the merchant, local currency region, economy, sale UI and transaction log are available and the player is near the stall. The code checks those conditions again before each sale. The player has confirmed purchases in game. The Home developer menu can create owned devices for testing placement, controls, hooks, hammer locking and save/reload independently of a shop. It also logs the player's position and facing in the capital's scenery coordinates to guide a precise stand adjustment. Restocking and merchant resale interactions remain open checks.
+Radio shops use Sailwind's native merchant sale path. Radio stock becomes purchasable only when the merchant, local currency region, economy, sale UI and transaction log are available and the player is near the stall. The code checks those conditions again before each sale. The player has confirmed purchases in game. The Home developer menu can create owned devices for testing placement, controls, hooks, hammer locking and save/reload independently of a shop. It also logs the player's position and facing in the capital's scenery coordinates to guide a precise stand adjustment. Restocking remains an open live check.
 
-Radio merchants sell the mod's devices and offer the game's sell window for held goods at their own counter. The owned NPC keeps a small root interaction trigger while its much larger child trigger remains disabled. This aims to restore the Radio merchant's own sell window without claiming goods beside neighboring vendors. Confirm both interactions in game.
+Radio merchants sell the mod's devices and offer the game's sell window for held goods at their own counter. The owned NPC keeps a small root interaction trigger while its much larger child trigger remains disabled. The player has confirmed device selling and that Radio merchants claim sell interactions only at close range.
 
 ## Regional prices
 
