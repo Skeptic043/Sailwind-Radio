@@ -17,14 +17,14 @@ namespace SailwindRadio.Shops
             // Ground and overlap problems must be visible rather than hiding the display.
             bool supported = Ground(expected, out float height);
             // Fort's last live log found static support .197 m below its authored
-            // height, matching the visible floating feet. Set only that stall
-            // down on nearby support when it is slightly below the authored
-            // height. A prop above the anchor cannot lift the display.
-            bool groundedFort = scenery.parentIslandIndex == 15 && supported &&
+            // height. Gold Rock's feet also float above the nearby ground. Set
+            // these stalls and their keepers down only on support slightly below
+            // the authored height. A prop above the anchor cannot lift them.
+            bool groundedCapital = (scenery.parentIslandIndex == 1 || scenery.parentIslandIndex == 15) && supported &&
                 height <= expected.y + .02f && height >= expected.y - .30f;
-            position = new Vector3(expected.x, groundedFort ? height : expected.y + .02f, expected.z);
+            position = new Vector3(expected.x, groundedCapital ? height : expected.y + .02f, expected.z);
             string diagnostics = supported ? "" : "no level static ground at the authored anchor";
-            if (supported && !groundedFort && Mathf.Abs(height - expected.y) > .15f)
+            if (supported && !groundedCapital && Mathf.Abs(height - expected.y) > .15f)
                 diagnostics = Append(diagnostics, "nearby support height differs from authored height by " + (height - expected.y));
             bool uneven = false;
             foreach (float x in new[] { -1.1f, 1.1f, 1.39f, 2.21f })

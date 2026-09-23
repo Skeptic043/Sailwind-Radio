@@ -2,6 +2,5 @@
 
 Use a test save. Check only the stall changes below.
 
-1. At Gold Rock City, check that the vendor faces the direction logged with the Home marker, away from the wall, and stands a little forward and left of the last position. Check that the stall and stock are accessible.
-2. At Fort Aestrin, check that the vendor and stall moved a little forward in his facing direction and that the table and legs touch the ground.
-3. At Dragon Cliffs, compare the cover and planked floor with the neighboring native stalls in daylight. The vendor's approved position and facing should remain fixed.
+1. At Gold Rock City, check the vendor and table moved a little forward in the vendor's facing direction and both touch the ground. Compare the new table and cover with the adjacent empty stall, and check that stock remains visible and accessible.
+2. At Dragon Cliffs, check that the rotated, larger cover fits the stand and that the extended planks support the vendor. The vendor's approved position and facing should remain fixed.
