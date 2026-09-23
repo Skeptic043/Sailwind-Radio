@@ -263,10 +263,10 @@ namespace SailwindRadio.Physical
                 }
             }
             var box = GetComponent<BoxCollider>();
-            // Keep the radio's top controls above the pickup collider so
-            // native pointer raycasts can hit their own colliders first.
-            box.center = State.Kind == 0 ? new Vector3(0, .165f, 0) : RadioDevice.Center(State.Kind);
-            box.size = State.Kind == 0 ? new Vector3(.6f, .33f, .2f) : RadioDevice.Size(State.Kind);
+            // Include the radio's thin feet in its contact box while keeping
+            // the top at .33 so pointer raycasts still reach the top controls.
+            box.center = State.Kind == 0 ? new Vector3(0, .16f, 0) : RadioDevice.Center(State.Kind);
+            box.size = State.Kind == 0 ? new Vector3(.6f, .34f, .2f) : RadioDevice.Size(State.Kind);
             if (item.itemRigidbodyC)
             {
                 var physicsBox = item.itemRigidbodyC.GetComponent<BoxCollider>();

@@ -28,17 +28,48 @@ static class Program
         Check(!RadioShopPlacement.TryStand(scene, out _, out _, out _), "no noncapital preview");
         // Current serialized landmarks share each IslandSceneryScene root. Gold Rock has
         // half scale, while Dragon Cliffs and Fort Aestrin use unit scale.
-        RadioStandLayout.TryAnchor(1, out var gold, out _);
+        RadioStandLayout.TryAnchor(1, out var gold, out var goldYaw);
         scene.parentIslandIndex = 1;sceneTransform.lossyScale = new Vector3(.5f,.5f,.5f);
-        Check(RadioShopPlacement.TryStand(scene, out var goldWorld, out _, out _) &&
+        Check(RadioShopPlacement.TryStand(scene, out var goldWorld, out var goldRotation, out _) &&
             MathF.Abs(goldWorld.x-gold.x*.5f)<.001f && MathF.Abs(goldWorld.z-gold.z*.5f)<.001f,
             "Gold Rock scenery scale applied exactly once");
-        Check(gold.x>1593f && gold.x<1597f && gold.z< -443f && gold.z> -448f && MathF.Abs(gold.y-3.1f)<.2f,
-            "Gold Rock candidate is beside the empty waterfront stall rather than down the market path");
-        RadioStandLayout.TryAnchor(15, out var fort, out _);
-        Check(fort.x<-117f && fort.x>-121f && MathF.Abs(fort.z-37f)<.2f,
-            "Fort candidate moves toward foreground while leaving the inn entrance clear");
+        // The owned stand cancels the scenery's half scale, so its 1.04 m
+        // keeper offset is 2.08 m in scenery-local Gold Rock coordinates.
+        var goldNpcLocal = gold + (Quaternion.Euler(0, goldYaw, 0) * RadioStandLayout.MerchantOffset) * 2f;
+        Check(MathF.Abs(goldNpcLocal.x-1599.0567f)<.01f && MathF.Abs(goldNpcLocal.z+434.8895f)<.01f &&
+            MathF.Abs(gold.y-3.1f)<.001f && MathF.Abs(goldYaw-53.4f)<.001f,
+            "Gold Rock merchant turns to the logged player facing and moves a quarter metre forward and left");
+        var goldNpcWorld = goldWorld + goldRotation * RadioStandLayout.MerchantOffset;
+        Check(MathF.Abs(goldNpcWorld.x-goldNpcLocal.x*.5f)<.001f && MathF.Abs(goldNpcWorld.z-goldNpcLocal.z*.5f)<.001f,
+            "Gold Rock merchant offset respects half-scale scenery");
+        var desiredGoldForward = Quaternion.Euler(0, -126.6f, 0) * Vector3.forward;
+        var actualGoldForward = Quaternion.Euler(0, goldYaw + 180f, 0) * Vector3.forward;
+        Check(Vector3.Dot(desiredGoldForward, actualGoldForward) > .9999f,
+            "Gold Rock merchant faces the player's logged direction rather than the wall");
+        var goldNudge = (goldNpcLocal - new Vector3(1599.16f, goldNpcLocal.y, -434.19f)) * .5f;
+        var goldLeft = new Vector3(-desiredGoldForward.z, 0, desiredGoldForward.x);
+        Check(MathF.Abs(Vector3.Dot(goldNudge, desiredGoldForward) - .25f) < .01f &&
+            MathF.Abs(Vector3.Dot(goldNudge, goldLeft) - .25f) < .01f,
+            "Gold Rock merchant nudge stays smaller than the table width in each requested direction");
+        RadioStandLayout.TryAnchor(15, out var fort, out var fortYaw);
+        var fortNpcLocal = fort + Quaternion.Euler(0, fortYaw, 0) * RadioStandLayout.MerchantOffset;
+        Check(MathF.Abs(fortNpcLocal.x+136.97f)<.001f && MathF.Abs(fortNpcLocal.z-42.91f)<.001f &&
+            MathF.Abs(fort.y-2.3f)<.001f && MathF.Abs(fortYaw-180f)<.001f,
+            "Fort merchant moves .30 m forward with approved facing unchanged");
         sceneTransform.lossyScale=Vector3.one;
+        scene.parentIslandIndex = 15;
+        var originalSupport = Physics.Support;
+        Physics.Support = (p, _) => new RaycastHit { collider = Physics.Ground,
+            point = new Vector3(p.x, 2.103f, p.z), normal = Vector3.up };
+        Check(RadioShopPlacement.TryStand(scene, out var groundedFort, out _, out var fortReason) &&
+            MathF.Abs(groundedFort.y - 2.103f) < .001f && !fortReason.Contains("ground"),
+            "Fort stand lowers to measured static support instead of hovering .197 m above it");
+        Physics.Support = (p, _) => new RaycastHit { collider = Physics.Ground,
+            point = new Vector3(p.x, 2.5f, p.z), normal = Vector3.up };
+        Check(RadioShopPlacement.TryStand(scene, out var unraisedFort, out _, out fortReason) &&
+            MathF.Abs(unraisedFort.y - 2.32f) < .001f && fortReason.Contains("differs"),
+            "higher prop cannot raise Fort stand above authored preview");
+        Physics.Support = originalSupport;
         scene.parentIslandIndex = 9;
         RadioStandLayout.TryAnchor(9, out var dragon, out _);
         Check(dragon.x>-106.8f && dragon.x<-102.4f && MathF.Abs(dragon.z+530f)<1f,
@@ -129,7 +160,7 @@ static class Program
         var distantScene = new Transform { position = new Vector3(5000, 0, 0) }.Add<IslandSceneryScene>();
         distantScene.parentIslandIndex = 15;
         Check(RadioShopPositionMarker.TryDescribe(observer, new[] { noncapital, distantScene, goldScene }, out message) &&
-            message.Contains("Gold Rock City (1)") && message.Contains("(1596.25, 3.60, -446.25)") &&
+            message.Contains("Gold Rock City (1)") && message.Contains("(1598.64, 3.60, -436.88)") &&
             message.Contains("facing yaw -45.0, stand yaw 135.0"),
             "marker handles scaled and rotated scenery and converts customer facing to stand yaw");
         observer.rotation = goldRoot.rotation * Quaternion.Euler(0, 135, 0);

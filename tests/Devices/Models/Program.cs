@@ -18,6 +18,7 @@ internal static class Program
         {
             var names=model.parts.Select(p=>p.name).ToArray();
             Check(model.parts.Sum(p=>p.triangles.Length/3)<=new[]{3000,1000,1800,2000}[model.kind],"device stays within authored triangle budget");
+            Check(model.parts.Sum(p=>p.vertices.Length/3)<=new[]{3500,1600,2800,2400}[model.kind],"exported device vertices remain within a compact item budget");
             Check(names.Contains("screen")== (model.kind==0),"only radio has an independently illuminated screen");
             Check(names.Contains("control_power")&&names.Contains("icon_power"),"every device has visible power control");
             Check(names.Contains("control_master")== (model.kind==0)&&names.Contains("control_local")== (model.kind==0),"radio alone has master and local knobs");
@@ -116,6 +117,14 @@ internal static class Program
             Check(!raster.Where((p,i)=>i%DotMatrixFont.Width<16||i%DotMatrixFont.Width>=DotMatrixFont.Width-16).Any(p=>p>0),"fixed-size line respects the display side margins");
         }
         var radioModel=document.models.Single(m=>m.kind==0);
+        var rubber=radioModel.parts.Single(p=>p.name=="body"&&document.materials[p.material].name=="Rubber and leather");
+        var footPoints=Enumerable.Range(0,rubber.vertices.Length/3)
+            .Select(i=>(x:rubber.vertices[i*3],y:rubber.vertices[i*3+1],z:rubber.vertices[i*3+2]))
+            .Where(p=>p.y<-.005f).ToArray();
+        Check(footPoints.Length>0&&footPoints.Min(p=>p.y)<-.009f&&
+            footPoints.All(p=>Math.Abs(p.x)<.25f&&Math.Abs(p.z)<.09f)&&
+            new[]{(-1,-1),(-1,1),(1,-1),(1,1)}.All(q=>footPoints.Any(p=>Math.Sign(p.x)==q.Item1&&Math.Sign(p.z)==q.Item2)),
+            "four compact radio feet protrude beneath the cabinet bottom without spilling beyond its footprint");
         var glass=radioModel.parts.Single(p=>p.name=="screen");
         Check(glass.vertices.Where((_,i)=>i%3==2).Min()>-.1f&&glass.vertices.Where((_,i)=>i%3==2).Min()<-.09f,"glass sits in a shallow inset inside the cabinet front");
         Check(glass.vertices.Where((_,i)=>i%3==0).Min()>-.28f&&glass.vertices.Where((_,i)=>i%3==0).Max()<.28f,

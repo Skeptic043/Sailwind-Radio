@@ -16,18 +16,22 @@ namespace SailwindRadio.Shops
             // The authored location is a preview until a player checks it in the live scene.
             // Ground and overlap problems must be visible rather than hiding the display.
             bool supported = Ground(expected, out float height);
-            // Use the authored height for the preview. A static prop above the terrain
-            // must not lift the entire vendor onto that prop.
-            position = new Vector3(expected.x, expected.y + .02f, expected.z);
+            // Fort's last live log found static support .197 m below its authored
+            // height, matching the visible floating feet. Set only that stall
+            // down on nearby support when it is slightly below the authored
+            // height. A prop above the anchor cannot lift the display.
+            bool groundedFort = scenery.parentIslandIndex == 15 && supported &&
+                height <= expected.y + .02f && height >= expected.y - .30f;
+            position = new Vector3(expected.x, groundedFort ? height : expected.y + .02f, expected.z);
             string diagnostics = supported ? "" : "no level static ground at the authored anchor";
-            if (supported && Mathf.Abs(height - expected.y) > .15f)
+            if (supported && !groundedFort && Mathf.Abs(height - expected.y) > .15f)
                 diagnostics = Append(diagnostics, "nearby support height differs from authored height by " + (height - expected.y));
             bool uneven = false;
             foreach (float x in new[] { -1.1f, 1.1f, 1.39f, 2.21f })
                 foreach (float z in new[] { -.39f, .39f })
                 {
                     Vector3 foot = position + rotation * new Vector3(x, 0, z);
-                    if (!Ground(foot, out float y) || Mathf.Abs(y - expected.y) > .045f)
+                    if (!Ground(foot, out float y) || Mathf.Abs(y - position.y) > .045f)
                         uneven = true;
                 }
             if (uneven) diagnostics = Append(diagnostics, "uneven or missing ground beneath the display");

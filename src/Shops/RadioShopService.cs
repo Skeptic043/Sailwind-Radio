@@ -236,7 +236,7 @@ namespace SailwindRadio.Shops
             visual=UnityEngine.Object.Instantiate(template.gameObject,vendor.Scenery.transform);
             visual.SetActive(false);
             visual.name="Radio shopkeeper";
-            visual.transform.position=vendor.Stand.transform.TransformPoint(new Vector3(0,0,1.04f));
+            visual.transform.position=vendor.Stand.transform.TransformPoint(RadioStandLayout.MerchantOffset);
             visual.transform.rotation=vendor.Stand.transform.rotation*Quaternion.Euler(0,180,0);
             var keeper=visual.GetComponent<Shopkeeper>();
             if(!keeper) throw new MissingComponentException("native shopkeeper clone lost Shopkeeper");

@@ -165,7 +165,14 @@ def cabinet(w,h,d,wall=False):
         box('Brass corner rail',(rail_x,h*.5,z-d*.5-.012),(.007,h*.8,.007),BRASS)
     if not wall:
         for x in (-w*.32,w*.32):
-            for zz in (-d*.30,d*.30):box('Rubber foot',(x,.014,zz),(.04,.028,.038),RUBBER)
+            for zz in (-d*.30,d*.30):
+                if KIND==0:
+                    # The radio feet sit below the bottom plane with a small
+                    # overlap to hide the seam. The earlier tall blocks were
+                    # buried almost entirely inside the cabinet.
+                    box('Rubber foot',(x,-.004,zz),(.04,.012,.038),RUBBER)
+                else:
+                    box('Rubber foot',(x,.014,zz),(.04,.028,.038),RUBBER)
     for i in range(4):box('Rear ventilation',(0,h*(.32+i*.10),-.004 if wall else z+d*.5+.006),(w*.55,.008,.008),RUBBER)
 
 SIZES=[(.6,.38,.2),(.14,.20,.12),(.367,.75,.4),(.9,.9,.75)]
@@ -207,20 +214,26 @@ def export():
     models=[]
     deps=bpy.context.evaluated_depsgraph_get()
     for kind in range(4):
-        groups={}
+        groups={};vertex_maps={}
         for obj in OBJECTS:
             if obj['kind']!=kind:continue
             key=(obj['part'],MATS.index(obj.data.materials[0]))
             out=groups.setdefault(key,{'name':key[0],'material':key[1],'pivot':PIVOTS.get((kind,key[0]),[0,0,0]),'vertices':[],'normals':[],'triangles':[]})
+            vertex_map=vertex_maps.setdefault(key,{})
             evaluated=obj.evaluated_get(deps);mesh=evaluated.to_mesh();mesh.calc_loop_triangles()
             for tri in mesh.loop_triangles:
                 # Axis swap is a reflection. Reversing winding preserves the outward surface.
                 for index in (2,1,0):
                     loop=mesh.loops[tri.loops[index]];v=obj.matrix_world@mesh.vertices[loop.vertex_index].co
                     n=obj.matrix_world.to_3x3()@mesh.corner_normals[tri.loops[index]].vector
-                    out['triangles'].append(len(out['vertices'])//3)
-                    out['vertices'] += [round(v.x,6),round(v.z,6),round(v.y,6)]
-                    out['normals'] += [round(n.x,6),round(n.z,6),round(n.y,6)]
+                    position=(round(v.x,6),round(v.z,6),round(v.y,6))
+                    normal=(round(n.x,6),round(n.z,6),round(n.y,6))
+                    vertex=(position,normal)
+                    if vertex not in vertex_map:
+                        vertex_map[vertex]=len(out['vertices'])//3
+                        out['vertices'].extend(position)
+                        out['normals'].extend(normal)
+                    out['triangles'].append(vertex_map[vertex])
             evaluated.to_mesh_clear()
         models.append({'kind':kind,'parts':list(groups.values())})
     payload={'version':1,'materials':[{'name':m.name,'color':list(m.diffuse_color),'metallic':m['metal'],'smoothness':1-m['rough']} for m in MATS], 'models':models}

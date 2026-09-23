@@ -59,30 +59,36 @@ namespace SailwindRadio.Shops
                             new Vector3(.105f, .76f, .105f));
                 stand.Board("Rear brace", new Vector3(0, .37f, .45f), new Vector3(2.2f, .09f, .08f));
                 stand.Board("Front brace", new Vector3(0, .26f, -.45f), new Vector3(2.2f, .09f, .08f));
-                if (island == 9)
+                if (island == 9 && !stand.NativeDragonCliffsVisual(scenery, "east_dock", "east_dock", "Dragon Cliffs native plank deck", new Vector3(0, .128f, .7f), .7f, true))
                 {
-                    // Broad planking covers the customer's approach and the
-                    // Wolfer on the right, then continues toward the house.
+                    // The native scenery mesh is unavailable after a scene or
+                    // asset change. Keep the stand usable until that is fixed.
                     for (int i = -5; i <= 7; i++)
                         stand.Board("Dragon Cliffs platform plank", new Vector3(i * .33f, -.045f, .7f), new Vector3(.31f, .09f, 3.8f),stand.platformWood);
                     for (int z = -1; z <= 1; z += 2)
                         stand.Board("Platform cross beam", new Vector3(.33f, -.13f, .7f + z * 1.8f), new Vector3(4.28f, .15f, .1f),stand.platformWood);
                 }
-                if (island == 9 || island == 15)
+                var nativeDragonCliffsCover = island == 9 && stand.NativeDragonCliffsVisual(scenery, "east_market_roof", "east_market_roof", "Dragon Cliffs native canopy", new Vector3(0, 2.05f, 0), .5f, false);
+                if ((island == 9 && !nativeDragonCliffsCover) || island == 15)
                 {
                     for (int x = -1; x <= 1; x += 2)
                         for (int z = -1; z <= 1; z += 2)
-                            stand.Board("Canopy post", new Vector3(x * 1.34f, 1.25f, .35f + z * 1.05f), new Vector3(.065f, 2.5f, .065f));
+                        {
+                            var height = island == 9 ? (z < 0 ? 2.36f : 2.66f) : 2.5f;
+                            stand.Board("Canopy post", new Vector3(x * 1.34f, height / 2, .35f + z * 1.05f),
+                                new Vector3(.065f, height, .065f));
+                        }
                     if(island==9)
                     {
-                        // Native Dragon Cliffs stalls use a dark wooden awning
-                        // with only a short fabric valance across the front.
-                        for (int i = -3; i <= 3; i++)
-                            stand.Board("Dragon Cliffs awning plank", new Vector3(i * .41f, 2.53f, .35f),
-                                new Vector3(.405f, .045f, 2.35f), stand.roofWood);
-                        stand.Board("Dragon Cliffs hanging front fabric", new Vector3(0, 2.38f, -.83f),
-                            new Vector3(2.9f, .28f, .045f), stand.canvas);
-                        stand.Board("Dragon Cliffs front wood rail", new Vector3(0, 2.53f, -.83f),
+                        // The neighboring stalls have a broad, slightly pitched
+                        // reddish-brown cover rather than exposed roof planks.
+                        for (int i = -1; i <= 1; i++)
+                            stand.Board("Dragon Cliffs canvas roof panel", new Vector3(i * .98f, 2.53f, .35f),
+                                new Vector3(.99f, .04f, 2.45f), stand.canvas)
+                                .transform.localRotation = Quaternion.Euler(-7f, 0, 0);
+                        stand.Board("Dragon Cliffs hanging front fabric", new Vector3(0, 2.29f, -.88f),
+                            new Vector3(2.9f, .18f, .045f), stand.canvas);
+                        stand.Board("Dragon Cliffs front wood rail", new Vector3(0, 2.39f, -.88f),
                             new Vector3(2.9f, .075f, .065f), stand.roofWood);
                     }
                     else
@@ -109,6 +115,56 @@ namespace SailwindRadio.Shops
             structureRenderers.Add(renderer);
             structureColliders.Add(board.GetComponent<Collider>());
             return board;
+        }
+        private bool NativeDragonCliffsVisual(Transform scenery, string sourceName, string meshName, string copyName, Vector3 position, float sizeScale, bool solid)
+        {
+            // Use an already-loaded native mesh with its matching atlas material
+            // and UVs. The source stall stays untouched; this owned object follows
+            // only Radio's scenery lifetime. Source names can acquire suffixes as
+            // Unity duplicates them, so select the closest matching direct child.
+            MeshFilter source = null;
+            MeshRenderer sourceRenderer = null;
+            float bestDistance = 30f;
+            foreach (var filter in scenery.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (!filter || filter.transform.parent != scenery || !filter.sharedMesh ||
+                    !filter.name.StartsWith(sourceName, System.StringComparison.Ordinal) ||
+                    filter.sharedMesh.name != meshName) continue;
+                var renderer = filter.GetComponent<MeshRenderer>();
+                if (!renderer || renderer.sharedMaterials.Length != 1 || !renderer.sharedMaterials[0] ||
+                    renderer.sharedMaterials[0].name != "buildings_E_paint") continue;
+                var distance = Vector3.Distance(filter.transform.position, transform.position);
+                if (distance >= bestDistance) continue;
+                source = filter;
+                sourceRenderer = renderer;
+                bestDistance = distance;
+            }
+            if (!source) return false;
+            var copy = new GameObject(copyName);
+            copy.transform.SetParent(transform, false);
+            copy.transform.localPosition = position;
+            // Keep the native panel's own pitch and axis mapping. The stand root
+            // has unit world scale even when an island scenery root does not.
+            copy.transform.rotation = source.transform.rotation;
+            // The neighboring roof and deck are about 6 m across. Scale their
+            // native geometry to this counter while preserving its UV mapping.
+            copy.transform.localScale = source.transform.lossyScale * sizeScale;
+            copy.AddComponent<MeshFilter>().sharedMesh = source.sharedMesh;
+            var rendererCopy = copy.AddComponent<MeshRenderer>();
+            rendererCopy.sharedMaterials = sourceRenderer.sharedMaterials;
+            structureRenderers.Add(rendererCopy);
+            if (solid)
+            {
+                // Native render meshes can be marked non-readable for collision
+                // cooking. A thin owned box supports items without that hazard.
+                var support = new GameObject("Dragon Cliffs deck support");
+                support.transform.SetParent(transform, false);
+                support.transform.localPosition = new Vector3(0, -.03f, .7f);
+                var collider = support.AddComponent<BoxCollider>();
+                collider.size = new Vector3(4.2f, .06f, 4.2f);
+                structureColliders.Add(collider);
+            }
+            return true;
         }
         private void OnDestroy()
         {
