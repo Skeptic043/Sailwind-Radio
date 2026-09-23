@@ -36,14 +36,15 @@ static class Program
         // The owned stand cancels the scenery's half scale, so its 1.04 m
         // keeper offset is 2.08 m in scenery-local Gold Rock coordinates.
         var goldNpcLocal = gold + (Quaternion.Euler(0, goldYaw, 0) * RadioStandLayout.MerchantOffset) * 2f;
-        var goldForward = Quaternion.Euler(0, -126.6f, 0) * Vector3.forward;
-        var priorGoldNpcLocal = new Vector3(1597.39f, gold.y, -436.13f) +
-            Quaternion.Euler(0, goldYaw, 0) * RadioStandLayout.MerchantOffset * 2f;
-        var goldForwardNudge = (goldNpcLocal - priorGoldNpcLocal) * .5f;
-        Check(MathF.Abs(Vector3.Dot(goldForwardNudge, goldForward) - .25f) < .001f &&
-            MathF.Abs(goldForwardNudge.magnitude - .25f) < .001f &&
-            MathF.Abs(gold.y-3.1f)<.001f && MathF.Abs(goldYaw-53.4f)<.001f,
-            "Gold Rock merchant advances exactly another quarter world metre in the approved facing");
+        var goldForward = Quaternion.Euler(0, -121.6f, 0) * Vector3.forward;
+        var goldRight = Quaternion.Euler(0, -121.6f, 0) * new Vector3(1, 0, 0);
+        var priorGoldNpcLocal = new Vector3(1596.9886f, gold.y, -436.4281f) +
+            Quaternion.Euler(0, 53.4f, 0) * RadioStandLayout.MerchantOffset * 2f;
+        var goldNudgeWorld = (goldNpcLocal - priorGoldNpcLocal) * .5f;
+        Check(MathF.Abs(Vector3.Dot(goldNudgeWorld, goldForward) - .0625f) < .001f &&
+            MathF.Abs(Vector3.Dot(goldNudgeWorld, goldRight) - .06f) < .001f &&
+            MathF.Abs(gold.y-3.1f)<.001f && MathF.Abs(goldYaw-58.4f)<.001f,
+            "Gold Rock merchant advances a sixteenth metre, moves right .06 m and turns 5 degrees");
         var goldNpcWorld = goldWorld + goldRotation * RadioStandLayout.MerchantOffset;
         Check(MathF.Abs(goldNpcWorld.x-goldNpcLocal.x*.5f)<.001f && MathF.Abs(goldNpcWorld.z-goldNpcLocal.z*.5f)<.001f,
             "Gold Rock merchant offset respects half-scale scenery");
@@ -51,21 +52,35 @@ static class Program
         var actualGoldForward = Quaternion.Euler(0, goldYaw + 180f, 0) * Vector3.forward;
         Check(Vector3.Dot(desiredGoldForward, actualGoldForward) > .9999f,
             "Gold Rock merchant faces the player's logged direction rather than the wall");
-        var goldNudge = (goldNpcLocal - new Vector3(1599.16f, goldNpcLocal.y, -434.19f)) * .5f;
-        var goldLeft = new Vector3(-desiredGoldForward.z, 0, desiredGoldForward.x);
-        Check(MathF.Abs(Vector3.Dot(goldNudge, desiredGoldForward) - .50f) < .01f &&
-            MathF.Abs(Vector3.Dot(goldNudge, goldLeft) - .25f) < .01f,
-            "Gold Rock merchant keeps prior left offset and gains another quarter metre forward");
+        Check(MathF.Abs(RadioStandLayout.Slot(1, 0, true).x - 1.9f) < .001f &&
+            MathF.Abs(RadioStandLayout.Slot(1, 3, true).y - .945f) < .001f &&
+            MathF.Abs(RadioStandLayout.Slot(1, 3, false).y - .82f) < .001f &&
+            MathF.Abs(RadioStandLayout.Slot(9, 0, false).x - 1.7f) < .001f &&
+            MathF.Abs(RadioStandLayout.Slot(15, 3, false).y - .82f) < .001f,
+            "Gold Rock stock follows native counter height or generic fallback without moving approved stalls");
+        // Read-only installed mesh triangle probe at the flipped native pose.
+        float[] goldTop = { 0, .9217f, .9275f, .9354f, .9376f, .9184f, .9152f };
+        for (int i = 1; i < goldTop.Length; i++)
+        {
+            var slot = RadioStandLayout.Slot(1, i, true);
+            var itemSize = RadioDevice.Size(RadioShopCatalog.StockKinds[i]);
+            var center = RadioDevice.Center(RadioShopCatalog.StockKinds[i]);
+            Check(slot.y - goldTop[i] >= .005f && slot.y - goldTop[i] <= .015f,
+                "native Gold Rock stock rests above probed tabletop " + i);
+            Check(slot.z + center.z - itemSize.z * .5f >= -.292f &&
+                slot.z + center.z + itemSize.z * .5f <= .342f,
+                "native Gold Rock stock footprint stays on table " + i);
+        }
         var originalGoldSupport = Physics.Support;
         Physics.Support = (p, _) => new RaycastHit { collider = Physics.Ground,
             point = new Vector3(p.x, 1.39f, p.z), normal = Vector3.up };
         Check(RadioShopPlacement.TryStand(scene, out var groundedGold, out _, out var goldReason) &&
-            MathF.Abs(groundedGold.y - 1.39f) < .001f && !goldReason.Contains("differs"),
-            "Gold Rock stand and keeper lower together to nearby static ground");
+            MathF.Abs(groundedGold.y - 1.34f) < .001f && !goldReason.Contains("differs"),
+            "Gold Rock stand and keeper settle .05 m below the dock support");
         Physics.Support = (p, _) => new RaycastHit { collider = Physics.Ground,
             point = new Vector3(p.x, 1.8f, p.z), normal = Vector3.up };
         Check(RadioShopPlacement.TryStand(scene, out var unraisedGold, out _, out goldReason) &&
-            MathF.Abs(unraisedGold.y - 1.57f) < .001f && goldReason.Contains("differs"),
+            MathF.Abs(unraisedGold.y - 1.52f) < .001f && goldReason.Contains("differs"),
             "higher prop cannot lift Gold Rock stand and keeper");
         Physics.Support = originalGoldSupport;
         RadioStandLayout.TryAnchor(15, out var fort, out var fortYaw);
@@ -177,7 +192,7 @@ static class Program
         var distantScene = new Transform { position = new Vector3(5000, 0, 0) }.Add<IslandSceneryScene>();
         distantScene.parentIslandIndex = 15;
         Check(RadioShopPositionMarker.TryDescribe(observer, new[] { noncapital, distantScene, goldScene }, out message) &&
-            message.Contains("Gold Rock City (1)") && message.Contains("(1598.24, 3.60, -437.18)") &&
+            message.Contains("Gold Rock City (1)") && message.Contains("(1597.97, 3.60, -436.99)") &&
             message.Contains("facing yaw -45.0, stand yaw 135.0"),
             "marker handles scaled and rotated scenery and converts customer facing to stand yaw");
         observer.rotation = goldRoot.rotation * Quaternion.Euler(0, 135, 0);

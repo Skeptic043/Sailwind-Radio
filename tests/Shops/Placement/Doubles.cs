@@ -67,4 +67,4 @@ public class IslandSceneryScene:UnityEngine.Component{public int parentIslandInd
 public class Shopkeeper:UnityEngine.Component{}
 public class ShopArea:UnityEngine.Component{public Shopkeeper Keeper;public Shopkeeper GetShopkeeper()=>Keeper;}
 public class ShipItem:UnityEngine.Component{}
-namespace SailwindRadio.Shops{public class RadioShopStock:UnityEngine.Component{} internal class RadioShopStand:UnityEngine.Component{}}
+namespace SailwindRadio.Shops{public class RadioShopStock:UnityEngine.Component{} internal class RadioShopStand:UnityEngine.Component{internal bool UsesNativeGoldRockCounter {get;set;}}}

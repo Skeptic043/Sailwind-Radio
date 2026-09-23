@@ -375,7 +375,7 @@ namespace SailwindRadio.Shops
             if(!RadioShopPlacement.SlotClear(vendor.Stand,slot.Index,slot.Kind,out string reason))
             { ReportPlacement(vendor,"stock slot blocked by "+reason); return false; }
             if(reason!=null) ReportPlacement(vendor,"stock slot "+slot.Index+" overlaps "+reason);
-            var position=vendor.Stand.transform.TransformPoint(RadioStandLayout.Slots[slot.Index]);
+            var position=vendor.Stand.transform.TransformPoint(RadioStandLayout.Slot(vendor.Scenery.parentIslandIndex,slot.Index,vendor.Stand.UsesNativeGoldRockCounter));
             var rotation=vendor.Stand.transform.rotation * RadioStandLayout.SlotRotation(slot.Kind);
             GameObject anchor=null;
             RadioItemController controller=null;

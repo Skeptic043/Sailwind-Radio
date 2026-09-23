@@ -16,6 +16,27 @@ namespace SailwindRadio.Shops
             new Vector3(-.32f, .82f, .30f), new Vector3(.32f, .82f, .30f),
             new Vector3(-.32f, .82f, -.27f), new Vector3(.32f, .82f, -.27f)
         };
+        internal static Vector3 Slot(int island, int index, bool nativeGoldCounter)
+        {
+            var position = Slots[index];
+            if (island == 1)
+            {
+                // The Wolfer stands clear of Gold Rock's wider native counter.
+                if (index == 0) position.x = 1.9f;
+                else if (nativeGoldCounter)
+                {
+                    // Installed mesh triangles put the top at .916-.931 m
+                    // across these slots. The native top runs from roughly
+                    // -.29 to +.34 m in Z after the 180-degree visual flip.
+                    position.y = index == 1 ? .93f : index == 2 ? .94f :
+                        index == 3 ? .945f : index == 4 ? .95f :
+                        index == 5 ? .93f : .925f;
+                    if (index == 3 || index == 4) position.z = .20f;
+                    if (index == 5 || index == 6) position.z = -.17f;
+                }
+            }
+            return position;
+        }
         internal static Quaternion SlotRotation(int kind) => Quaternion.identity;
         internal static bool TryAnchor(int island, out Vector3 sceneryLocalPosition, out float yaw)
         {
@@ -23,12 +44,14 @@ namespace SailwindRadio.Shops
             // Face the player's logged -126.6 degree yaw, then move the NPC
             // .25 world metres forward and .25 left in that new facing. The
             // later .25 m forward correction is another .5 scenery-local m.
+            // For this pass, advance the merchant another .0625 m, rotate its
+            // facing 5 degrees clockwise, and shift it .06 m to its new right.
             // The scenery's half scale makes each world metre two local metres.
             // Subtract the rotated 1.04 m keeper offset to locate the stand.
             // Fort keeps its approved facing and moves .30 m forward. Dragon
             // Cliffs keeps its approved location and facing.
-            yaw = island == 1 ? 53.4f : island == 9 ? 45f : 180f;
-            sceneryLocalPosition = island == 1 ? new Vector3(1596.9886f, 3.1f, -436.4281f) :
+            yaw = island == 1 ? 58.4f : island == 9 ? 45f : 180f;
+            sceneryLocalPosition = island == 1 ? new Vector3(1596.7175f, 3.1f, -436.2411f) :
                 island == 9 ? new Vector3(-104.6f, 2.1f, -530f) : new Vector3(-136.97f, 2.3f, 43.95f);
             return island == 1 || island == 9 || island == 15;
         }

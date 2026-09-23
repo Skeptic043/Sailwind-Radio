@@ -9,6 +9,7 @@ namespace SailwindRadio.Shops
         private Material platformWood;
         private Material canvas;
         private Material roofWood;
+        internal bool UsesNativeGoldRockCounter { get; private set; }
         private readonly List<Renderer> structureRenderers = new List<Renderer>();
         private readonly List<Collider> structureColliders = new List<Collider>();
         internal void SetVisible(bool visible)
@@ -50,6 +51,7 @@ namespace SailwindRadio.Shops
                 // the counter, frame and cream canopy. Keep an independent
                 // Radio-owned copy so its source remains untouched.
                 var nativeGoldRockStall = island == 1 && stand.NativeGoldRockStall(scenery);
+                stand.UsesNativeGoldRockCounter = nativeGoldRockStall;
                 if (!nativeGoldRockStall)
                 {
                     // A flat low sales table lets every physical display item
@@ -76,8 +78,12 @@ namespace SailwindRadio.Shops
                         stand.Board("Platform cross beam", new Vector3(.33f, -.13f, .7f + z * 1.8f), new Vector3(4.28f, .15f, .1f),stand.platformWood);
                     for (int i = -5; i <= 7; i++)
                         stand.Board("Rear Dragon Cliffs platform plank", new Vector3(i * .33f, -.045f, 4.9f), new Vector3(.31f, .09f, 3.8f),stand.platformWood);
+                    for (int i = 4; i <= 16; i++)
+                        stand.Board("Left Dragon Cliffs platform plank", new Vector3(i * .33f, -.05f, .7f), new Vector3(.31f, .09f, 3.8f),stand.platformWood);
+                    for (int z = -1; z <= 1; z += 2)
+                        stand.Board("Left platform cross beam", new Vector3(3.2f, -.135f, .7f + z * 1.8f), new Vector3(4.2f, .15f, .1f),stand.platformWood);
                 }
-                var nativeDragonCliffsCover = island == 9 && stand.NativeDragonCliffsVisual(scenery, "east_market_roof", "east_market_roof", "Dragon Cliffs native canopy", new Vector3(0, 2.05f, 0), .6f, false);
+                var nativeDragonCliffsCover = island == 9 && stand.NativeDragonCliffsVisual(scenery, "east_market_roof", "east_market_roof", "Dragon Cliffs native canopy", new Vector3(0, 2.05f, 0), .65f, false);
                 if ((island == 9 && !nativeDragonCliffsCover) || island == 15)
                 {
                     for (int x = -1; x <= 1; x += 2)
@@ -149,21 +155,26 @@ namespace SailwindRadio.Shops
             // The native mesh's Z axis is up, Y runs along the counter, and X
             // runs from the keeper toward the customer. Its half-size scene
             // scale yields a 2.7 m counter with 1.3 m depth and a full canopy.
-            copy.transform.localRotation = Quaternion.LookRotation(Vector3.up, Vector3.left);
+            copy.transform.localRotation = Quaternion.Euler(0, 180f, 0) * Quaternion.LookRotation(Vector3.up, Vector3.left);
             copy.transform.localScale = source.transform.lossyScale;
-            // The counter covers the stock slots while the canopy reaches
-            // the merchant behind them. The broad surface settles near the
-            // items' 0.82 m authored height.
-            copy.transform.localPosition = new Vector3(0, 1.045f, .08f);
+            // The mesh's horizontal counter spans raw X [-1.06, .20]. After
+            // the half-scale and 180-degree flip, a .24 m Z offset places its
+            // top from about -.29 to +.34 m in stand space. The canopy still
+            // reaches the keeper at +1.04 m.
+            copy.transform.localPosition = new Vector3(0, 1.045f, .24f);
             copy.AddComponent<MeshFilter>().sharedMesh = source.sharedMesh;
             var rendererCopy = copy.AddComponent<MeshRenderer>();
             rendererCopy.sharedMaterials = sourceRenderer.sharedMaterials;
             structureRenderers.Add(rendererCopy);
             var support = new GameObject("Gold Rock stock support");
             support.transform.SetParent(transform, false);
-            support.transform.localPosition = new Vector3(0, .78f, .285f);
+            // The native tabletop rises toward the rear stock row. Keep the
+            // simple physics support close beneath it rather than letting
+            // gravity settle stock into the visible mesh.
+            support.transform.localPosition = new Vector3(0, .897f, .025f);
+            support.transform.localRotation = Quaternion.Euler(-4.3f, 0, 0);
             var collider = support.AddComponent<BoxCollider>();
-            collider.size = new Vector3(2.7f, .075f, 1.31f);
+            collider.size = new Vector3(2.7f, .06f, .65f);
             structureColliders.Add(collider);
             return true;
         }
@@ -171,6 +182,9 @@ namespace SailwindRadio.Shops
         {
             if (!NativeDragonCliffsVisual(scenery, "east_dock", "east_dock", "Dragon Cliffs native plank deck", new Vector3(0, .128f, .7f), .7f, true)) return false;
             NativeDragonCliffsVisual(scenery, "east_dock", "east_dock", "Dragon Cliffs rear native plank deck", new Vector3(0, .128f, 4.9f), .7f, true);
+            // The Wolfer stands to the keeper's left (+X). Overlap this row
+            // slightly with the first so the visible planks cover its feet.
+            NativeDragonCliffsVisual(scenery, "east_dock", "east_dock", "Dragon Cliffs left native plank deck", new Vector3(3.2f, .125f, .7f), .7f, true);
             return true;
         }
         private bool NativeDragonCliffsVisual(Transform scenery, string sourceName, string meshName, string copyName, Vector3 position, float sizeScale, bool solid)

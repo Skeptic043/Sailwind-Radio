@@ -241,6 +241,7 @@ namespace SailwindRadio.Shops
     {
         internal static int Created;
         internal bool Visible=true;
+        internal bool UsesNativeGoldRockCounter {get;set;}
         internal void SetVisible(bool visible){Visible=visible;}
         internal UnityEngine.GameObject VendorVisual { get; private set; }
         internal static RadioShopStand Create(UnityEngine.Transform scenery,UnityEngine.Vector3 position,UnityEngine.Quaternion rotation,int island)

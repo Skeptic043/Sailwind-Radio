@@ -22,7 +22,11 @@ namespace SailwindRadio.Shops
             // the authored height. A prop above the anchor cannot lift them.
             bool groundedCapital = (scenery.parentIslandIndex == 1 || scenery.parentIslandIndex == 15) && supported &&
                 height <= expected.y + .02f && height >= expected.y - .30f;
-            position = new Vector3(expected.x, groundedCapital ? height : expected.y + .02f, expected.z);
+            // Gold Rock's visual sand and the NPC's feet sit slightly below
+            // the static dock support that this ray sees. Keep the adjustment
+            // local to this stall; Fort's approved grounding remains exact.
+            float goldVisualOffset = scenery.parentIslandIndex == 1 ? -.05f : 0f;
+            position = new Vector3(expected.x, (groundedCapital ? height : expected.y + .02f) + goldVisualOffset, expected.z);
             string diagnostics = supported ? "" : "no level static ground at the authored anchor";
             if (supported && !groundedCapital && Mathf.Abs(height - expected.y) > .15f)
                 diagnostics = Append(diagnostics, "nearby support height differs from authored height by " + (height - expected.y));
@@ -35,7 +39,9 @@ namespace SailwindRadio.Shops
                         uneven = true;
                 }
             if (uneven) diagnostics = Append(diagnostics, "uneven or missing ground beneath the display");
-            string blocked = Blocker(position + rotation * RadioStandLayout.EnvelopeCenter, RadioStandLayout.EnvelopeHalf, rotation, null);
+            var envelopeHalf = RadioStandLayout.EnvelopeHalf;
+            if (scenery.parentIslandIndex == 1) envelopeHalf.x += .15f; // Gold Wolfer reaches farther from the counter.
+            string blocked = Blocker(position + rotation * RadioStandLayout.EnvelopeCenter, envelopeHalf, rotation, null);
             if (blocked != null) diagnostics = Append(diagnostics, "display footprint overlaps " + blocked);
             // Check the customer's approach in front, rather than a line through the native counter
             // from the merchant standing behind it.
@@ -47,7 +53,8 @@ namespace SailwindRadio.Shops
 
         internal static bool SlotClear(RadioShopStand stand, int index, int kind, out string reason)
         {
-            var position = stand.transform.TransformPoint(RadioStandLayout.Slots[index]);
+            var scenery = stand.GetComponentInParent<IslandSceneryScene>();
+            var position = stand.transform.TransformPoint(RadioStandLayout.Slot(scenery ? scenery.parentIslandIndex : -1, index, stand.UsesNativeGoldRockCounter));
             Vector3 half = RadioDevice.Size(kind) * .5f + new Vector3(.02f, .008f, .025f);
             var rotation = stand.transform.rotation * RadioStandLayout.SlotRotation(kind);
             reason = Blocker(position + rotation * RadioDevice.Center(kind), half, rotation, stand.transform);
