@@ -10,7 +10,7 @@ From the Radio project root:
 .\tools\models\Build-Models.ps1
 ```
 
-The default executable is the existing portable Blender 4.5.13 LTS at `E:\Projects\Unity\SailingGame\.tools\blender\blender-4.5.13-windows-x64\blender.exe`. Pass `-BlenderExe` to use another installation. The wrapper uses factory settings, disables automatic embedded script execution, propagates errors, then reopens the generated native file in a fresh Blender process.
+The wrapper uses `blender` from `PATH` by default. Pass `-BlenderExe` with the full path to another Blender 4.5 installation. It uses factory settings, disables automatic embedded script execution, propagates errors, then reopens the generated native file in a fresh Blender process.
 
 This command regenerates the named JSON, editable `.blend`, family preview and validation reports under `assets/`. Keep hand-edited alternatives under another filename. The original SailingGame project is never modified.
 

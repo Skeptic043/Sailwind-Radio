@@ -6,8 +6,7 @@ artifacts/
 **/Temp/
 **/Logs/
 **/UserSettings/
-assets/authoring/*.blend1
-assets/authoring/*.log
+assets/authoring/
 **/__pycache__/
 
 # Private workflow files (also read by Package.ps1).
@@ -75,4 +74,5 @@ assets/authoring/*.log
 [sS][eE][sS][sS][iI][oO][nN][-_]*.[tT][xX][tT]
 *[-_][sS][eE][sS][sS][iI][oO][nN].[tT][xX][tT]
 [dD][oO][cC][sS]/[vV][aA][lL][iI][dD][aA][tT][iI][oO][nN].[mM][dD]
+[dD][oO][cC][sS]/[tT][eE][sS][tT][iI][nN][gG].[mM][dD]
 # END PRIVATE WORKFLOW EXCLUSIONS

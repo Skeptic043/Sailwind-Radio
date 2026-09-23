@@ -35,9 +35,17 @@ namespace SailwindRadio.Physical
             FloatingOriginManager.instance && GameState.playing && !GameState.currentlyLoading && !GameState.justStarted &&
             !GameState.loadingBoatLocalItems && !GameState.recovering && SaveLoadManager.readyToSave && !(bool)BusyField.GetValue(manager);
 
+        // Unsold shop stock has instanceId 0 and is never registered with the
+        // native save manager. It can be built once the native item world is
+        // stable, before the stricter purchase/save readiness check passes.
+        internal bool ReadyToStageShop => !disposed && manager && manager == SaveLoadManager.instance && !loading &&
+            FloatingOriginManager.instance && GameState.playing && !GameState.currentlyLoading && !GameState.justStarted &&
+            !GameState.loadingBoatLocalItems && !GameState.recovering && !(bool)BusyField.GetValue(manager) &&
+            TryGetDonor(out _);
+
         internal RadioItemController CreateShopStock(Transform parent, Vector3 position, Quaternion rotation, int kind)
         {
-            if (!ReadyForShop || !TryGetDonor(out var donor)) return null;
+            if (!ReadyToStageShop || !TryGetDonor(out var donor)) return null;
             GameObject instance = null;
             try
             {

@@ -36,13 +36,35 @@ $radioBinaryFiles = [ordered]@{
     'LICENSE' = "$PSScriptRoot\LICENSE"
     'THIRD_PARTY_NOTICES.md' = "$PSScriptRoot\THIRD_PARTY_NOTICES.md"
     'licenses/NLayer.txt' = "$PSScriptRoot\licenses\NLayer.txt"
-    'docs/TESTING.md' = "$PSScriptRoot\docs\TESTING.md"
     'docs/BUILDING.md' = "$PSScriptRoot\docs\BUILDING.md"
     'docs/SHOPS.md' = "$PSScriptRoot\docs\SHOPS.md"
     'tests/Audio/UNITY-PROBE.md' = "$PSScriptRoot\tests\Audio\UNITY-PROBE.md"
 }
+$radioPublicFiles = [ordered]@{
+    'manifest.json' = "$PSScriptRoot\manifest.json"
+    'icon.png' = "$PSScriptRoot\icon.png"
+    'README.md' = "$PSScriptRoot\README.md"
+    'CHANGELOG.md' = "$PSScriptRoot\CHANGELOG.md"
+    'LICENSE' = "$PSScriptRoot\LICENSE"
+    'THIRD_PARTY_NOTICES.md' = "$PSScriptRoot\THIRD_PARTY_NOTICES.md"
+    'licenses/NLayer.txt' = "$PSScriptRoot\licenses\NLayer.txt"
+    'BepInEx/plugins/SailwindRadio/SailwindRadio.dll' = "$PSScriptRoot\artifacts\build\$radioVersion\SailwindRadio.dll"
+    'BepInEx/plugins/SailwindRadio/NLayer.dll' = "$PSScriptRoot\artifacts\build\$radioVersion\NLayer.dll"
+}
+$radioManifest = Get-Content -LiteralPath "$PSScriptRoot\manifest.json" -Raw | ConvertFrom-Json
+if ($radioManifest.version_number -ne $radioVersion -or $radioManifest.name -ne 'Sailwind_Radio' -or
+    @($radioManifest.dependencies).Count -ne 1 -or $radioManifest.dependencies[0] -ne 'BepInEx-BepInExPack-5.4.2305') {
+    throw 'Thunderstore manifest does not match the public package version, name or loader dependency.'
+}
+Add-Type -AssemblyName System.Drawing
+$radioIcon = [Drawing.Image]::FromFile("$PSScriptRoot\icon.png")
+try {
+    if ($radioIcon.Width -ne 256 -or $radioIcon.Height -ne 256 -or $radioIcon.RawFormat.Guid -ne [Drawing.Imaging.ImageFormat]::Png.Guid) {
+        throw 'Thunderstore icon must be a 256x256 PNG.'
+    }
+} finally { $radioIcon.Dispose() }
 $radioSourceFiles = [ordered]@{}
-foreach ($radioName in @('.gitignore', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'Radio.csproj', 'Directory.Build.props', 'Build.ps1', 'Package.ps1')) {
+foreach ($radioName in @('.gitignore', 'README.md', 'CHANGELOG.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'manifest.json', 'icon.png', 'Radio.csproj', 'Directory.Build.props', 'Build.ps1', 'Package.ps1')) {
     $radioSourceFiles[$radioName] = Join-Path $PSScriptRoot $radioName
 }
 $radioSourceFiles['licenses/NLayer.txt'] = "$PSScriptRoot\licenses\NLayer.txt"
@@ -51,7 +73,7 @@ foreach ($radioSourceDirectory in @('src', 'tests', 'docs', 'assets', 'tools')) 
         $radioRelative = $_.FullName.Substring($PSScriptRoot.Length + 1).Replace('\', '/')
         # Unity editor projects live under ignored .local. src/Library and tests/Library
         # are production music code, not Unity's root Library cache.
-        if (-not (Test-RadioPrivatePath $radioRelative) -and $radioRelative -notmatch '/(bin|obj|Temp|Logs|\.local|__pycache__)/' -and $_.Extension -in @('.cs', '.csproj', '.ps1', '.md', '.json', '.py', '.blend', '.png')) {
+        if (-not (Test-RadioPrivatePath $radioRelative) -and $radioRelative -notlike 'assets/authoring/*' -and $radioRelative -notmatch '/(bin|obj|Temp|Logs|\.local|__pycache__)/' -and $_.Extension -in @('.cs', '.csproj', '.ps1', '.md', '.json', '.py', '.png')) {
             $radioSourceFiles[$radioRelative] = $_.FullName
         }
     }
@@ -85,8 +107,11 @@ function Write-RadioZip($radioDestination, $radioFiles) {
     }
 }
 $radioBinaryZip = Join-Path $radioOutput "SailwindRadio-$radioVersion-test.zip"
+$radioPublicZip = Join-Path $radioOutput "SailwindRadio-$radioVersion-thunderstore.zip"
 $radioSourceZip = Join-Path $radioOutput "SailwindRadio-$radioVersion-source.zip"
 Write-RadioZip $radioBinaryZip $radioBinaryFiles
+Write-RadioZip $radioPublicZip $radioPublicFiles
+& "$PSScriptRoot\tools\Verify-PublicPackage.ps1" -PackagePath $radioPublicZip
 Write-RadioZip $radioSourceZip $radioSourceFiles
 
 # Fresh unique extraction. No existing directory is deleted or replaced.
@@ -104,6 +129,8 @@ $radioResult = [ordered]@{
     checked_utc = [datetime]::UtcNow.ToString('o')
     binary_zip = $radioBinaryZip
     binary_zip_sha256 = (Get-FileHash -LiteralPath $radioBinaryZip -Algorithm SHA256).Hash
+    public_zip = $radioPublicZip
+    public_zip_sha256 = (Get-FileHash -LiteralPath $radioPublicZip -Algorithm SHA256).Hash
     source_zip = $radioSourceZip
     source_zip_sha256 = (Get-FileHash -LiteralPath $radioSourceZip -Algorithm SHA256).Hash
     plugin_sha256 = $radioOriginalHash
@@ -113,6 +140,7 @@ $radioResult = [ordered]@{
     decoder_sha256 = $radioDecoderHash
     source_build_decoder_sha256 = $radioFreshDecoderHash
     binary_entries = $radioBinaryFiles.Count
+    public_entries = $radioPublicFiles.Count
     source_entries = $radioSourceFiles.Count
     live_sailwind_acceptance = 'pending'
 }

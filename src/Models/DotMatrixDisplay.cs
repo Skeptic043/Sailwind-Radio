@@ -6,7 +6,7 @@ namespace SailwindRadio.Models
 {
     internal sealed class DotMatrixDisplay : IDisposable
     {
-        private static readonly Color Amber = new Color(.78f, .35f, .075f, 1f);
+        private static readonly Color Amber = new Color(.94f, .46f, .10f, 1f);
         private readonly GameObject root;
         private readonly Texture2D texture;
         private readonly Material fallbackMaterial;
@@ -20,9 +20,11 @@ namespace SailwindRadio.Models
             root = new GameObject("Recessed dot matrix display");
             root.transform.SetParent(parent, false);
             root.transform.localPosition = new Vector3(.075f, .18f, -.099f);
-            texture = new Texture2D(DotMatrixFont.Width, DotMatrixFont.Height, TextureFormat.RGBA32, false)
+            // The bitmap shrinks to only a few screen pixels per glyph when held.
+            // Filtered mipmaps keep its small dots visible instead of skipping them.
+            texture = new Texture2D(DotMatrixFont.Width, DotMatrixFont.Height, TextureFormat.RGBA32, true)
             {
-                name = "Original radio glyph bitmap", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp
+                name = "Original radio glyph bitmap", filterMode = FilterMode.Trilinear, wrapMode = TextureWrapMode.Clamp
             };
             owned.Add(texture);
             var material = new Material(shader) { mainTexture = texture, color = Amber };
@@ -97,7 +99,7 @@ namespace SailwindRadio.Models
             for (int index = 0; index < pixels.Length; index++)
                 pixels[index] = new Color32(255, 255, 255, mask[index]);
             texture.SetPixels32(pixels);
-            texture.Apply(false, false);
+            texture.Apply(true, false);
             for (int index = 0; index < fallback.Length; index++)
                 fallback[index].text = fallbackRequired[index] ? marquee[index] : "";
         }

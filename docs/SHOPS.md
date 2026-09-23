@@ -1,6 +1,6 @@
 # Capital Radio stalls
 
-The three Radio stalls and merchant instances are created by the mod. Each merchant copies a native Sailwind NPC as a visual and behavior template, leaving the original untouched. Radio owns each new merchant, stand, trigger and stock. The screenshots identify locations, while recorded scenery coordinates set the exact anchors. The player has approved all three stall layouts. The final Gold Rock City Wolfer height change is accepted without another visual test.
+The three Radio stalls and merchant instances are created by the mod. Each merchant copies a native Sailwind NPC as a visual and behavior template, leaving the original untouched. Radio owns each new merchant, stand, trigger and stock. The screenshots identify locations, while recorded scenery coordinates set the exact anchors.
 
 ## Placement
 

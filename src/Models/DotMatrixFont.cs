@@ -145,7 +145,7 @@ $:041F141E051F04
                         for (int column = 0; column < 5; column++)
                             if ((rows[row] & (1 << (4 - column))) != 0)
                                 Dot(pixels, left + (character * 6 + column + .5) * pitch,
-                                    center + (3 - row) * pitch, pitch * .35, line == 0 ? (byte)255 : (byte)210);
+                                    center + (3 - row) * pitch, pitch * .43, line == 0 ? (byte)255 : (byte)210);
                 }
             }
         }

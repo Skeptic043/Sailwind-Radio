@@ -134,13 +134,13 @@ static class Program
             var chooseTemplate=typeof(RadioShopService).GetMethod("FindNativeMerchant",BindingFlags.Static|BindingFlags.NonPublic);
             Check(ReferenceEquals(chooseTemplate.Invoke(null,new object[]{scenery,previewAnchor}),templateKeeper),
                 "inactive nearby native NPC remains an eligible visual template");
-            Time.unscaledTime=0;service.Tick();Time.unscaledTime=6;service.Tick();
+            world.ReadyForShop=false;world.ReadyToStageShop=false;Time.unscaledTime=0;service.Tick();
             Check(RadioShopStand.Created==1,"one owned preview stand per capital scenery");
             Check(area.itemsForSale.Count==0,"owned merchant never stocks existing vendor");
             var ownArea=GameObject.All.Single(g=>g.name=="Radio merchant area").GetComponent<ShopArea>();
             Check(ownArea!=null&&ownArea.GetShopkeeper()!=keeper,"independent merchant and area created");
             var ownStand=ownArea.transform.parent.GetComponent<RadioShopStand>();
-            Check(ownStand.Visible,"unready merchant remains visible after bounded initial staging timeout");
+            Check(!ownStand.Visible,"stall is constructed hidden before native save readiness");
             Check(ownArea.itemsForSale!=null,"dynamically constructed native ShopArea gets an initialized stock list before trigger activation");
             var probe=new GameObject("trigger probe");probe.AddComponent<ShipItem>();var probeCollider=probe.AddComponent<Collider>();
             typeof(ShopArea).GetMethod("OnTriggerEnter",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(ownArea,new object[]{probeCollider});
@@ -149,11 +149,14 @@ static class Program
             Check(ownArea.GetShopkeeper().transform.parent==scenery.transform,"native merchant is direct scenery child for economy Start");
             var ownNpc=ownArea.GetShopkeeper().gameObject;
             Check(ownNpc!=template&&ownNpc.GetComponent<Renderer>()!=null,"owned merchant clones the native NPC visual without moving the template");
-            Check(ownNpc.GetComponent<SphereCollider>().enabled&&ownNpc.GetComponent<SphereCollider>().radius==1.75f&&
+            Check(!ownNpc.GetComponent<SphereCollider>().enabled&&ownNpc.GetComponent<SphereCollider>().radius==1.75f&&
                 !ownNpc.GetComponentsInChildren<Collider>(true).Single(c=>c.transform!=ownNpc.transform).enabled&&
                 template.GetComponent<SphereCollider>().enabled&&template.GetComponent<SphereCollider>().radius==2f,
-                "owned keeper keeps local resale trigger, disables large child trigger, and leaves native source untouched");
-            Check(ownNpc.GetComponent<Renderer>().enabled,"owned merchant remains visible when regional readiness is delayed");
+                "hidden owned keeper closes resale trigger and large child trigger without changing native source");
+            Check(!ownNpc.GetComponent<Renderer>().enabled,"owned merchant remains hidden until stock can be attempted");
+            Time.unscaledTime=6;service.Tick();
+            Check(!ownStand.Visible&&!ownNpc.GetComponent<Renderer>().enabled&&ownArea.itemsForSale.Count==0,
+                "save-readiness delay keeps the prebuilt shop hidden instead of revealing it in stages");
             Check(template.transform.parent==scenery.transform&&!template.Destroyed&&!template.activeInHierarchy,
                 "original night-closed native NPC remains untouched");
             Check(!(bool)Call("BeforeAreaEnter",area,ownNpc.GetComponent<Collider>()),"owned NPC cannot register with a nearby base-game shop area");
@@ -161,14 +164,18 @@ static class Program
             var nativeRegion=(Region)typeof(Shopkeeper).GetField("parentRegion",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ownArea.GetShopkeeper());
             nativeRegion.portRegion=PortRegion.emerald;
             ownNpc.GetComponentsInChildren<Collider>(true).Single(c=>c.transform!=ownNpc.transform).enabled=true;
-            Sun.sun.localTime=22;RadioShopPlacement.FailSlot=6;
-            Time.unscaledTime=12;service.Tick();Check(RadioShopStand.Created==1,"repeat scan deduplicates owned merchant");
+            Sun.sun.localTime=12;RadioShopPlacement.FailSlot=6;
+            world.ReadyToStageShop=true;Time.unscaledTime=12;service.Tick();Check(RadioShopStand.Created==1,"repeat scan deduplicates owned merchant");
             Check(!ownNpc.GetComponentsInChildren<Collider>(true).Single(c=>c.transform!=ownNpc.transform).enabled,
                 "late native NPC initialization cannot reopen broad child sale trigger");
-            Check(ownStand.Visible&&ownNpc.GetComponent<Renderer>().enabled&&ownArea.itemsForSale.Count==6,
-                "failed initial slot reveals visible merchant and partial table after one batch");
-            Check(!ownArea.itemsForSale[0].gameObject.activeInHierarchy,"night stock stays closed despite being constructed");
-            RadioShopPlacement.FailSlot=-1;Sun.sun.localTime=12;Time.unscaledTime=18;service.Tick();
+            Check(ownStand.Visible&&ownNpc.GetComponent<Renderer>().enabled&&ownNpc.GetComponent<SphereCollider>().enabled&&ownArea.itemsForSale.Count==6,
+                "staged unsold stock and merchant appear together before full save readiness");
+            Check(ownArea.itemsForSale[0].gameObject.activeInHierarchy&&
+                !ownArea.itemsForSale[0].GetComponent<RadioShopStock>().PurchaseEnabled,
+                "visible staged stock cannot be purchased before full save readiness");
+            Sun.sun.localTime=22;Time.unscaledTime=13;service.Tick();
+            Check(!ownArea.itemsForSale[0].gameObject.activeInHierarchy,"night stock stays closed after staging");
+            RadioShopPlacement.FailSlot=-1;Sun.sun.localTime=12;world.ReadyForShop=true;Time.unscaledTime=18;service.Tick();
             Check(ownArea.itemsForSale.Count==7,"owned merchant receives all seven devices after native readiness; found "+ownArea.itemsForSale.Count+"; "+string.Join(" | ",warnings));
             Check(ownNpc.GetComponent<Renderer>().enabled,"complete seven-item display becomes visible together");
             var ownedStock=ownArea.itemsForSale[0];int recordsBeforeGate=world.Store.Records.Count();
@@ -183,6 +190,11 @@ static class Program
             Check(!ownedStock.GetComponent<RadioShopStock>().PurchaseEnabled,"existing stock closes purchase while native transaction UI is missing");
             MoneyNotification.instance=new MoneyNotification();Time.unscaledTime=20;service.Tick();
             Check(ownedStock.GetComponent<RadioShopStock>().PurchaseEnabled,"existing stock reopens purchase when native transaction UI becomes ready");
+            world.ReadyForShop=false;Time.unscaledTime=20.1f;service.Tick();
+            Check(ownStand.Visible&&ownedStock.gameObject.activeInHierarchy&&
+                !ownedStock.GetComponent<RadioShopStock>().PurchaseEnabled,
+                "a temporary save-readiness transition keeps the display visible but closes purchases");
+            world.ReadyForShop=true;Time.unscaledTime=20.2f;service.Tick();
             var foreign=new GameObject("foreign stock");foreign.AddComponent<ShipItem>();var foreignCollider=foreign.AddComponent<Collider>();
             Check(!(bool)Call("BeforeAreaEnter",ownArea,foreignCollider),"owned area excludes other merchants' stock despite overlaps");
             Check(!(bool)Call("BeforeKeeperEnter",ownArea.GetShopkeeper(),foreignCollider),"owned NPC excludes other merchants' stock despite overlaps");
@@ -238,7 +250,7 @@ static class Program
             Check(!streamingStand.Visible,"native NPC template delay keeps whole stand hidden at first scan");
             Time.unscaledTime=26;service.Tick();
             Check(!streamingStand.Visible,"first merchant retry does not reveal stand alone");
-            Time.unscaledTime=31;service.Tick();
+            Time.unscaledTime=36;service.Tick();
             Check(streamingStand.Visible,"extended missing template reveals placement for diagnosis");
             UnityEngine.Object.Found.Clear();
         }

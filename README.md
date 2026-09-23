@@ -38,7 +38,7 @@ Example folder setup: `MusicFolders = D:\Music | E:\Sailing Music`. MP3, OGG and
 
 There are added shop stalls in Gold Rock City, Dragon Cliffs and Fort Aestrin. GRC's stall is located between the shipyard and port office, DC's stall is located near the boxed food seller, and FA's stall is located near the Inn.
 
-### Speakers
+## Speakers
 
 | Device | Sound | Audible range |
 | --- | --- | --- |
@@ -57,4 +57,4 @@ AI was used to write all of the code in this project. The original concept, desi
 
 [Report an issue](https://github.com/Skeptic043/Sailwind-Radio/issues) with your settings and `BepInEx/LogOutput.log`.
 
-[Source code](https://github.com/Skeptic043/Sailwind-Radio) · [MIT License](LICENSE) · [Build instructions](docs/BUILDING.md) · [Source attribution and dependencies](THIRD_PARTY_NOTICES.md) · [Support on Ko-fi](https://ko-fi.com/skeptic043) · skeptic043
+[Source code](https://github.com/Skeptic043/Sailwind-Radio) · [MIT License](https://github.com/Skeptic043/Sailwind-Radio/blob/main/LICENSE) · [Build instructions](https://github.com/Skeptic043/Sailwind-Radio/blob/main/docs/BUILDING.md) · [Source attribution and dependencies](https://github.com/Skeptic043/Sailwind-Radio/blob/main/THIRD_PARTY_NOTICES.md) · [Support on Ko-fi](https://ko-fi.com/skeptic043) · skeptic043

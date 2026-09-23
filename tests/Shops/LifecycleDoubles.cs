@@ -139,7 +139,7 @@ namespace HarmonyLib
 }
 public class SaveLoadManager:UnityEngine.Object { public static SaveLoadManager instance=new(); }
 public class IslandSceneryScene:UnityEngine.Component { public int parentIslandIndex; }
-public static class GameState { public static bool currentlyLoading; public static UnityEngine.Transform World=new UnityEngine.GameObject("world").transform; }
+public static class GameState { public static bool currentlyLoading,playing=true; public static int loadingScenes; public static UnityEngine.Transform World=new UnityEngine.GameObject("world").transform; }
 public class Sun:UnityEngine.Object { public static Sun sun=new();public float localTime=12; }
 public class SaveablePrefab:UnityEngine.Component { public int instanceId;public bool registered; public void RegisterToSave(){registered=true;} }
 public static class PlayerGold { public static int[] currency={10000,10000,10000,10000}; }
@@ -203,10 +203,11 @@ namespace SailwindRadio.Physical
     }
     public class RadioWorldService
     {
-        public bool ReadyForShop=true;
+        public bool ReadyForShop=true,ReadyToStageShop=true;
         public RadioSaveStore Store=new();internal GlobalRadioArbiter Arbiter=new();public int NextId=10,Finishes;
         public RadioItemController CreateShopStock(UnityEngine.Transform parent,UnityEngine.Vector3 pos,UnityEngine.Quaternion rot,int kind)
         {
+            if(!ReadyToStageShop)return null;
             var go=new UnityEngine.GameObject();go.transform.SetParent(parent,true);go.AddComponent<ShipItem>();go.AddComponent<SaveablePrefab>();
             var c=go.AddComponent<RadioItemController>();c.State.Kind=kind;return c;
         }

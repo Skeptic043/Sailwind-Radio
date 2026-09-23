@@ -32,7 +32,8 @@ namespace SailwindRadio.Shops
             internal Collider[] MerchantTriggers;
             internal bool DisplayShown;
             internal bool InitialStockAttempted;
-            internal float CreatedAt;
+            internal float StageReadyAt = -1f;
+            internal float NextStockAttempt;
             internal readonly HashSet<string> ReportedReasons=new HashSet<string>();
         }
         private static RadioShopService active;
@@ -42,6 +43,7 @@ namespace SailwindRadio.Shops
         private readonly List<Vendor> vendors = new List<Vendor>();
         private SaveLoadManager session;
         private float nextScan;
+        private float sessionBeganAt;
         private bool disposed;
         private bool supported;
 
@@ -87,16 +89,24 @@ namespace SailwindRadio.Shops
             {
                 Clear();
                 session = SaveLoadManager.instance;
+                sessionBeganAt = Time.unscaledTime;
             }
-            if (GameState.currentlyLoading) return;
-            if (!world.ReadyForShop) return;
+            if (GameState.currentlyLoading || !session || !GameState.playing || GameState.loadingScenes > 0) return;
+            // Build the hidden display as soon as the native scenery is present.
+            // Save/economy readiness can follow several seconds later, especially
+            // when loading a save while looking directly at the stall.
             for(int i=vendors.Count-1;i>=0;i--)
             {
                 if (!vendors[i].Scenery) { Clear(vendors[i]); vendors.RemoveAt(i); }
-                else if (vendors[i].Stand && vendors[i].Area) Update(vendors[i]);
+                else
+                {
+                    if (world.ReadyToStageShop && vendors[i].StageReadyAt < 0f)
+                        vendors[i].StageReadyAt = Time.unscaledTime;
+                    if (vendors[i].Stand && vendors[i].Area && (world.ReadyToStageShop || !vendors[i].DisplayShown))
+                        Update(vendors[i]);
+                }
             }
             if(Time.unscaledTime < nextScan) return;
-            nextScan=Time.unscaledTime+5;
             foreach(var scenery in UnityEngine.Object.FindObjectsOfType<IslandSceneryScene>())
             {
                 if (!RadioStandLayout.TryAnchor(scenery.parentIslandIndex, out var local, out _) ||
@@ -113,6 +123,13 @@ namespace SailwindRadio.Shops
                 vendors.Add(vendor);
                 TryDisplay(vendor);
             }
+            // Native scenery and merchant templates may stream in after the
+            // loading flag clears. Retry briefly during that transition, then
+            // return to the inexpensive steady-state scan interval.
+            bool incomplete=false;
+            foreach(var vendor in vendors)
+                if(!vendor.Stand || !vendor.Area) { incomplete=true; break; }
+            nextScan=Time.unscaledTime + (incomplete || Time.unscaledTime-sessionBeganAt < 10f ? .5f : 5f);
         }
 
         private void Update(Vendor vendor)
@@ -122,10 +139,11 @@ namespace SailwindRadio.Shops
             if(vendor.MerchantTriggers!=null)
                 foreach(var collider in vendor.MerchantTriggers)
                     if(collider && collider.enabled) collider.enabled=false;
-            bool merchantReady=ReadyToStock(vendor);
-            bool open = merchantReady && vendor.Area.GetShopkeeper().gameObject.activeInHierarchy &&
+            bool merchantReady=world.ReadyToStageShop && ReadyToStock(vendor);
+            bool open = vendor.Area.GetShopkeeper().gameObject.activeInHierarchy &&
                 (vendor.Area.openAtNight || (Sun.sun && Sun.sun.localTime >= 7 && Sun.sun.localTime <= 18));
-            bool saleReady=open && vendor.DisplayShown && PurchaseEnvironmentReady(vendor);
+            bool saleReady=open && vendor.DisplayShown && world.ReadyForShop && PurchaseEnvironmentReady(vendor);
+            bool attemptedStock=false;
             foreach(var slot in vendor.Slots)
             {
                 slot.Clock.Tick(Time.deltaTime);
@@ -144,12 +162,18 @@ namespace SailwindRadio.Shops
                     continue;
                 }
                 if(!merchantReady || !slot.Clock.Ready || !Camera.main || Vector3.Distance(Camera.main.transform.position,vendor.Area.transform.position)>100f) continue;
-                // Expensive discovery is throttled, independently of simulation-time restocking.
-                if(vendor.InitialStockAttempted && Time.unscaledTime < nextScan) continue;
+                // Failed stock creation is retried separately from simulation-time restocking.
+                if(vendor.InitialStockAttempted && Time.unscaledTime < vendor.NextStockAttempt) continue;
+                attemptedStock=true;
                 TryStock(vendor,slot);
             }
-            if(merchantReady) vendor.InitialStockAttempted=true;
-            if(!vendor.DisplayShown && (merchantReady || Time.unscaledTime-vendor.CreatedAt>=5f))
+            if(attemptedStock)
+            {
+                vendor.InitialStockAttempted=true;
+                vendor.NextStockAttempt=Time.unscaledTime+5f;
+            }
+            if(!vendor.DisplayShown && (merchantReady ||
+                (vendor.StageReadyAt >= 0f && Time.unscaledTime-vendor.StageReadyAt>=5f)))
             {
                 // Attempt every initial slot in the same update, then reveal the
                 // display as one group. A missing economy/slot must not hide the
@@ -157,10 +181,12 @@ namespace SailwindRadio.Shops
                 vendor.DisplayShown=true;
                 vendor.Stand.SetVisible(true);
                 SetNpcVisible(vendor.OwnedNpc,true);
+                var saleTrigger=vendor.OwnedNpc ? vendor.OwnedNpc.GetComponent<SphereCollider>() : null;
+                if(saleTrigger) saleTrigger.enabled=true;
                 foreach(var slot in vendor.Slots)
                 {
                     if(!slot.Stock) continue;
-                    slot.Stock.PurchaseEnabled=open && PurchaseEnvironmentReady(vendor);
+                    slot.Stock.PurchaseEnabled=open && world.ReadyForShop && PurchaseEnvironmentReady(vendor);
                     slot.Stock.gameObject.SetActive(open);
                 }
             }
@@ -186,7 +212,6 @@ namespace SailwindRadio.Shops
             try
             {
                 vendor.Stand=RadioShopStand.Create(vendor.Scenery.transform,position,rotation,vendor.Scenery.parentIslandIndex);
-                vendor.CreatedAt=Time.unscaledTime;
                 vendor.Stand.SetVisible(false);
                 Physics.SyncTransforms();
                 if(reason.Length>0) ReportPlacement(vendor,reason);
@@ -214,10 +239,10 @@ namespace SailwindRadio.Shops
                 vendor.Area=null;
                 vendor.OwnedNpc=null;
                 vendor.MerchantTriggers=null;
-                // Streaming can load the native appearance template a few frames
-                // after the scenery. Keep the solid stand hidden for two scan
-                // intervals before showing an incomplete diagnostic preview.
-                if(vendor.Stand && Time.unscaledTime-vendor.CreatedAt>=10f)
+                // Streaming can load the native appearance template after the
+                // scenery. Show an incomplete diagnostic preview only after the
+                // native item world has also had time to become ready.
+                if(vendor.Stand && vendor.StageReadyAt >= 0f && Time.unscaledTime-vendor.StageReadyAt>=10f)
                 { vendor.DisplayShown=true; vendor.Stand.SetVisible(true); }
                 ReportPlacement(vendor,"merchant setup waiting: "+error.Message);
             }
@@ -244,6 +269,8 @@ namespace SailwindRadio.Shops
             // Its much larger Modular NPC child trigger reaches adjacent stalls.
             // Retain a counter-sized root trigger and close the child triggers.
             vendor.MerchantTriggers=ConfigureMerchantTriggers(visual);
+            var saleTrigger=visual.GetComponent<SphereCollider>();
+            if(saleTrigger) saleTrigger.enabled=vendor.DisplayShown;
             var home=typeof(Shopkeeper).GetField("homePos",BindingFlags.Instance|BindingFlags.NonPublic);
             if(home==null || home.FieldType!=typeof(Transform)) throw new MissingFieldException("Shopkeeper.homePos changed");
             home.SetValue(keeper,visual.transform);
@@ -402,7 +429,7 @@ namespace SailwindRadio.Shops
                 stock.Shop=vendor.Area;
                 stock.Controller=controller;
                 stock.Anchor=anchor.transform;
-                stock.PurchaseEnabled=PurchaseEnvironmentReady(vendor);
+                stock.PurchaseEnabled=vendor.DisplayShown && world.ReadyForShop && PurchaseEnvironmentReady(vendor);
                 controller.GetComponent<ShipItem>().AddToShop(vendor.Area);
                 controller.SetShopStock(true);
                 slot.Anchor=anchor;
@@ -476,7 +503,7 @@ namespace SailwindRadio.Shops
             // economy so a neighboring merchant remains the active seller.
             foreach(var vendor in active.vendors)
                 if(vendor.OwnedNpc && vendor.OwnedNpc.GetComponent<Shopkeeper>()==__instance)
-                    return item.sold && item.held && active.ReadyToStock(vendor) &&
+                    return item.sold && item.held && active.world.ReadyForShop && active.ReadyToStock(vendor) &&
                         Camera.main && Vector3.Distance(Camera.main.transform.position,vendor.Stand.transform.position)<=3.25f;
             return false;
         }
@@ -596,6 +623,8 @@ namespace SailwindRadio.Shops
             vendor.MerchantTriggers=null;
             vendor.DisplayShown=false;
             vendor.InitialStockAttempted=false;
+            vendor.StageReadyAt=-1f;
+            vendor.NextStockAttempt=0f;
         }
         private void Clear() { foreach(var vendor in vendors) Clear(vendor); vendors.Clear(); nextScan=0; }
         public void Dispose()
