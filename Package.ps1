@@ -1,7 +1,8 @@
 param(
     [string]$GameDir = 'C:\Steam Games\steamapps\common\Sailwind',
     [string]$LoaderPath = "$PSScriptRoot\.local\references",
-    [string]$OfflineFeed = "$PSScriptRoot\.local\nuget-feed"
+    [string]$OfflineFeed = "$PSScriptRoot\.local\nuget-feed",
+    [string]$OutputDir = "$PSScriptRoot\artifacts\packages"
 )
 $ErrorActionPreference = 'Stop'
 # Keep this policy shared with Git, including when rebuilding an extracted source ZIP.
@@ -27,7 +28,7 @@ function Test-RadioPrivatePath([string]$radioPath) {
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $radioVersion = ([xml](Get-Content -LiteralPath "$PSScriptRoot\Radio.csproj" -Raw)).Project.PropertyGroup.Version
 if ($radioVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid version.' }
-$radioOutput = Join-Path $PSScriptRoot 'artifacts\packages'
+$radioOutput = $OutputDir
 New-Item -ItemType Directory -Path $radioOutput -Force | Out-Null
 $radioBinaryFiles = [ordered]@{
     'BepInEx/plugins/SailwindRadio/SailwindRadio.dll' = "$PSScriptRoot\artifacts\build\$radioVersion\SailwindRadio.dll"

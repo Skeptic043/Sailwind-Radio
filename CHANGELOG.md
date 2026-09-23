@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- Dropping a held item near a radio or speaker no longer activates its controls or blocks the normal drop.
+- Trying to drop a held item near a radio or speaker no longer activates its controls.
 
 ### Changed
 
