@@ -10,7 +10,7 @@ Install Sailwind Radio through r2modman or Thunderstore Mod Manager, then launch
 
 ### Manual installation
 
-1. Install [BepInExPack](https://thunderstore.io/c/sailwind/p/BepInEx/BepInExPack/) in your Sailwind game folder, following its installation instructions.
+1. Install [BepInEx 5](https://github.com/BepInEx/BepInEx/releases) in your Sailwind game folder, following its installation instructions.
 2. Download and extract the Sailwind Radio ZIP. Copy its `BepInEx/plugins/SailwindRadio` folder into `BepInEx/plugins` in your Sailwind folder.
 3. Launch Sailwind normally.
 
