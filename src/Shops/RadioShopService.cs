@@ -268,7 +268,7 @@ namespace SailwindRadio.Shops
             // The native keeper's root trigger owns the held-good resale popup.
             // Its much larger Modular NPC child trigger reaches adjacent stalls.
             // Retain a counter-sized root trigger and close the child triggers.
-            vendor.MerchantTriggers=ConfigureMerchantTriggers(visual);
+            vendor.MerchantTriggers=ConfigureMerchantTriggers(visual,vendor.Scenery.parentIslandIndex);
             var saleTrigger=visual.GetComponent<SphereCollider>();
             if(saleTrigger) saleTrigger.enabled=vendor.DisplayShown;
             var home=typeof(Shopkeeper).GetField("homePos",BindingFlags.Instance|BindingFlags.NonPublic);
@@ -321,16 +321,19 @@ namespace SailwindRadio.Shops
             foreach(var renderer in npc.GetComponentsInChildren<Renderer>(true)) renderer.enabled=visible;
         }
 
-        private static Collider[] ConfigureMerchantTriggers(GameObject npc)
+        private static Collider[] ConfigureMerchantTriggers(GameObject npc,int islandIndex)
         {
             var disabled=new List<Collider>();
             bool rootSaleTrigger=false;
+            // Gold Rock's wider counter needs the native 2 m reach to accept
+            // held goods from its customer edge. Other stalls keep 1.75 m.
+            float saleRadius=islandIndex==1 ? 2f : 1.75f;
             foreach(var collider in npc.GetComponentsInChildren<Collider>(true))
             {
                 if(!collider.isTrigger) continue;
                 if(collider.transform==npc.transform && collider is SphereCollider sphere && !rootSaleTrigger)
                 {
-                    sphere.radius=Mathf.Min(sphere.radius,1.75f);
+                    sphere.radius=Mathf.Min(sphere.radius,saleRadius);
                     rootSaleTrigger=true;
                     continue;
                 }

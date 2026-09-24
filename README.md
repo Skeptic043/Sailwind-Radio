@@ -52,7 +52,7 @@ Speakers connect automatically to an active radio within 50 metres when both are
 
 ## Compatibility
 
-Tested on Sailwind's beta branch in September 2026 alongside other mods that add shops, with no incompatibilities found. Radio does not lock itself to a specific game build.
+Tested on Sailwind's beta branch in September 2026. The physical controls have also been tested with Dizzy Fixes' `PreferSittingItemLook` setting enabled. Radio does not lock itself to a specific game build.
 
 ## AI Use
 

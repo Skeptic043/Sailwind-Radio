@@ -10,9 +10,17 @@ namespace UnityEngine
         public bool enabled = true;
         public Transform transform = new Transform();
         public Collider TestCollider = new Collider();
-        public T GetComponent<T>() where T : class => TestCollider as T;
+        public SailwindRadio.Physical.RadioItemController TestRadio;
+        public T GetComponent<T>() where T : class => (TestRadio as T) ?? (TestCollider as T);
     }
-    public class Collider : Object { public Vector3 ClosestPoint(Vector3 _) => new Vector3(); }
+    public class Collider : Object
+    {
+        public bool enabled = true;
+        public GoPointerButton TestButton;
+        public T GetComponent<T>() where T : class => TestButton as T;
+        public Vector3 ClosestPoint(Vector3 _) => new Vector3();
+    }
+    public struct RaycastHit { public Collider collider; public float distance; }
     public class GameObject : Object { public bool activeSelf = true; public void SetActive(bool value) { activeSelf = value; } }
     public struct Vector3
     {
@@ -55,6 +63,11 @@ public class GoPointer : Component
 public class GoPointerButton : Component
 {
     public string lookText;
+    public bool unclickable;
+    public GoPointer LookedAtBy;
+    public bool Unlooked;
+    public void Look(GoPointer pointer) { LookedAtBy = pointer; }
+    public void ForceUnlook() { Unlooked = true; LookedAtBy = null; }
     protected GoPointer stickyClickedBy;
     public virtual void OnActivate() { }
     public virtual void OnActivate(GoPointer pointer) { }
@@ -79,6 +92,7 @@ public class GoPointerButton : Component
         Refs.mouseCrosshair.SetActive(true);
     }
 }
+public class PickupableItem : GoPointerButton { }
 namespace SailwindRadio.Physical
 {
     public enum RadioAction { Power, PlayPause, Previous, Next, Shuffle, Collections }

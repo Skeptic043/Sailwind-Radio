@@ -120,9 +120,17 @@ static class Program
             var solidNpc=new GameObject("solid body");solidNpc.transform.SetParent(probeNpc.transform,false);
             var solidCollider=solidNpc.AddComponent<Collider>();
             typeof(RadioShopService).GetMethod("ConfigureMerchantTriggers",BindingFlags.Static|BindingFlags.NonPublic)
-                .Invoke(null,new object[]{probeNpc});
+                .Invoke(null,new object[]{probeNpc,9});
             Check(rootTrigger.enabled&&rootTrigger.radius==1.75f&&!childTrigger.enabled&&solidCollider.enabled,
                 "owned NPC keeps counter resale trigger but closes large child trigger and preserves solid collision");
+            var goldProbe=new GameObject("Gold Rock trigger probe");
+            var goldRoot=goldProbe.AddComponent<SphereCollider>();goldRoot.isTrigger=true;
+            var goldChild=new GameObject("Modular NPC");goldChild.transform.SetParent(goldProbe.transform,false);
+            var goldChildTrigger=goldChild.AddComponent<Collider>();goldChildTrigger.isTrigger=true;
+            typeof(RadioShopService).GetMethod("ConfigureMerchantTriggers",BindingFlags.Static|BindingFlags.NonPublic)
+                .Invoke(null,new object[]{goldProbe,1});
+            Check(goldRoot.enabled&&goldRoot.radius==2f&&!goldChildTrigger.enabled,
+                "Gold Rock keeps native 2 m resale reach across its wider counter while closing broad child trigger");
             var distantTemplate=new GameObject("shopkeeper (12)");distantTemplate.transform.SetParent(scenery.transform,false);
             var distantKeeper=distantTemplate.AddComponent<Shopkeeper>();distantTemplate.AddComponent<Renderer>();
             UnityEngine.Object.Found.Add(scenery);Camera.main=new GameObject().AddComponent<Camera>();

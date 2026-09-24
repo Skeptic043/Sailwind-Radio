@@ -22,6 +22,8 @@ Radio shops use Sailwind's native merchant sale path. Radio stock becomes purcha
 
 Radio merchants sell the mod's devices and offer the game's sell window for held goods at their own counter. The owned NPC keeps a small root interaction trigger while its much larger child trigger remains disabled. The player has confirmed device selling and that Radio merchants claim sell interactions only at close range.
 
+Gold Rock City uses the native root trigger radius of 2.0 for its wider counter. Dragon Cliffs and Fort Aestrin retain a 1.75 radius cap. Selling from across Gold Rock's counter still needs a live check.
+
 ## Regional prices
 
 The native purchase path uses each capital's local currency and reputation discounts. The requested radio target is about 1,500 Emerald Dragons.

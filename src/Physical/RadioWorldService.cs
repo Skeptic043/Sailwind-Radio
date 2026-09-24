@@ -175,18 +175,36 @@ namespace SailwindRadio.Physical
         {
             try
             {
-                var target = typeof(GoPointer).GetMethod("LateUpdate", BindingFlags.Instance | BindingFlags.NonPublic,
+                var lateUpdate = typeof(GoPointer).GetMethod("LateUpdate", BindingFlags.Instance | BindingFlags.NonPublic,
                     null, Type.EmptyTypes, null);
                 var pointedAt = typeof(GoPointer).GetField("pointedAtButton", BindingFlags.Instance | BindingFlags.NonPublic);
                 var lookDistance = typeof(GoPointer).GetField("currentLookDistance", BindingFlags.Instance | BindingFlags.NonPublic);
-                if (target == null || target.ReturnType != typeof(void) || pointedAt?.FieldType != typeof(GoPointerButton) ||
-                    lookDistance?.FieldType != typeof(float))
+                if (lateUpdate == null || lateUpdate.ReturnType != typeof(void) ||
+                    pointedAt?.FieldType != typeof(GoPointerButton) || lookDistance?.FieldType != typeof(float))
                     throw new MissingMethodException("Native pointer target layout changed");
-                var patch = AccessTools.Method(typeof(RadioWorldService), nameof(HeldItemControlTargetPrefix));
-                harmony.Patch(target, prefix: new HarmonyMethod(patch));
-                patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
+                var patch = AccessTools.Method(typeof(RadioWorldService), nameof(HeldItemControlClearPrefix));
+                harmony.Patch(lateUpdate, prefix: new HarmonyMethod(patch));
+                patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(lateUpdate, patch));
             }
-            catch (Exception error) { warn("Radio held-item control filtering unavailable. " + error.Message); }
+            catch (Exception error) { warn("Radio held-item pointer cleanup unavailable. " + error.Message); }
+
+            try
+            {
+                var raycast = typeof(GoPointer).GetMethod("DoRaycast", BindingFlags.Instance | BindingFlags.NonPublic,
+                    null, Type.EmptyTypes, null);
+                var pointedAt = typeof(GoPointer).GetField("pointedAtButton", BindingFlags.Instance | BindingFlags.NonPublic);
+                var lookDistance = typeof(GoPointer).GetField("currentLookDistance", BindingFlags.Instance | BindingFlags.NonPublic);
+                var hit = typeof(GoPointer).GetField("hit", BindingFlags.Instance | BindingFlags.NonPublic);
+                if (raycast == null || raycast.ReturnType != typeof(void) ||
+                    pointedAt?.FieldType != typeof(GoPointerButton) || lookDistance?.FieldType != typeof(float) ||
+                    hit?.FieldType != typeof(RaycastHit))
+                    throw new MissingMethodException("Native pointer raycast layout changed");
+                var patch = AccessTools.Method(typeof(RadioWorldService), nameof(ControlRaycastPostfix));
+                var orderedPatch = new HarmonyMethod(patch) { after = new[] { "com.dizzy.sailwind.fixes" } };
+                harmony.Patch(raycast, postfix: orderedPatch);
+                patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(raycast, patch));
+            }
+            catch (Exception error) { warn("Radio pointer target correction unavailable. " + error.Message); }
         }
 
         private void TryPatchHammerNail()
@@ -478,9 +496,20 @@ namespace SailwindRadio.Physical
         private static void PrefabPostfix(SaveablePrefab __instance) => Guard(() => active.Restore(__instance));
         private static void CapturePrefix(SaveablePrefab __instance) => Guard(() => active.Capture(__instance));
         private static void ControlHoverPostfix(LookUI __instance, GoPointerButton button) => Guard(() => RadioControlHover.ClearPickupHint(__instance, button));
-        private static void HeldItemControlTargetPrefix(GoPointer __instance, ref GoPointerButton ___pointedAtButton,
-            ref float ___currentLookDistance) =>
-            RadioHeldItemTarget.Clear(__instance, ref ___pointedAtButton, ref ___currentLookDistance);
+        private static void HeldItemControlClearPrefix(GoPointer __instance,
+            ref GoPointerButton ___pointedAtButton, ref float ___currentLookDistance)
+        {
+            if (active == null || active.disposed) return;
+            try { RadioHeldItemTarget.Clear(__instance, ref ___pointedAtButton, ref ___currentLookDistance); }
+            catch (Exception ex) { active.warn("Radio held-item pointer cleanup failed: " + ex.Message); }
+        }
+        private static void ControlRaycastPostfix(GoPointer __instance, RaycastHit ___hit,
+            ref GoPointerButton ___pointedAtButton, ref float ___currentLookDistance)
+        {
+            if (active == null || active.disposed) return;
+            try { RadioHeldItemTarget.Restore(__instance, ___hit, ref ___pointedAtButton, ref ___currentLookDistance); }
+            catch (Exception ex) { active.warn("Radio pointer target correction failed: " + ex.Message); }
+        }
         private void Capture(SaveablePrefab prefab)
         {
             var item = prefab.GetComponent<RadioItemController>();

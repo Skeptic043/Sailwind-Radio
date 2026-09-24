@@ -146,6 +146,62 @@ internal static class Program
         Check(target == next && lookDistance == 1.4f && heldRadio.RequestedCount == 2 &&
             heldRadio.LastAction == RadioAction.Power && heldRadio.RememberedPointer == pointer,
             "unheld pointed action and power controls still activate once each");
+
+        // Model the post-raycast state produced by PreferSittingItemLook: the
+        // hit remains a radio child control, while the target becomes its root item.
+        foreach (GoPointerButton control in new GoPointerButton[] { power, next, knob })
+        {
+            (knob, pointer) = Fresh();
+            var radio = new RadioItemController();
+            if (control is RadioPowerButton p) p.Radio = radio;
+            else if (control is RadioActionButton a) a.Radio = radio;
+            else ((RadioVolumeKnob)control).Radio = radio;
+            var root = new PickupableItem { TestRadio = radio };
+            var hit = new RaycastHit { collider = new Collider { TestButton = control }, distance = 1.25f };
+            target = root; lookDistance = 1.4f;
+            RadioHeldItemTarget.Restore(pointer, hit, ref target, ref lookDistance);
+            Check(target == control && root.Unlooked && control.LookedAtBy == pointer && lookDistance == 1.25f,
+                "placed purchased control restores its own direct hit before native click");
+
+            // With Dizzy disabled, native DoRaycast already selected the control.
+            // The postfix must not make another Look/Unlook transition each tick.
+            root.Unlooked = false; control.LookedAtBy = null;
+            RadioHeldItemTarget.Restore(pointer, hit, ref target, ref lookDistance);
+            Check(target == control && !root.Unlooked && control.LookedAtBy == null,
+                "already selected control keeps its native hover state");
+
+            target = root; pointer.Held = new UnityEngine.Object();
+            RadioHeldItemTarget.Restore(pointer, hit, ref target, ref lookDistance);
+            Check(target == root, "held item cannot retarget to a radio control");
+            pointer.Held = null;
+            target = new PickupableItem { TestRadio = new RadioItemController() };
+            RadioHeldItemTarget.Restore(pointer, hit, ref target, ref lookDistance);
+            Check(target != control, "unrelated pickup target is preserved");
+            target = root; radio.IsPlacedForControls = false;
+            RadioHeldItemTarget.Restore(pointer, hit, ref target, ref lookDistance);
+            Check(target == root, "stock or unplaced radio cannot restore its controls");
+            radio.IsPlacedForControls = true;
+            target = null;
+            RadioHeldItemTarget.Restore(pointer, hit, ref target, ref lookDistance);
+            Check(target == null, "missing native target stays missing");
+            target = new GoPointerButton();
+            RadioHeldItemTarget.Restore(pointer, hit, ref target, ref lookDistance);
+            Check(target != control, "another interactable target stays untouched");
+            target = root; control.unclickable = true;
+            RadioHeldItemTarget.Restore(pointer, hit, ref target, ref lookDistance);
+            Check(target == root, "unclickable radio control stays unavailable");
+            control.unclickable = false;
+            hit.collider.enabled = false;
+            RadioHeldItemTarget.Restore(pointer, hit, ref target, ref lookDistance);
+            Check(target == root, "disabled shop control collider cannot be restored");
+            hit.collider.enabled = true; GameState.inCursorMenu = true;
+            RadioHeldItemTarget.Restore(pointer, hit, ref target, ref lookDistance);
+            Check(target == root, "cursor menu cannot restore stale raycast control");
+            GameState.inCursorMenu = false;
+            hit.distance = 2f;
+            RadioHeldItemTarget.Restore(pointer, hit, ref target, ref lookDistance);
+            Check(target == root, "out-of-reach hit cannot restore radio control");
+        }
         Console.WriteLine(checks + " production knob lifecycle checks passed with explicit native input doubles. Live click, scroll and menu behavior remain acceptance gates.");
     }
 }

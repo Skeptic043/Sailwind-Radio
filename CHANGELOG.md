@@ -1,5 +1,15 @@
 # Sailwind Radio
 
+## 1.0.2
+
+### Fixed
+
+- Radio and speaker controls now work with [Dizzy Fixes](https://github.com/foxyv/dizzy_sailwind_fixes) when `PreferSittingItemLook` is enabled.
+
+### Changed
+
+- Slightly increased the Gold Rock City radio merchant's sell range to reach farther across the stall.
+
 ## 1.0.1
 
 ### Fixed

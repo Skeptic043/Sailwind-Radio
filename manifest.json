@@ -1,6 +1,6 @@
 {
   "name": "Sailwind_Radio",
-  "version_number": "1.0.1",
+  "version_number": "1.0.2",
   "website_url": "https://github.com/Skeptic043/Sailwind-Radio",
   "description": "Play your own music in Sailwind through a physical radio and three wireless speakers.",
   "dependencies": [
