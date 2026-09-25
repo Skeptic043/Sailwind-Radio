@@ -6,7 +6,7 @@ Play your own music in Sailwind through a physical radio and speakers with 3D au
 
 ### Mod managers
 
-Install Sailwind Radio through r2modman or Thunderstore Mod Manager, then launch Sailwind through your manager. Dependencies are installed automatically.
+Install [Sailwind Radio on Thunderstore](https://thunderstore.io/c/sailwind/p/Skeptic043/Sailwind_Radio/) through r2modman or Thunderstore Mod Manager, then launch Sailwind through your manager. Dependencies are installed automatically.
 
 ### Manual installation
 
@@ -50,9 +50,11 @@ There are added shop stalls in Gold Rock City, Dragon Cliffs and Fort Aestrin. G
 
 Speakers connect automatically to an active radio within 50 metres when both are on the same vessel or both are ashore. The Small Speaker can mount on surfaces like a hook does. Each output gets quieter with distance, and cabins/some interiors muffle sound across their boundaries.
 
+Item IDs: Radio `43040`, Small Speaker `43041`, Speaker `43042`, Turbo Wolfer `43043`.
+
 ## Compatibility
 
-Tested on Sailwind's beta branch in September 2026. The physical controls have also been tested with Dizzy Fixes' `PreferSittingItemLook` setting enabled. Radio does not lock itself to a specific game build.
+Tested on Sailwind stable 0.39. Sailwind Radio has no known incompatibilities.
 
 ## AI Use
 

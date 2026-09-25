@@ -53,6 +53,28 @@ namespace SailwindRadio.Persistence
     {
         public const string Key = "Skeptic043.SailwindRadio.v1";
         public const int DonorIndex = 138;
+        // Fixed slots are part of the native save identity. Never derive them from directory length.
+        public const int FirstItemIndex = 43040;
+        public static int ItemIndex(int kind) => kind >= 0 && kind < 4 ? FirstItemIndex + kind :
+            throw new ArgumentOutOfRangeException(nameof(kind));
+        public static bool IsItemIndex(int index) => index >= FirstItemIndex && index < FirstItemIndex + 4;
+        public static bool CanClaimItemSlots(Func<int, bool> occupied, out int collision)
+        {
+            if (occupied == null) throw new ArgumentNullException(nameof(occupied));
+            for (int kind = 0; kind < 4; kind++)
+                if (occupied(ItemIndex(kind))) { collision = ItemIndex(kind); return false; }
+            collision = -1;
+            return true;
+        }
+        public static bool HasUniqueNativeOwner(int id, IEnumerable<int> nativeIds, out int count)
+        {
+            if (nativeIds == null) throw new ArgumentNullException(nameof(nativeIds));
+            count = 0;
+            if (id <= 0) return false;
+            foreach (int candidate in nativeIds)
+                if (candidate == id) count++;
+            return count == 1;
+        }
         public const int MaximumRecords = 2048;
         public const int MaximumJsonCharacters = 4 * 1024 * 1024;
         private readonly Dictionary<int, RadioRecord> records = new Dictionary<int, RadioRecord>();
@@ -99,6 +121,31 @@ namespace SailwindRadio.Persistence
             return false;
         }
 
+        public bool TryGetAny(int id, out RadioRecord record) => records.TryGetValue(id, out record);
+
+        public bool MigrateLegacy(int id, int kind)
+        {
+            if (!Writable || !records.TryGetValue(id, out var record) || record.PrefabIndex != DonorIndex || record.Kind != kind)
+                return false;
+            record.PrefabIndex = ItemIndex(kind);
+            try { Save(); return true; }
+            catch (SerializationException) { record.PrefabIndex = DonorIndex; return false; }
+        }
+
+        public void RevertLegacyMigration(int id, int kind)
+        {
+            if (records.TryGetValue(id, out var record) && record.Kind == kind && record.PrefabIndex == ItemIndex(kind))
+                record.PrefabIndex = DonorIndex;
+        }
+
+        public bool TryAdoptMissing(int id, int index, RadioState state, bool dataWasAbsent)
+        {
+            if (!dataWasAbsent || !Writable || records.ContainsKey(id)) return false;
+            Put(RadioRecord.Capture(id, index, state));
+            try { Save(); return true; }
+            catch (SerializationException) { records.Remove(id); return false; }
+        }
+
         public void Put(RadioRecord record)
         {
             if (!Writable) throw new InvalidOperationException("Existing radio data is preserved because it could not be read");
@@ -131,7 +178,8 @@ namespace SailwindRadio.Persistence
 
         private static void Validate(RadioRecord record)
         {
-            if (record == null || record.InstanceId <= 0 || record.PrefabIndex != DonorIndex)
+            if (record == null || record.InstanceId <= 0 || record.Kind < 0 || record.Kind > 3 ||
+                (record.PrefabIndex != DonorIndex && record.PrefabIndex != ItemIndex(record.Kind)))
                 throw new SerializationException("invalid radio identity or donor");
             if (Double.IsNaN(record.PositionSeconds) || Double.IsInfinity(record.PositionSeconds) || record.PositionSeconds < 0 ||
                 Single.IsNaN(record.Volume) || Single.IsInfinity(record.Volume) || record.Volume < 0 || record.Volume > 1 ||

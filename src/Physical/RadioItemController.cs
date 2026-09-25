@@ -88,11 +88,34 @@ namespace SailwindRadio.Physical
             item = GetComponent<ShipItem>();
             RefreshOwnership();
             State = state;
-            item.name = RadioDevice.Name(State.Kind);
+            ConfigureItem(item, State.Kind);
+            if (item.wallAttachment && item.itemRigidbodyC && !item.held)
+                item.itemRigidbodyC.attached = true;
+            BuildModel();
+            // The native lamp hook accepts a HangableItem on the held object. It is rebuilt after
+            // load alongside our model, while the saved native item keeps its original prefab ID.
+            if (State.Kind == 0 && RadioWorldService.HookCompatible && !GetComponent<HangableItem>())
+                gameObject.AddComponent<HangableItem>();
+        }
+
+        internal void ApplyRestoredState(RadioWorldService service, RadioState state)
+        {
+            owner = service;
+            item = GetComponent<ShipItem>();
+            if (State == null || State.Kind != state.Kind)
+                throw new InvalidOperationException("Registered radio template kind changed during restoration");
+            State = state;
+            RefreshOwnership();
+        }
+
+        internal static void ConfigureItem(ShipItem item, int kind)
+        {
+            item.name = RadioDevice.Name(kind);
             item.description = "";
-            item.big = State.Kind >= 2;
-            item.wallAttachment = State.Kind == 1;
-            item.mass = State.Kind == 1 ? .25f : State.Kind == 2 ? 3f : State.Kind == 3 ? 8f : .5f;
+            item.big = kind >= 2;
+            item.wallAttachment = kind == 1;
+            item.category = kind < 2 ? TransactionCategory.toolsAndSupplies : TransactionCategory.otherItems;
+            item.mass = kind == 1 ? .25f : kind == 2 ? 3f : kind == 3 ? 8f : .5f;
             // The inspected native PC inventory basis reverses X and faces +camera-Z at yaw zero.
             // Our models face -Z, so a local half-turn restores front-facing text and controls.
             item.inventoryRotation = RadioDevice.InventoryYaw;
@@ -100,15 +123,8 @@ namespace SailwindRadio.Physical
             // Native small-item holding positions the root at the pointer. The
             // radio's root is at its base, so lower it by half its height to
             // put the face and controls near the player's sight line.
-            item.holdHeight = State.Kind == 0 ? -RadioDevice.Center(0).y : 0f;
-            if (item.wallAttachment && item.itemRigidbodyC && !item.held)
-                item.itemRigidbodyC.attached = true;
-            item.value = SailwindRadio.Shops.RadioShopCatalog.BasePrice(State.Kind);
-            BuildModel();
-            // The native lamp hook accepts a HangableItem on the held object. It is rebuilt after
-            // load alongside our model, while the saved native item keeps its original prefab ID.
-            if (State.Kind == 0 && RadioWorldService.HookCompatible && !GetComponent<HangableItem>())
-                gameObject.AddComponent<HangableItem>();
+            item.holdHeight = kind == 0 ? -RadioDevice.Center(0).y : 0f;
+            item.value = SailwindRadio.Shops.RadioShopCatalog.BasePrice(kind);
         }
 
         internal void RefreshOwnership()

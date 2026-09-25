@@ -13,14 +13,14 @@ namespace SailwindRadio.Shops
             for (int attempt=0;attempt<64;attempt++)
             {
                 int candidate=nextId();
-                if(candidate>0 && !nativeIdExists(candidate) && !store.TryGet(candidate,RadioSaveStore.DonorIndex,out _) &&
+                if(candidate>0 && !nativeIdExists(candidate) && !store.TryGetAny(candidate,out _) &&
                     !arbiter.TryGet(candidate,out _)) { id=candidate; break; }
             }
             if(id==0) throw new InvalidOperationException("No unused native item identity is available");
             try
             {
                 arbiter.WriteTo(store);
-                store.Put(RadioRecord.Capture(id,RadioSaveStore.DonorIndex,state));
+                store.Put(RadioRecord.Capture(id,RadioSaveStore.ItemIndex(state.Kind),state));
                 store.Save();
                 arbiter.Register(id,state);
                 return id;

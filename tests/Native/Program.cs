@@ -38,6 +38,54 @@ internal static class Program
         var restored = new RadioSaveStore();
         Check(restored.Load(json), "valid document round trips");
         Check(restored.TryGet(42, RadioSaveStore.DonorIndex, out var record), "stable native identity survives");
+        Check(RadioSaveStore.ItemIndex(0) == 43040 && RadioSaveStore.ItemIndex(3) == 43043 &&
+            RadioSaveStore.ItemIndex(1) != RadioSaveStore.ItemIndex(2), "four stable registered item identities");
+        var occupied = new HashSet<int> { 604, 605, 820, 821, 43044 };
+        Check(RadioSaveStore.CanClaimItemSlots(occupied.Contains, out int collision) && collision == -1,
+            "fixed Radio slots ignore other providers and appended directory growth");
+        occupied.Add(RadioSaveStore.ItemIndex(2));
+        Check(!RadioSaveStore.CanClaimItemSlots(occupied.Contains, out collision) && collision == RadioSaveStore.ItemIndex(2),
+            "an occupied fixed slot blocks registration without choosing another index");
+        Check(RadioSaveStore.HasUniqueNativeOwner(42, new[] { 17, 42, 80 }, out int owners) && owners == 1,
+            "one live native owner can restore its Radio state");
+        Check(!RadioSaveStore.HasUniqueNativeOwner(42, new[] { 42, 42 }, out owners) && owners == 2,
+            "duplicate live native owners cannot share one Radio record");
+        Check(!RadioSaveStore.HasUniqueNativeOwner(42, new[] { 42, 42, 17 }, out owners) && owners == 2,
+            "cached DTO plus live clone defers restoration until cache handoff ends");
+        Check(RadioSaveStore.HasUniqueNativeOwner(42, new[] { 42, 17 }, out owners),
+            "cached clone restores after its DTO is removed");
+        Check(!RadioSaveStore.HasUniqueNativeOwner(0, new[] { 0 }, out _),
+            "unassigned native identities never own Radio state");
+        for (int kind = 0; kind < 4; kind++)
+        {
+            var indexed = RadioRecord.Capture(200 + kind, RadioSaveStore.ItemIndex(kind), new RadioState { Kind = kind, Volume = .5f });
+            restored.Put(indexed);
+            var roundtrip = new RadioSaveStore();
+            Check(roundtrip.Load(restored.Save()) && roundtrip.TryGet(200 + kind, RadioSaveStore.ItemIndex(kind), out _),
+                "registered kind survives save and reload");
+            var mismatched = RadioRecord.Capture(250 + kind, RadioSaveStore.ItemIndex((kind + 1) % 4),
+                new RadioState { Kind = kind, Volume = .5f });
+            bool mismatch = false;
+            try { restored.Put(mismatched); } catch (SerializationException) { mismatch = true; }
+            Check(mismatch, "registered record rejects mismatched device kind");
+        }
+        var migrating = new RadioSaveStore();
+        migrating.Put(Record(301));
+        Check(migrating.MigrateLegacy(301, 0) && migrating.TryGet(301, RadioSaveStore.ItemIndex(0), out _),
+            "legacy donor record migrates to its fixed item index");
+        Check(!migrating.TryGet(301, RadioSaveStore.DonorIndex, out _), "migrated record no longer claims donor identity");
+        migrating.RevertLegacyMigration(301, 0);
+        Check(migrating.TryGet(301, RadioSaveStore.DonorIndex, out _), "failed native retag can roll back the record");
+        Check(!migrating.MigrateLegacy(301, 1), "legacy migration requires matching kind");
+        var orphaned = new RadioSaveStore();
+        Check(orphaned.TryAdoptMissing(310, RadioSaveStore.ItemIndex(1), new RadioState { Kind = 1, Volume = .75f }, true) &&
+            orphaned.TryGet(310, RadioSaveStore.ItemIndex(1), out _), "missing Radio data may adopt an exact registered item");
+        Check(!orphaned.TryAdoptMissing(311, RadioSaveStore.ItemIndex(0), new RadioState { Kind = 0 }, false),
+            "present Radio data cannot silently adopt an unrelated native item");
+        var unreadable = new RadioSaveStore();
+        unreadable.Load("{\"Schema\":999,\"Radios\":[]}");
+        Check(!unreadable.TryAdoptMissing(312, RadioSaveStore.ItemIndex(0), new RadioState { Kind = 0 }, true),
+            "future Radio data remains fail closed during adoption");
         Check(record.PositionSeconds == 87.125 && record.Volume == .625f && record.Powered && !record.Paused,
             "independent playback fields survive");
         Check(record.TrackPath == Record().TrackPath, "unicode and nested folder paths survive");
@@ -121,6 +169,8 @@ internal static class Program
         Check(boundaryJson.Length==RadioSaveStore.MaximumJsonCharacters,"exact maximum JSON size may be emitted");
         var boundaryReload=new RadioSaveStore();
         Check(boundaryReload.Load(boundaryJson)&&boundaryReload.Save()==boundaryJson,"exact size boundary roundtrips without losing records");
+        Check(!boundaryReload.MigrateLegacy(10000, 0) && boundaryReload.TryGet(10000, RadioSaveStore.DonorIndex, out _),
+            "migration that would exceed native extension size leaves donor identity intact");
         boundaryRecord.TrackPath+="c";
         largeStore.Put(boundaryRecord);
         var guardedNativeData=new Dictionary<string,string>{{RadioSaveStore.Key,"previous"},{"OtherMod","untouched"}};

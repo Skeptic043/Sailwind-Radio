@@ -13,11 +13,11 @@ Set `-LoaderPath` to an installed BepInEx `core` directory containing `BepInEx.d
 
 NuGet restores the pinned NLayer 1.16.0 decoder and target-framework reference package. An optional `-OfflineFeed` can point at an existing local feed containing `NLayer` 1.16.0, `NETStandard.Library` 2.0.3 and `Microsoft.NETCore.Platforms` 1.1.0. Downloaded packages remain ignored. Packaging includes NLayer's runtime DLL and its MIT notice.
 
-`Build.ps1` builds the production DLL and runs audio and synchronized-output lifecycle, weather, persistence, volume control, single-radio playback, acoustic-service, library, device/collection-menu, model and shop checks. These do not load the game. `Package.ps1` verifies every ZIP entry by hash, extracts the source ZIP to a fresh unique directory, and builds and checks that extraction. It retains a validation JSON alongside the ZIP files in `artifacts/packages/`.
+`Build.ps1` builds the production DLL and runs audio, persistence, control, playback, acoustic, library, device, model, shop and placement checks. These do not load the game. `Package.ps1` verifies every ZIP entry by hash, extracts the source ZIP to a fresh unique directory, and builds and checks that extraction. It retains a validation JSON alongside the ZIP files in `artifacts/packages/`.
 
 `Package.ps1` writes a local test ZIP, a source ZIP, and a separate Thunderstore-ready ZIP containing only the player-facing release files, the plugin, and its decoder. Creating a ZIP does not upload or publish it.
 
-An optional [Unity editor audio probe](../tests/Audio/UNITY-PROBE.md) is retained separately. Its initial run was blocked by the legacy editor's licence before compilation. The editor is not required to build this runtime-mesh DLL.
+The checked-in `assets/runtime/radio-items.assets` contains the four registered item prefabs. A normal build embeds this bundle and does not require the Unity editor. To regenerate it, run `tools/ItemBundle/BuildItemBundle.ps1` with a licensed Unity 2019.1.10f1 editor. An optional [Unity editor audio probe](../tests/Audio/UNITY-PROBE.md) is retained separately.
 
 If Unity 2019.1.10f1 is installed, `tests/Audio/Run-MonoAudioChecks.ps1` runs the console audio checks under its Mono runtime without launching the editor or game. Override `-MonoRoot` for another installation. It still uses doubles for Unity audio objects.
 

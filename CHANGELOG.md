@@ -1,5 +1,12 @@
 # Sailwind Radio
 
+## 1.1.0
+
+### Changed
+
+- Radio, Small Speaker, Speaker and Turbo Wolfer now have separate item IDs (`43040`–`43043`) and can be spawned through Sailwind's normal item system.
+- Devices from older saves migrate from the old donor item to their new item IDs while keeping their saved settings and playback state.
+
 ## 1.0.2
 
 ### Fixed

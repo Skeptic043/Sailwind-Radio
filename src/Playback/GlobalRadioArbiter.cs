@@ -69,7 +69,10 @@ namespace SailwindRadio.Playback
         internal void WriteTo(RadioSaveStore store)
         {
             foreach (var pair in states)
-                store.Put(RadioRecord.Capture(pair.Key, RadioSaveStore.DonorIndex, pair.Value));
+            {
+                int index = store.TryGetAny(pair.Key, out var record) ? record.PrefabIndex : RadioSaveStore.ItemIndex(pair.Value.Kind);
+                store.Put(RadioRecord.Capture(pair.Key, index, pair.Value));
+            }
         }
 
         private static bool WantsPlayback(RadioState state) => state.Kind == 0 && state.Powered;

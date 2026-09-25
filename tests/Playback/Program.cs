@@ -191,6 +191,17 @@ internal static class Program
 
     private static void FailureAndSessionBoundaries()
     {
+        // A cached native clone can create a provisional controller before Load(data)
+        // finishes. Its live controller must be rebound to the arbiter's saved state.
+        var cachedArbiter = new GlobalRadioArbiter();
+        cachedArbiter.Reset(new[] { Record(74, false, 12.5, .7f) });
+        var provisional = new RadioState { Kind = 0, Volume = .5f };
+        var restoredControllerState = cachedArbiter.Register(74, provisional);
+        Check(!ReferenceEquals(restoredControllerState, provisional) && restoredControllerState.PositionSeconds == 12.5,
+            "cached native clone adopts canonical saved playback state after registration");
+        cachedArbiter.Toggle(74, _ => { });
+        Check(restoredControllerState.Powered && !provisional.Powered,
+            "power action changes the rebound controller state, not its provisional clone state");
         var pausedRecord = Record(3); pausedRecord.Paused = true;
         var pausedSave = new GlobalRadioArbiter(); pausedSave.Reset(new[] { pausedRecord });
         pausedSave.TryGet(3, out var pausedState);
@@ -211,7 +222,7 @@ internal static class Program
         Check(speakerState.Kind==3&&speakerState.Bass==.8f&&speakerState.Volume==.75f,"canonical speaker state preserves independent controls");
         var speakerStore=new RadioSaveStore(); speakerArbiter.WriteTo(speakerStore);
         var speakerReload=new RadioSaveStore(); Check(speakerReload.Load(speakerStore.Save()),"speaker and radio canonical records persist together");
-        speakerReload.TryGet(1,138,out var savedSpeaker);
+        speakerReload.TryGet(1,RadioSaveStore.ItemIndex(3),out var savedSpeaker);
         Check(savedSpeaker.Kind==3&&savedSpeaker.Bass==.8f,"cached speaker identity and bass survive capture");
         var arbiter = new GlobalRadioArbiter(); arbiter.Reset(new[] { Record(1), Record(2, false) });
         try { arbiter.Toggle(2, _ => throw new InvalidOperationException("stop failed")); } catch (InvalidOperationException) { }

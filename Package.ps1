@@ -69,6 +69,7 @@ foreach ($radioName in @('.gitignore', 'README.md', 'CHANGELOG.md', 'LICENSE', '
     $radioSourceFiles[$radioName] = Join-Path $PSScriptRoot $radioName
 }
 $radioSourceFiles['licenses/NLayer.txt'] = "$PSScriptRoot\licenses\NLayer.txt"
+$radioSourceFiles['assets/runtime/radio-items.assets'] = "$PSScriptRoot\assets\runtime\radio-items.assets"
 foreach ($radioSourceDirectory in @('src', 'tests', 'docs', 'assets', 'tools')) {
     Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot $radioSourceDirectory) -Recurse -File | ForEach-Object {
         $radioRelative = $_.FullName.Substring($PSScriptRoot.Length + 1).Replace('\', '/')

@@ -26,13 +26,17 @@ static class Program
         int id=ShopPurchaseReservation.Reserve(store,arbiter,new RadioState{Kind=3,Bass=.8f},()=>sequence++,n=>n==8||n==9);
         Check(id==11,"reservation skips native and cached IDs");
         Check(arbiter.ActiveId==10,"unsold reservation cannot displace active radio");
-        Check(store.TryGet(id,138,out var record)&&record.Kind==3&&record.Bass==.8f,"canonical state reserved before native charge");
+        Check(store.TryGet(id,RadioSaveStore.ItemIndex(3),out var record)&&record.Kind==3&&record.Bass==.8f,"canonical state reserved before native charge");
         Check(new RadioSaveStore().Load(store.Save()),"reserved data readable");
         ShopPurchaseReservation.Cancel(store,arbiter,id);
         Check(!store.TryGet(id,138,out _)&&!arbiter.TryGet(id,out _),"cancel removes all provisional ownership");
         Check(store.TryGet(10,138,out var prior)&&prior.PositionSeconds==22,"cancel preserves existing cached state");
         int tries=0;Reject(()=>ShopPurchaseReservation.Reserve(store,arbiter,new RadioState(),()=>{tries++;return 10;},_=>false),"duplicate IDs bounded failure");
         Check(tries==64,"ID retry cap");
+        store.Put(RadioRecord.Capture(77,RadioSaveStore.ItemIndex(0),new RadioState{Kind=0,Volume=.5f}));
+        Reject(()=>ShopPurchaseReservation.Reserve(store,arbiter,new RadioState{Kind=1},()=>77,_=>false),
+            "reservation excludes retained registered Radio IDs as well as legacy donors");
+        store.Remove(77);
         Reject(()=>ShopPurchaseReservation.Reserve(store,arbiter,new RadioState{Volume=float.NaN},()=>12,_=>false),"invalid data fails precharge");
         Check(!store.TryGet(12,138,out _)&&!arbiter.TryGet(12,out _),"invalid reservation no residue");
         var future=new RadioSaveStore();future.Load("{\"Schema\":999,\"Radios\":[]}");
