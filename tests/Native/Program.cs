@@ -28,6 +28,35 @@ internal static class Program
         Check(blocked, "failed document must not be overwritten");
     }
 
+    // Mirrors RadioWorldService's owner check, which retries every half second once loading ends.
+    private static void RestoreDeferralChecks()
+    {
+        var deferrals = new SailwindRadio.Physical.RestoreDeferrals();
+        int warnings = 0;
+        bool Attempt(int id, int[] owners, float now, bool loading)
+        {
+            if (RadioSaveStore.HasUniqueNativeOwner(id, owners, out _)) { deferrals.Restored(id); return true; }
+            if (deferrals.Defer(id, now, loading)) warnings++;
+            return false;
+        }
+        Check(!Attempt(42, new[] { 42, 42 }, 0f, true) && !Attempt(42, new[] { 42, 42, 17 }, 3f, true) &&
+            Attempt(42, new[] { 42, 17 }, 3.5f, false) && warnings == 0,
+            "a cached copy and its live clone during spawning restore without a warning");
+        Check(!Attempt(42, new[] { 42, 42 }, 100f, false) && warnings == 0,
+            "a restored device starts a fresh settling period if its ID is shared again");
+        bool restored = false;
+        for (float now = 0f; now <= 30f; now += .5f)
+            restored |= Attempt(77, new[] { 77, 77 }, now, now < 1f);
+        Check(!restored && warnings == 1, "a persistent duplicate stays deferred and warns exactly once after loading settles");
+        warnings = 0;
+        for (float now = 0f; now <= 30f; now += .5f) Attempt(78, new[] { 78, 78 }, now, true);
+        Check(warnings == 0, "no duplicate is reported while native loading continues");
+        Check(!Attempt(78, new[] { 78, 78 }, 30.5f, false) && warnings == 1, "a duplicate is reported once loading ends after the settling time");
+        deferrals.Clear();
+        warnings = 0;
+        Check(!Attempt(77, new[] { 77, 77 }, 40f, false) && warnings == 0, "a new session settles again before reporting");
+    }
+
     public static int Main()
     {
         var store = new RadioSaveStore();
@@ -56,6 +85,7 @@ internal static class Program
             "cached clone restores after its DTO is removed");
         Check(!RadioSaveStore.HasUniqueNativeOwner(0, new[] { 0 }, out _),
             "unassigned native identities never own Radio state");
+        RestoreDeferralChecks();
         for (int kind = 0; kind < 4; kind++)
         {
             var indexed = RadioRecord.Capture(200 + kind, RadioSaveStore.ItemIndex(kind), new RadioState { Kind = kind, Volume = .5f });

@@ -2,13 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using SailwindRadio;
 using SailwindRadio.Persistence;
 using SailwindRadio.Playback;
 using UnityEngine;
-using UnityEngine.Networking;
 
-internal static class Program
+internal static partial class Program
 {
     private static int checks;
     private static string track;
@@ -36,9 +36,24 @@ internal static class Program
 
     private static void Dispatch(IEnumerable<Endpoint> endpoints, GlobalRadioArbiter arbiter, bool suspended = false) =>
         PlaybackOrder.Tick(endpoints, arbiter.ActiveId, e => e.Id, (e, blocked) => e.Tick(blocked), suspended);
-    private static void CompleteRequests()
+    private static void CompleteRequests(params Endpoint[] endpoints) { CompleteLoads(endpoints.Select(e => e.Playback)); }
+
+    // Streams open on their own workers. Waits until each pending stream is open and holds the frame its
+    // next start needs, so the following Tick sees a completed load. A faulted stream is left for Tick.
+    private static void CompleteLoads(IEnumerable<RadioPlayback> engines)
     {
-        foreach (var request in UnityWebRequest.All) if (!request.Disposed) request.isDone = true;
+        const System.Reflection.BindingFlags Private = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        foreach (var engine in engines)
+        {
+            var stream = engine == null ? null : (StreamedAudio)typeof(RadioPlayback).GetField("streamed", Private).GetValue(engine);
+            if (stream == null) continue;
+            var deadline = DateTime.UtcNow.AddSeconds(10);
+            while (!stream.IsOpen && stream.Fault == null && DateTime.UtcNow < deadline) Thread.Sleep(1);
+            if (stream.Fault != null) continue;
+            if (!stream.IsOpen) throw new Exception("Stream did not open within 10 seconds");
+            int frame = (int)(long)typeof(StreamedAudio).GetField("requestedFrame", Private).GetValue(stream);
+            while (!stream.Ready(frame) && stream.Fault == null && DateTime.UtcNow < deadline) Thread.Sleep(1);
+        }
     }
 
     public static int Main()
@@ -49,16 +64,30 @@ internal static class Program
 
     private static void Run()
     {
+        // Ten seconds of 48 kHz mono silence, the dimensions the lifecycle arithmetic uses. It streams through the real engine.
         track = Path.Combine(AppContext.BaseDirectory, "radio-rule-fixture.wav");
-        File.WriteAllBytes(track, new byte[] { 0 }); // Existence fixture. The audio loader is explicitly doubled.
+        WriteSilentWav(track, 480000, 48000, 1);
         AudioSettings.dspTime = 10;
         LegacyAndCachedStates();
         LiveSwitching();
         OrderedPlaybackAndPendingLoad();
+        StreamedPendingLoad();
         FailureAndSessionBoundaries();
+        FaultIsolation();
         Check(AudioSettings.Subscribers == 0, "all actual playback engines release native event subscriptions");
-        File.Delete(track);
-        Console.WriteLine(checks + " global radio lifecycle checks passed with production arbitration, persistence, playback ordering and audio engine. Native game/audio services use doubles.");
+        DeleteWhenClosed(track);
+        Console.WriteLine(checks + " global radio lifecycle checks passed with production arbitration, persistence, playback ordering, per-radio fault containment and audio engine. Native game/audio services use doubles.");
+    }
+
+    // Stream workers close their files shortly after disposal, never during it.
+    private static void DeleteWhenClosed(string path)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (true)
+        {
+            try { File.Delete(path); return; }
+            catch (IOException) { if (DateTime.UtcNow > deadline) throw; Thread.Sleep(2); }
+        }
     }
 
     private static void LegacyAndCachedStates()
@@ -74,7 +103,7 @@ internal static class Program
             Check(!stateB.Powered && stateB.Paused, "restoring higher-ID item first cannot steal cached winner");
             using (var liveB = new Endpoint(20, stateB))
             {
-                Dispatch(new[] { liveB }, arbiter); CompleteRequests(); Dispatch(new[] { liveB }, arbiter);
+                Dispatch(new[] { liveB }, arbiter); CompleteRequests(liveB); Dispatch(new[] { liveB }, arbiter);
                 Check(liveB.Source.Schedules == 0, "only restored legacy loser remains silent while winner is cached");
                 var stops = new List<int>();
                 arbiter.Toggle(20, stops.Add);
@@ -85,7 +114,7 @@ internal static class Program
                     "stale deferred DTO cannot reactivate displaced cached radio or reset remembered settings");
                 using (var restoredA = new Endpoint(10, stateA))
                 {
-                    Dispatch(new[] { liveB, restoredA }, arbiter); CompleteRequests(); Dispatch(new[] { liveB, restoredA }, arbiter);
+                    Dispatch(new[] { liveB, restoredA }, arbiter); CompleteRequests(liveB, restoredA); Dispatch(new[] { liveB, restoredA }, arbiter);
                     Check(liveB.Source.Schedules == 1 && restoredA.Source.Schedules == 0, "deferred restoration cannot run alongside chosen radio");
                     arbiter.Toggle(20, id => { if (id == 20) liveB.Stop(); });
                     Check(arbiter.ActiveId == 0 && !stateB.Powered, "powering current radio off clears ownership");
@@ -120,7 +149,7 @@ internal static class Program
         using (var liveB = new Endpoint(20, b))
         {
             var reversed = new[] { liveB, liveA };
-            Dispatch(reversed, arbiter); CompleteRequests(); Dispatch(reversed, arbiter);
+            Dispatch(reversed, arbiter); CompleteRequests(reversed); Dispatch(reversed, arbiter);
             Check(liveA.Source.Schedules == 1 && liveB.Source.Schedules == 0, "only initial winner schedules audio");
             AudioSettings.dspTime += 1;
             liveA.Source.timeSamples = 156001;
@@ -131,7 +160,7 @@ internal static class Program
             });
             Check(!liveA.Source.isPlaying && a.PositionSeconds == 2.95 && !a.Powered && a.Paused,
                 "switch captures shared DSP position and pauses outgoing voice");
-            Dispatch(reversed, arbiter); CompleteRequests(); Dispatch(reversed, arbiter);
+            Dispatch(reversed, arbiter); CompleteRequests(reversed); Dispatch(reversed, arbiter);
             Check(liveB.Source.Schedules == 1 && liveB.Source.timeSamples == 246000 && b.Volume == .7f,
                 "new radio starts at its own remembered sample and volume");
             AudioSettings.dspTime += 1;
@@ -154,7 +183,7 @@ internal static class Program
         using (var liveA = new Endpoint(10, a))
         using (var liveB = new Endpoint(20, b))
         {
-            liveA.Tick(false); liveB.Tick(true); CompleteRequests(); liveA.Tick(false); liveB.Tick(true);
+            liveA.Tick(false); liveB.Tick(true); CompleteRequests(liveA, liveB); liveA.Tick(false); liveB.Tick(true);
             AudioSettings.dspTime += 1; liveA.Source.timeSamples = 192003;
             a.Powered = false; a.Paused = true;
             var trace = new List<int>();
@@ -175,7 +204,7 @@ internal static class Program
             Dispatch(new[] { pendingA, newB }, arbiter);
             arbiter.Toggle(2, _ => pendingA.Stop());
             Dispatch(new[] { newB, pendingA }, arbiter);
-            CompleteRequests(); Dispatch(new[] { newB, pendingA }, arbiter);
+            CompleteRequests(newB, pendingA); Dispatch(new[] { newB, pendingA }, arbiter);
             Check(pendingA.Source.Schedules == 0 && newB.Source.Schedules == 1,
                 "old decoder finishing after replacement cannot schedule alongside new radio");
         }
@@ -187,6 +216,47 @@ internal static class Program
         ticks.Clear();
         PlaybackOrder.Tick(new[] { "a", "b" }, 0, _ => 0, (name, blocked) => ticks.Add(name + ":" + blocked), false);
         Check(ticks.All(t => t.EndsWith("True")), "no active owner suspends every endpoint without fallback selection");
+    }
+
+    // In-source formats stream through a worker. A late open on a displaced radio must stay silent.
+    private static void StreamedPendingLoad()
+    {
+        string previous = track;
+        track = Path.Combine(AppContext.BaseDirectory, "radio-rule-stream.wav");
+        WriteSilentWav(track, 44100 * 3, 44100, 2);
+        try
+        {
+            var arbiter = new GlobalRadioArbiter(); arbiter.Reset(new[] { Record(1), Record(2, false) });
+            arbiter.TryGet(1, out var a); arbiter.TryGet(2, out var b);
+            using (var pendingA = new Endpoint(1, a))
+            using (var newB = new Endpoint(2, b))
+            {
+                Dispatch(new[] { pendingA, newB }, arbiter);
+                arbiter.Toggle(2, _ => pendingA.Stop());
+                var deadline = DateTime.UtcNow.AddSeconds(10);
+                while (newB.Source.Schedules == 0 && DateTime.UtcNow < deadline) { Dispatch(new[] { newB, pendingA }, arbiter); Thread.Sleep(1); }
+                for (int i = 0; i < 20; i++) { Dispatch(new[] { newB, pendingA }, arbiter); Thread.Sleep(1); }
+                Check(pendingA.Source.Schedules == 0 && newB.Source.Schedules == 1 && newB.Source.clip != null && newB.Source.clip.Streaming &&
+                    newB.Source.timeSamples == 88200 && pendingA.Playback.Status == "Off",
+                    "a streamed load finishing after replacement cannot schedule alongside the new radio, which streams from its own position");
+            }
+        }
+        finally { track = previous; }
+    }
+
+    // Original 16-bit silence.
+    private static void WriteSilentWav(string path, int frames, int rate, int channels)
+    {
+        int block = channels * 2;
+        using (var writer = new BinaryWriter(File.Create(path)))
+        {
+            writer.Write(System.Text.Encoding.ASCII.GetBytes("RIFF")); writer.Write(36 + frames * block);
+            writer.Write(System.Text.Encoding.ASCII.GetBytes("WAVEfmt ")); writer.Write(16);
+            writer.Write((short)1); writer.Write((short)channels); writer.Write(rate); writer.Write(rate * block);
+            writer.Write((short)block); writer.Write((short)16);
+            writer.Write(System.Text.Encoding.ASCII.GetBytes("data")); writer.Write(frames * block);
+            writer.Write(new byte[frames * block]);
+        }
     }
 
     private static void FailureAndSessionBoundaries()

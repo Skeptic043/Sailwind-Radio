@@ -65,17 +65,20 @@ namespace SailwindRadio.Library
             var roots = new List<string>();
             var rootSet = new HashSet<string>(LibraryPaths.Comparer);
             var warnings = new List<string>();
+            int entry = 0;
             foreach (string raw in (configuration ?? "").Split(new[] { '|', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
             {
                 token.ThrowIfCancellationRequested();
                 if (string.IsNullOrWhiteSpace(raw)) continue;
+                entry++;
                 if (roots.Count >= MaximumRoots) { Warn(warnings, "Only the first 64 collection folders were scanned."); break; }
                 try
                 {
                     string root = LibraryPaths.Canonical(raw);
                     if (rootSet.Add(root)) roots.Add(root);
                 }
-                catch (Exception error) when (LibraryPaths.FilesystemError(error)) { Warn(warnings, "A collection folder path could not be read: " + raw); }
+                catch (Exception error) when (LibraryPaths.FilesystemError(error))
+                { Warn(warnings, "MusicFolders entry " + entry + " is not an absolute local folder path."); }
             }
             roots.Sort(LibraryPaths.Comparer);
             var labels = new Dictionary<string, int>(LibraryPaths.Comparer);
@@ -91,6 +94,8 @@ namespace SailwindRadio.Library
             foreach (string root in roots)
             {
                 token.ThrowIfCancellationRequested();
+                // Players share this log, so folders are named without their personal paths.
+                string name = FolderName(root);
                 var tracks = new List<MusicTrack>();
                 var visited = new HashSet<string>(LibraryPaths.Comparer);
                 var stack = new Stack<KeyValuePair<string, int>>();
@@ -109,7 +114,7 @@ namespace SailwindRadio.Library
                     try
                     {
                         var directory = new DirectoryInfo(current.Key);
-                        if (!directory.Exists) { Warn(warnings, "A music folder could not be read: " + current.Key); continue; }
+                        if (!directory.Exists) { Warn(warnings, Unreadable(name, current.Key == root)); continue; }
                         if ((directory.Attributes & FileAttributes.ReparsePoint) != 0) continue;
                         using (var items = directory.EnumerateFileSystemInfos().GetEnumerator())
                         {
@@ -143,10 +148,10 @@ namespace SailwindRadio.Library
                         }
                     }
                     catch (Exception error) when (LibraryPaths.FilesystemError(error))
-                    { Warn(warnings, "A music folder could not be read: " + current.Key); }
+                    { Warn(warnings, Unreadable(name, current.Key == root)); }
                 }
                 tracks.Sort((left, right) => LibraryPaths.Comparer.Compare(left.Path, right.Path));
-                string label = FolderName(root);
+                string label = name;
                 if (labels[label] > 1) label += " (" + (System.IO.Path.GetDirectoryName(root) ?? root) + ")";
                 collections.Add(new MusicCollection(root, label, tracks.ToArray()));
             }
@@ -159,6 +164,10 @@ namespace SailwindRadio.Library
             string name = System.IO.Path.GetFileName(root);
             return string.IsNullOrEmpty(name) ? root : name;
         }
+
+        private static string Unreadable(string collection, bool root) => root
+            ? "Collection folder " + collection + " could not be read."
+            : "A subfolder of collection " + collection + " could not be read.";
 
         private static void Warn(List<string> warnings, string warning)
         {

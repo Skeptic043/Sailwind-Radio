@@ -18,7 +18,7 @@ namespace SailwindRadio
     public sealed class Plugin : BaseUnityPlugin
     {
         public const string Id = "local.sailwind.radio";
-        public const string Version = "1.1.0";
+        public const string Version = "1.2.0";
         private static Plugin instance;
         private Harmony harmony;
         private RadioWorldService world;
@@ -28,9 +28,7 @@ namespace SailwindRadio
         private ConfigEntry<bool> continueWhileSleeping;
         private LibraryScanner library;
         private RadioMenus menus;
-        private bool libraryReady;
-        private readonly Dictionary<RadioItemController, RadioPlayback> playback = new Dictionary<RadioItemController, RadioPlayback>();
-        private readonly Dictionary<RadioItemController, RadioQueue> queues = new Dictionary<RadioItemController, RadioQueue>();
+        private RadioPlaybackSet<RadioItemController> radios;
         private readonly HashSet<RadioItemController> seen = new HashSet<RadioItemController>();
         private readonly List<RadioItemController> removed = new List<RadioItemController>();
         private bool ready;
@@ -64,8 +62,14 @@ namespace SailwindRadio
                 Config.Save();
                 if (legacyMusicOnly) Warn("MusicFile has been retired. Set MusicFolders to a folder containing your music.");
                 harmony = new Harmony(Id);
+                MediaFoundationSupport.Detect();
+                LibraryPaths.MediaFoundationFormats = MediaFoundationSupport.Enabled;
+                Logger.LogInfo(MediaFoundationSupport.Summary);
                 acoustics = new RadioAcousticsService();
                 library = new LibraryScanner();
+                radios = new RadioPlaybackSet<RadioItemController>(
+                    (item, state) => new RadioPlayback(this, state, Warn) { RepeatTrack = false }, AttachEngine,
+                    item => { if (item && item.State.Powered) item.TogglePower(); }, Warn);
                 menus = new RadioMenus();
                 world = new RadioWorldService(harmony, Warn);
                 world.BeforeSave += CapturePositions;
@@ -76,7 +80,13 @@ namespace SailwindRadio
                 InstallSuspendBoundary(typeof(StartMenu), "GameToSettings");
                 InstallSuspendBoundary(typeof(Sleep), "FallAsleep");
                 ready = true;
-                Logger.LogInfo("Sailwind Radio " + Version + " ready. Configure MusicFolders to load music.");
+                // Count only. Folder paths are personal and players share this log in reports.
+                int folderCount = 0;
+                foreach (string folder in (musicFolders.Value ?? "").Split('|'))
+                    if (!string.IsNullOrWhiteSpace(folder)) folderCount++;
+                Logger.LogInfo(folderCount == 0
+                    ? "Sailwind Radio " + Version + " ready. Set MusicFolders in the Radio config file to load music."
+                    : "Sailwind Radio " + Version + " ready with " + folderCount + (folderCount == 1 ? " music folder." : " music folders."));
             }
             catch (Exception error)
             {
@@ -122,17 +132,17 @@ namespace SailwindRadio
                 world.Tick();
                 TickShops();
                 SynchronizePlayback();
+                var previous = library.Snapshot;
                 if (library.Poll())
                 {
-                    libraryReady = true;
-                    foreach (string warning in library.Snapshot.Warnings) Warn(warning);
-                    foreach (var pair in queues)
-                        if (pair.Value.ApplySnapshot(library.Snapshot)) playback[pair.Key].SetTrack(pair.Key.State.TrackPath);
+                    foreach (string warning in library.Snapshot.WarningsSince(previous)) Warn(warning);
+                    radios.SetSnapshot(library.Snapshot);
                     if (menus.CollectionRadio) ShowCollections(menus.CollectionRadio);
                 }
                 menus.Tick();
                 bool suspended = Suspended;
-                PlaybackOrder.Tick(playback, world.ActiveRadioId, pair => pair.Key ? pair.Key.InstanceId : 0,
+                // Each radio's playback failure is contained by the set. Anything else stops the mod below.
+                radios.Tick(Time.realtimeSinceStartup, world.ActiveRadioId, item => item ? item.InstanceId : 0,
                     TickPlayback, suspended);
             }
             catch (Exception error)
@@ -152,24 +162,26 @@ namespace SailwindRadio
                 var item = items[index];
                 if (!item || item.State.Kind != 0) continue;
                 seen.Add(item);
-                if (playback.ContainsKey(item)) continue;
-                var queue = new RadioQueue(item.State);
-                if (libraryReady) queue.ApplySnapshot(library.Snapshot);
-                queues.Add(item, queue);
-                var engine = new RadioPlayback(this, item.State, Warn) { RepeatTrack = false };
-                playback.Add(item, engine);
-                item.CapturePosition = engine.CapturePosition;
-                item.SuspendPlayback = () => engine.Tick(item.VisualAudioPosition, true);
+                radios.Add(item, item.State);
             }
             removed.Clear();
-            foreach (var pair in playback)
+            foreach (var item in radios.Keys)
+                if (!item || !seen.Contains(item)) removed.Add(item);
+            foreach (var item in removed) radios.Remove(item);
+        }
+
+        // Native hooks reach the current engine through the set, so a replaced engine is never called.
+        private void AttachEngine(RadioItemController item, RadioPlayback engine)
+        {
+            if (!item) return;
+            if (engine == null)
             {
-                if (pair.Key && seen.Contains(pair.Key)) continue;
-                pair.Value.Dispose();
-                if (pair.Key) { pair.Key.CapturePosition = null; pair.Key.SuspendPlayback = null; }
-                removed.Add(pair.Key);
+                item.CapturePosition = null;
+                item.SuspendPlayback = null;
+                return;
             }
-            foreach (var item in removed) { playback.Remove(item); queues.Remove(item); }
+            item.CapturePosition = () => radios.Capture(item);
+            item.SuspendPlayback = () => radios.Run(item, (current, queue) => current.Tick(item.VisualAudioPosition, true), true);
         }
 
         private void TickShops()
@@ -186,20 +198,20 @@ namespace SailwindRadio
             }
         }
 
-        private void TickPlayback(KeyValuePair<RadioItemController, RadioPlayback> pair, bool suspended)
+        private void TickPlayback(RadioItemController item, RadioPlayback engine, RadioQueue queue, bool suspended)
         {
-            if (!pair.Key) return;
-            Vector3 devicePosition = pair.Key.VisualAudioPosition;
-            Vector3 position = pair.Key.SoundPosition;
-            bool carried = pair.Key.UsesPlayerPosition;
+            if (!item) return;
+            Vector3 devicePosition = item.VisualAudioPosition;
+            Vector3 position = item.SoundPosition;
+            bool carried = item.UsesPlayerPosition;
             if (carried && acoustics.ListenerKnown) position = acoustics.ListenerPosition;
-            float obstruction = pair.Key.State.Powered ? acoustics.ObstructionAt(position, carried) : 0;
-            pair.Value.SetAcoustics(acoustics.ListenerPosition, acoustics.ListenerKnown, obstruction);
-            pair.Value.SetCarried(carried);
-            pair.Value.BeginEndpoints();
-            if (pair.Key.InstanceId == world.ActiveRadioId && pair.Key.State.Powered)
+            float obstruction = item.State.Powered ? acoustics.ObstructionAt(position, carried) : 0;
+            engine.SetAcoustics(acoustics.ListenerPosition, acoustics.ListenerKnown, obstruction);
+            engine.SetCarried(carried);
+            engine.BeginEndpoints();
+            if (item.InstanceId == world.ActiveRadioId && item.State.Powered)
             {
-                var sourceVessel = pair.Key.Vessel;
+                var sourceVessel = item.Vessel;
                 foreach (var speaker in world.Items)
                 {
                     if (!speaker || speaker.State.Kind == 0 || !speaker.State.SpeakerEnabled) continue;
@@ -208,23 +220,22 @@ namespace SailwindRadio
                     Vector3 speakerDevicePosition = speaker.VisualAudioPosition;
                     if (!DeviceVessels.CanConnect(sourceVessel, speakerVessel, devicePosition, speakerDevicePosition)) continue;
                     Vector3 speakerPosition = speakerCarried && acoustics.ListenerKnown ? acoustics.ListenerPosition : speaker.SoundPosition;
-                    pair.Value.SetEndpoint(speaker.InstanceId, speakerPosition, speakerCarried, speaker.State.Kind,
+                    engine.SetEndpoint(speaker.InstanceId, speakerPosition, speakerCarried, speaker.State.Kind,
                         speaker.State.Kind == 3 ? 1f : speaker.State.Volume, speaker.State.Bass, acoustics.ObstructionAt(speakerPosition, speakerCarried));
                 }
             }
-            pair.Value.EndEndpoints();
-            pair.Value.Tick(position, suspended);
-            if (!suspended && pair.Key.State.Powered && !pair.Key.State.Paused)
+            engine.EndEndpoints();
+            engine.Tick(position, suspended);
+            if (!suspended && item.State.Powered && !item.State.Paused)
             {
-                RadioQueue queue = queues[pair.Key];
-                bool changed = pair.Value.LoadFailed ? queue.TrackFailed(pair.Value.FailedPath) :
-                    pair.Value.TrackEnded && queue.TrackEnded();
-                if (changed) pair.Value.SetTrack(pair.Key.State.TrackPath);
+                bool changed = engine.LoadFailed ? queue.TrackFailed(engine.FailedPath) :
+                    engine.TrackEnded && queue.TrackEnded();
+                if (changed) engine.SetTrack(item.State.TrackPath);
             }
-            pair.Value.PreloadTrack(pair.Key.InstanceId == world.ActiveRadioId && pair.Key.State.Powered
-                ? queues[pair.Key].PeekNext() : "");
-            var info = library.Snapshot.GetTrackInfo(pair.Key.State.TrackPath);
-            pair.Key.SetTrackInfo(info.Title, info.Artist, info.Album);
+            engine.PreloadTrack(item.InstanceId == world.ActiveRadioId && item.State.Powered
+                ? queue.PeekNext() : "");
+            var info = library.Snapshot.GetTrackInfo(item.State.TrackPath);
+            item.SetTrackInfo(info.Title, info.Artist, info.Album);
         }
 
         private void HandleAction(RadioItemController item, RadioAction action)
@@ -235,25 +246,25 @@ namespace SailwindRadio
                 if (item.State.Powered) library.RequestScan(musicFolders.Value);
                 return;
             }
-            if (!playback.TryGetValue(item, out var engine) || !queues.TryGetValue(item, out var queue)) return;
-            bool changed = false;
-            switch (action)
+            if (action == RadioAction.Collections) { ShowCollections(item); return; }
+            // Only the power button turns a radio on.
+            if (action == RadioAction.PlayPause && !item.State.Powered) return;
+            radios.Run(item, (engine, queue) =>
             {
-                case RadioAction.PlayPause:
-                    if (!item.State.Powered) item.TogglePower();
-                    else
-                    {
+                bool changed = false;
+                switch (action)
+                {
+                    case RadioAction.PlayPause:
                         engine.CapturePosition();
                         item.State.Paused = !item.State.Paused;
                         if (item.State.Paused) item.SuspendPlayback?.Invoke();
-                    }
-                    break;
-                case RadioAction.Previous: changed = queue.Previous(); break;
-                case RadioAction.Next: changed = queue.Next(); break;
-                case RadioAction.Shuffle: changed = queue.SetShuffle(!item.State.Shuffle); break;
-                case RadioAction.Collections: ShowCollections(item); break;
-            }
-            if (changed) engine.SetTrack(item.State.TrackPath);
+                        break;
+                    case RadioAction.Previous: changed = queue.Previous(); break;
+                    case RadioAction.Next: changed = queue.Next(); break;
+                    case RadioAction.Shuffle: changed = queue.SetShuffle(!item.State.Shuffle); break;
+                }
+                if (changed) engine.SetTrack(item.State.TrackPath);
+            });
         }
 
         private void ShowCollections(RadioItemController item)
@@ -268,27 +279,20 @@ namespace SailwindRadio
 
         private void SelectCollections(RadioItemController item, string[] selected)
         {
-            if (!item || !queues.TryGetValue(item, out var queue)) return;
-            if (queue.SetCollections(library.Snapshot, selected)) playback[item].SetTrack(item.State.TrackPath);
+            if (!item) return;
+            radios.Run(item, (engine, queue) => { if (queue.SetCollections(library.Snapshot, selected)) engine.SetTrack(item.State.TrackPath); });
         }
 
         private void OnGUI() { if (ready) menus?.Draw(); }
 
         private void CapturePositions()
         {
-            foreach (var engine in playback.Values)
-                try { engine.CapturePosition(); }
-                catch (Exception error) { Warn("Could not capture a radio position: " + error.Message); }
+            radios?.ForEachEngine((item, engine) => engine.CapturePosition(), "Could not capture a radio position");
         }
 
         private void SuspendNow()
         {
-            foreach (var pair in playback)
-            {
-                if (!pair.Key) continue;
-                try { pair.Value.Tick(pair.Key.VisualAudioPosition, true); }
-                catch (Exception error) { Warn("Could not suspend a radio: " + error.Message); }
-            }
+            radios?.ForEachEngine((item, engine) => { if (item) engine.Tick(item.VisualAudioPosition, true); }, "Could not suspend a radio");
         }
 
         private void ReleaseRadioControls()
@@ -324,14 +328,7 @@ namespace SailwindRadio
             ready = false;
             ReleaseRadioControls();
             CapturePositions();
-            foreach (var pair in playback)
-            {
-                if (pair.Key) { pair.Key.CapturePosition = null; pair.Key.SuspendPlayback = null; }
-                try { pair.Value.Dispose(); }
-                catch (Exception error) { Warn("Could not release a radio player: " + error.Message); }
-            }
-            playback.Clear();
-            queues.Clear();
+            radios?.Clear();
             library?.Dispose();
             library = null;
             menus?.Dispose();

@@ -15,6 +15,9 @@ namespace SailwindRadio.Physical
             return controller && controller.State != null && controller.State.Kind == 0;
         }
 
+        internal static bool AllowsHookTarget(Component item, Component target) =>
+            IsRadio(item) && item.GetComponent<HangableItem>() && target && target.GetComponent<ShipItemLampHook>();
+
         private static bool HasLiveJoint(HangableItem hangable, ShipItem item)
         {
             if (!hangable || !item || !hangable.IsHanging() || !Compatible) return false;

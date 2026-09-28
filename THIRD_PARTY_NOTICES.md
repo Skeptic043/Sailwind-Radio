@@ -6,6 +6,10 @@ The package includes `NLayer.dll` from the official [NLayer 1.16.0 NuGet package
 
 Copyright (c) 2018 Mark Heath, Andrew Ward & Contributors. The full MIT notice is retained in [licenses/NLayer.txt](licenses/NLayer.txt).
 
+## Decoder references
+
+The FLAC and Ogg Vorbis decoders are original code written for this project from the published specifications (IETF RFC 9639 and the Xiph.Org Vorbis I specification). [stb_vorbis](https://github.com/nothings/stb) 1.22 by Sean Barrett, available as public domain or under the MIT License, was consulted for the structure of the Vorbis decoder. M4A and AAC files are decoded by Windows Media Foundation, part of Windows, and nothing from it is included.
+
 ## External references and content
 
 Sailwind Radio's MIT License covers the mod's source, documentation and original Blender models and mesh data under `assets/`. The models were created for this project and contain no extracted game geometry. Blender is an external authoring tool and is not bundled.

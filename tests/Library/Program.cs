@@ -48,14 +48,14 @@ internal static class Program
         try
         {
             string a = FileAt("music/a.mp3"), b = FileAt("music/sub/b.OGG"), c = FileAt("music/sub/deep/c.wav");
-            FileAt("music/ignore.flac"); FileAt("music/ignore.txt");
+            FileAt("music/ignore.m4a"); FileAt("music/ignore.aac"); FileAt("music/ignore.txt");
             string root = Path.GetDirectoryName(a), sub = Path.GetDirectoryName(b);
             var first = Scan(root);
             Check(first.Collections.Count == 1 && first.Collections[0].Tracks.Count == 3, "one recursive root is one collection with required formats");
             Check(first.Collections[0].Tracks.Select(track => track.Path).SequenceEqual(new[] { a, b, c }), "tracks sorted consistently");
-            Check(first.GetLabel(a) == "a", "malformed audio still gets filename without scanner decode");
-            Check(first.GetLabel("missing_song.ogg") == "missing song", "missing labels use clean filename");
-            Check(first.GetLabel(null) == "" && first.GetLabel("bad\0path.mp3") != null, "invalid saved display path cannot interrupt the host update");
+            Check(first.GetTrackInfo(a).Label == "a", "malformed audio still gets filename without scanner decode");
+            Check(first.GetTrackInfo("missing_song.ogg").Label == "missing song", "missing labels use clean filename");
+            Check(first.GetTrackInfo(null).Label == "" && first.GetTrackInfo("bad\0path.mp3").Label != null, "invalid saved display path cannot interrupt the host update");
             var overlap = Scan(root + "|" + sub + "\n" + root.ToUpperInvariant() + Path.DirectorySeparatorChar);
             Check(overlap.Collections.Count == 2, "root identities ignore Windows case and trailing separators");
             Check(overlap.Collections[0].Tracks.Count == 3 && overlap.Collections[1].Tracks.Count == 2, "overlapping roots retain membership");
@@ -71,6 +71,13 @@ internal static class Program
             Check(missing.Collections.Count == 1 && missing.Collections[0].Tracks.Count == 0 && missing.Warnings.Count == 1, "missing root retained as empty with warning");
             var rejectedRoots = Scan("relative/music|C:relative|\\rooted|\\\\server\\music|https://example.com/music|file:///C:/Music");
             Check(rejectedRoots.Collections.Count == 0 && rejectedRoots.Warnings.Count == 6, "relative UNC and URI collection roots rejected before scan");
+            Check(missing.Warnings[0] == "Collection folder missing could not be read." &&
+                rejectedRoots.Warnings[3] == "MusicFolders entry 4 is not an absolute local folder path." &&
+                missing.Warnings.Concat(rejectedRoots.Warnings).All(w => !w.Contains(scratch) && !w.Contains("server") && w.IndexOf(';') < 0),
+                "library warnings name the collection or config entry without personal paths");
+            Check(missing.WarningsSince(null).SequenceEqual(missing.Warnings) && missing.WarningsSince(first).SequenceEqual(missing.Warnings) &&
+                !Scan(Path.Combine(scratch, "missing")).WarningsSince(missing).Any() && !first.WarningsSince(missing).Any(),
+                "a rescan reports only warnings the previous scan did not");
             var legacyInvalid = new RadioState { TrackPath = a, PositionSeconds = 7 };
             Check(!new RadioQueue(legacyInvalid).ApplySnapshot(rejectedRoots) && legacyInvalid.TrackPath == a && legacyInvalid.PositionSeconds == 7,
                 "invalid folder configuration retains usable legacy song");
@@ -92,6 +99,7 @@ internal static class Program
             var depth = Scan(deep);
             Check(depth.Collections[0].Tracks.Count == 0 && depth.Warnings.Count > 0, "depth bound stops pathological trees");
             MetadataChecks();
+            FormatChecks();
             QueueChecks(first, overlap, root, sub, a, b, c);
             PeekChecks(first, root);
             using (var scanner = new LibraryScanner())
@@ -201,7 +209,7 @@ internal static class Program
         Encoding.ASCII.GetBytes("Ocean crossing").CopyTo(tag, 3); Encoding.ASCII.GetBytes("Test artist").CopyTo(tag, 33);
         Encoding.ASCII.GetBytes("Sea album").CopyTo(tag, 63);
         string v1 = FileAt("tags/v1.mp3", tag);
-        Check(TrackMetadata.ReadLabel(v1) == "Test artist - Ocean crossing", "ID3v1 artist and title");
+        Check(TrackMetadata.ReadInfo(v1).Label == "Test artist - Ocean crossing", "ID3v1 artist and title");
         var v1Info = TrackMetadata.ReadInfo(v1);
         Check(v1Info.Title == "Ocean crossing" && v1Info.Artist == "Test artist" && v1Info.Album == "Sea album", "ID3v1 structured title artist album");
         foreach (int version in new[] { 3, 4 })
@@ -214,7 +222,7 @@ internal static class Program
                 AddFrame(body, "TALB", "Album", version, encoding);
                 var header = new byte[] { 73, 68, 51, (byte)version, 0, 0, 0, 0, (byte)(body.Count >> 7), (byte)(body.Count & 127) };
                 string path = FileAt("tags/v" + version + "-" + encoding + ".mp3", header.Concat(body).ToArray());
-                Check(TrackMetadata.ReadLabel(path) == "Artist - Crossing", "ID3v" + version + " encoding " + encoding);
+                Check(TrackMetadata.ReadInfo(path).Label == "Artist - Crossing", "ID3v" + version + " encoding " + encoding);
                 var info = TrackMetadata.ReadInfo(path);
                 Check(info.Title == "Crossing" && info.Artist == "Artist" && info.Album == "Album", "structured ID3 album encoding " + version + "/" + encoding);
                 var snapshot = Scan(Path.GetDirectoryName(path));
@@ -251,31 +259,31 @@ internal static class Program
         string waveId3 = FileAt("tags/id3.wav", WaveFile(WaveChunk("id3 ", id3Header.Concat(id3Frames).ToArray())));
         Check(TrackMetadata.ReadInfo(waveId3).Label == "WAV artist - WAV ID3 title" && TrackMetadata.ReadInfo(waveId3).Album == "WAV album", "WAV embedded ID3 text");
         string brokenOgg = FileAt("tags/broken.ogg", OggPage(identification).Concat(new byte[] { 79, 103, 103, 83, 0 }).ToArray());
-        Check(TrackMetadata.ReadLabel(brokenOgg) == "broken", "truncated Ogg returns filename");
+        Check(TrackMetadata.ReadInfo(brokenOgg).Label == "broken", "truncated Ogg returns filename");
         string brokenWave = FileAt("tags/broken.wav", WaveFile(WaveChunk("LIST", new byte[] { 73, 78, 70, 79, 73, 78, 65, 77, 255, 255, 255, 255 })));
-        Check(TrackMetadata.ReadLabel(brokenWave) == "broken", "malformed WAV INFO size returns filename");
+        Check(TrackMetadata.ReadInfo(brokenWave).Label == "broken", "malformed WAV INFO size returns filename");
         var formatCache = new MetadataCache();
         Check(formatCache.GetInfo(ogg).Title == "Blue 水" && formatCache.GetInfo(wave).Title == "Harbor 夜" && formatCache.Count == 2, "OGG and WAV metadata cached");
         File.WriteAllBytes(ogg, OggPage(identification).Concat(OggPage(new byte[] { 3, 118, 111, 114, 98, 105, 115 })).ToArray());
         File.SetLastWriteTimeUtc(ogg, DateTime.UtcNow.AddSeconds(5));
         Check(formatCache.GetInfo(ogg).Title == "vorbis" && formatCache.Count == 2, "OGG cache invalidates on changed file");
         string huge = FileAt("tags/huge_tag.mp3", new byte[] { 73, 68, 51, 4, 0, 0, 127, 127, 127, 127 });
-        Check(TrackMetadata.ReadLabel(huge) == "huge tag", "oversized tag never allocates unchecked length");
+        Check(TrackMetadata.ReadInfo(huge).Label == "huge tag", "oversized tag never allocates unchecked length");
         string truncated = FileAt("tags/truncated.mp3", new byte[] { 73, 68, 51, 3, 0, 0, 0, 0, 0, 100 });
-        Check(TrackMetadata.ReadLabel(truncated) == "truncated", "truncated tag falls back safely");
+        Check(TrackMetadata.ReadInfo(truncated).Label == "truncated", "truncated tag falls back safely");
         string locked = FileAt("tags/locked.mp3");
-        using (new FileStream(locked, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) Check(TrackMetadata.ReadLabel(locked) == "locked", "unreadable metadata keeps clean filename");
+        using (new FileStream(locked, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) Check(TrackMetadata.ReadInfo(locked).Label == "locked", "unreadable metadata keeps clean filename");
         var cache = new MetadataCache();
-        string original = cache.GetLabel(v1);
+        string original = cache.GetInfo(v1).Label;
         using (new FileStream(v1, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
-            Check(cache.GetLabel(v1) == original, "unchanged metadata served from cache without reopening file");
+            Check(cache.GetInfo(v1).Label == original, "unchanged metadata served from cache without reopening file");
         Encoding.ASCII.GetBytes("Updated title ").CopyTo(tag, 3);
         File.WriteAllBytes(v1, tag);
         File.SetLastWriteTimeUtc(v1, DateTime.UtcNow.AddSeconds(5));
-        Check(cache.GetLabel(v1).Contains("Updated title"), "length/timestamp fingerprint invalidates changed metadata");
-        using (new FileStream(locked, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) cache.GetLabel(locked);
+        Check(cache.GetInfo(v1).Label.Contains("Updated title"), "length/timestamp fingerprint invalidates changed metadata");
+        using (new FileStream(locked, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) cache.GetInfo(locked);
         Check(cache.Count == 1, "unreadable metadata is not cached permanently");
-        Check(cache.GetLabel(locked) == "locked" && cache.Count == 2, "unreadable file retried after it becomes readable");
+        Check(cache.GetInfo(locked).Label == "locked" && cache.Count == 2, "unreadable file retried after it becomes readable");
         cache.Prune(new[] { v1 });
         Check(cache.Count == 1, "obsolete metadata removed at completed scan");
         Check(cache.GetInfo(v1).Album == "Sea album", "metadata cache retains all structured fields");
@@ -287,9 +295,161 @@ internal static class Program
             var malformed = new byte[random.Next(10, 1024)]; random.NextBytes(malformed);
             malformed[0] = 73; malformed[1] = 68; malformed[2] = 51; malformed[3] = (byte)(i % 2 + 3);
             string fuzz = FileAt("tags/fuzz.mp3", malformed);
-            Check(!string.IsNullOrEmpty(TrackMetadata.ReadLabel(fuzz)), "malformed tags remain bounded and readable " + i);
+            Check(!string.IsNullOrEmpty(TrackMetadata.ReadInfo(fuzz).Label), "malformed tags remain bounded and readable " + i);
         }
     }
+    // FLAC, M4A and ADTS AAC discovery and tags. Pure parsing, so these run without Media Foundation.
+    private static void FormatChecks()
+    {
+        Check(!LibraryPaths.MediaFoundationFormats, "M4A and AAC start excluded until the plugin enables them");
+        var flacComment = VorbisCommentBlock("TITLE=Deck Lantern 灯", "ARTIST=Night Watch", "ALBUM=Lossless Sea");
+        byte[] flacBytes = Concat(Id3v2(Encoding.ASCII.GetBytes("padding tag")), FlacHeader(flacComment));
+        string flac = FileAt("formats/tagged.flac", flacBytes);
+        string m4a = FileAt("formats/tagged.m4a", Mp4File(true, false, false, Text("©nam", "Harbour Mist"), Text("©ART", "Quay Band"),
+            Text("©alb", "Tide Tables"), Item("covr", 13, new byte[70000])));
+        var aacFrames = new List<byte>();
+        AddFrame(aacFrames, "TIT2", "ADTS title", 4, 3);
+        AddFrame(aacFrames, "TPE1", "ADTS artist", 4, 3);
+        AddFrame(aacFrames, "TALB", "ADTS album", 4, 3);
+        var aacHeader = new byte[] { 73, 68, 51, 4, 0, 0, 0, 0, (byte)(aacFrames.Count >> 7), (byte)(aacFrames.Count & 127) };
+        string aac = FileAt("formats/tagged.aac", aacHeader.Concat(aacFrames).Concat(new byte[] { 0xFF, 0xF1, 0x50, 0x80, 0x01, 0x1F, 0xFC }).ToArray());
+        string root = Path.GetDirectoryName(flac);
+
+        var disabled = Scan(root);
+        Check(disabled.Collections[0].Tracks.Select(track => track.Path).SequenceEqual(new[] { flac }),
+            "disabled Media Foundation keeps M4A and AAC out of collections while FLAC is scanned");
+        Check(disabled.GetTrackInfo(flac).Title == "Deck Lantern 灯" && disabled.GetTrackInfo(flac).Artist == "Night Watch" &&
+            disabled.GetTrackInfo(flac).Album == "Lossless Sea", "FLAC Vorbis comment after an ID3v2 prefix supplies title artist album");
+        Check(TrackMetadata.ReadInfo(m4a).Title == "tagged" && new MetadataCache().GetInfo(aac).Title == "tagged",
+            "disabled M4A and AAC metadata is never read");
+        var disabledState = new RadioState { Shuffle = true };
+        var disabledQueue = new RadioQueue(disabledState, new Random(5));
+        disabledQueue.ApplySnapshot(disabled);
+        bool onlyFlac = disabledState.TrackPath == flac;
+        for (int i = 0; i < 20; i++) { disabledQueue.Next(); onlyFlac &= disabledState.TrackPath == flac; }
+        Check(onlyFlac, "shuffle never lands on excluded M4A or AAC tracks");
+
+        LibraryPaths.MediaFoundationFormats = true;
+        try
+        {
+            var enabled = Scan(root);
+            Check(enabled.Collections[0].Tracks.Count == 3, "enabled Media Foundation scans M4A and AAC as normal tracks");
+            var info = enabled.GetTrackInfo(m4a);
+            Check(info.Title == "Harbour Mist" && info.Artist == "Quay Band" && info.Album == "Tide Tables",
+                "iTunes ilst text atoms supply title artist album without reading cover art");
+            var adts = enabled.GetTrackInfo(aac);
+            Check(adts.Title == "ADTS title" && adts.Artist == "ADTS artist" && adts.Album == "ADTS album", "ADTS AAC reads its leading ID3v2 tag");
+            string quickTime = FileAt("formats/quicktime.m4a", Mp4File(false, true, false, Text("©nam", "Old Style"), Item("©ART", 2, Encoding.BigEndianUnicode.GetBytes("Wide Artist"))));
+            var old = TrackMetadata.ReadInfo(quickTime);
+            Check(old.Title == "Old Style" && old.Artist == "Wide Artist", "QuickTime meta without a version word and UTF-16 data both parse");
+            string direct = FileAt("formats/direct.m4a", Mp4File(true, false, true, Text("©alb", "Direct Album")));
+            Check(TrackMetadata.ReadInfo(direct).Album == "Direct Album", "meta placed directly in moov is found");
+            string binary = FileAt("formats/binary_title.m4a", Mp4File(true, false, false, Item("©nam", 21, new byte[] { 1, 2 })));
+            Check(TrackMetadata.ReadInfo(binary).Title == "binary title", "non-text data atoms fall back to the filename");
+            string fixture = FindAudioFixture("tagged.m4a");
+            if (fixture != null)
+            {
+                var real = TrackMetadata.ReadInfo(fixture);
+                Check(real.Title == "Harbour Lights é 夜" && real.Artist == "The Test Crew" && real.Album == "Synthetic Tides",
+                    "ffmpeg-tagged M4A fixture reads its UTF-8 tags");
+            }
+            byte[] good = File.ReadAllBytes(m4a);
+            for (int cut = 8; cut < good.Length; cut += 997)
+            {
+                string truncated = FileAt("formats/cut_file.m4a", good.Take(cut).ToArray());
+                Check(!string.IsNullOrEmpty(TrackMetadata.ReadInfo(truncated).Title), "truncated MP4 boxes stay bounded " + cut);
+            }
+            var random = new Random(23);
+            for (int i = 0; i < 60; i++)
+            {
+                var noise = new byte[random.Next(16, 2048)];
+                random.NextBytes(noise);
+                if (i % 2 == 0) Encoding.ASCII.GetBytes("moov").CopyTo(noise, 4);
+                string fuzz = FileAt("formats/fuzz.m4a", noise);
+                Check(!string.IsNullOrEmpty(TrackMetadata.ReadInfo(fuzz).Title), "malformed MP4 remains bounded " + i);
+                string fuzzFlac = FileAt("formats/fuzz.flac", Encoding.ASCII.GetBytes("fLaC").Concat(noise).ToArray());
+                Check(!string.IsNullOrEmpty(TrackMetadata.ReadInfo(fuzzFlac).Title), "malformed FLAC metadata remains bounded " + i);
+            }
+            string untagged = FileAt("formats/plain_song.flac", FlacHeader(null));
+            Check(TrackMetadata.ReadInfo(untagged).Title == "plain song", "FLAC without a comment block uses the clean filename");
+        }
+        finally { LibraryPaths.MediaFoundationFormats = false; }
+    }
+
+    private static string FindAudioFixture(string name)
+    {
+        for (string dir = AppContext.BaseDirectory; dir != null; dir = Path.GetDirectoryName(dir.TrimEnd(Path.DirectorySeparatorChar)))
+        {
+            string candidate = Path.Combine(dir, "tests", "Audio", "Fixtures", name);
+            if (File.Exists(candidate)) return candidate;
+        }
+        Console.WriteLine("Committed tagged M4A fixture not found. Its check is skipped.");
+        return null;
+    }
+
+    private static byte[] Concat(params byte[][] parts) => parts.SelectMany(part => part).ToArray();
+
+    private static byte[] Id3v2(byte[] body) =>
+        Concat(new byte[] { 73, 68, 51, 4, 0, 0, 0, 0, (byte)(body.Length >> 7), (byte)(body.Length & 127) }, body);
+
+    private static byte[] VorbisCommentBlock(params string[] fields)
+    {
+        var block = new List<byte>();
+        AddLittleEndian(block, 6); block.AddRange(Encoding.ASCII.GetBytes("vendor"));
+        AddLittleEndian(block, fields.Length);
+        foreach (string field in fields)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes(field);
+            AddLittleEndian(block, bytes.Length); block.AddRange(bytes);
+        }
+        return block.ToArray();
+    }
+
+    // STREAMINFO for one second of 44.1 kHz stereo, then an optional comment and a padding block.
+    private static byte[] FlacHeader(byte[] comment)
+    {
+        var bytes = new List<byte>(Encoding.ASCII.GetBytes("fLaC"));
+        bytes.AddRange(new byte[] { 0, 0, 0, 34 });
+        var info = new byte[34];
+        info[0] = 16; info[2] = 16; info[10] = 0x0A; info[11] = 0xC4; info[12] = 0x42; info[13] = 0xF0; info[17] = 0x44; info[16] = 0xAC;
+        bytes.AddRange(info);
+        if (comment != null)
+        {
+            bytes.AddRange(new byte[] { 4, (byte)(comment.Length >> 16), (byte)(comment.Length >> 8), (byte)comment.Length });
+            bytes.AddRange(comment);
+        }
+        bytes.AddRange(new byte[] { 0x81, 0, 0, 16 });
+        bytes.AddRange(new byte[16]);
+        return bytes.ToArray();
+    }
+
+    private static byte[] Box(string type, params byte[][] children)
+    {
+        byte[] payload = Concat(children);
+        int size = payload.Length + 8;
+        return Concat(new[] { (byte)(size >> 24), (byte)(size >> 16), (byte)(size >> 8), (byte)size }, Encoding.GetEncoding(28591).GetBytes(type), payload);
+    }
+
+    private static byte[] Item(string type, int kind, byte[] value) =>
+        Box(type, Box("data", new byte[] { 0, (byte)(kind >> 16), (byte)(kind >> 8), (byte)kind, 0, 0, 0, 0 }, value));
+
+    private static byte[] Text(string type, string value) => Item(type, 1, Encoding.UTF8.GetBytes(value));
+
+    // ftyp, a 64-bit sized mdat before moov, a skipped trak, then udta/meta/ilst or moov/meta/ilst.
+    private static byte[] Mp4File(bool fullMeta, bool quickTime, bool metaInMoov, params byte[][] items)
+    {
+        byte[] hdlr = Box("hdlr", new byte[25]);
+        byte[] meta = Box("meta", fullMeta ? new byte[4] : new byte[0], hdlr, Box("ilst", items));
+        if (quickTime) meta = Box("meta", hdlr, Box("ilst", items));
+        var mdatPayload = new byte[5000];
+        long mdatSize = mdatPayload.Length + 16;
+        byte[] mdat = Concat(new byte[] { 0, 0, 0, 1 }, Encoding.ASCII.GetBytes("mdat"),
+            new byte[] { 0, 0, 0, 0, (byte)(mdatSize >> 24), (byte)(mdatSize >> 16), (byte)(mdatSize >> 8), (byte)mdatSize }, mdatPayload);
+        byte[] moov = metaInMoov ? Box("moov", Box("mvhd", new byte[100]), Box("trak", new byte[3000]), meta)
+            : Box("moov", Box("mvhd", new byte[100]), Box("trak", new byte[3000]), Box("udta", meta));
+        return Concat(Box("ftyp", Encoding.ASCII.GetBytes("M4A \0\0\0\0")), mdat, moov);
+    }
+
     private static void PeekChecks(LibrarySnapshot snapshot, string root)
     {
         var leftState = new RadioState { Shuffle = true, PositionSeconds = 12.5 };

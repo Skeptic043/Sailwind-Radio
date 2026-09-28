@@ -9,8 +9,8 @@ namespace SailwindRadio
         internal readonly bool IsWoofer;
         private RadioSpeakerProfile(float gain, float radius, float highPass, float lowPass, bool woofer = false)
         { Gain = gain; Radius = radius; HighPass = highPass; LowPass = lowPass; IsWoofer = woofer; }
-        // Narrow the two smallest cabinets without changing their gain or the full-size outputs.
-        // A restrained native bandpass keeps vocals intelligible while separating their character.
+        // The two smallest cabinets use a restrained native bandpass that keeps vocals intelligible and sets
+        // their character apart from the full-size outputs.
         internal static readonly RadioSpeakerProfile BuiltIn = new RadioSpeakerProfile(.25f, 12f, 900f, 5000f);
         internal static readonly RadioSpeakerProfile Small = new RadioSpeakerProfile(.35f, 15f, 600f, 9000f);
         internal static readonly RadioSpeakerProfile Normal = new RadioSpeakerProfile(.65f, 20f, 160f, 18000f);
@@ -19,7 +19,7 @@ namespace SailwindRadio
         { return kind == 1 ? Small : kind == 2 ? Normal : kind == 3 ? TurboWoofer : null; }
     }
 
-    /// <summary>An output endpoint never owns or decodes a clip. RadioPlayback owns its timeline.</summary>
+    /// <summary>One emitter and its own stream clip. It never decodes, and RadioPlayback owns the timeline.</summary>
     internal sealed class RadioSpeakerOutput : IDisposable
     {
         internal readonly GameObject Emitter;

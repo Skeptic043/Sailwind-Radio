@@ -1,20 +1,16 @@
 using System;
 using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
-using UnityEngine.Networking;
 
 namespace SailwindRadio
 {
     public sealed partial class RadioPlayback
     {
         private string preloadPath;
-        private bool preloadStarted, preloadFailed;
-        private AudioClip preloadClip;
-        private UnityWebRequest preloadRequest;
-        private Task<Mp3LoadResult> preloadTask;
-        private CancellationTokenSource preloadCancellation;
+        // Skipped means the speculative load failed. Selection then uses the normal loader.
+        private bool preloadStarted, preloadSkipped;
+        // An upcoming stream opens at its start and prefills its window.
+        private StreamedAudio preloadStream;
         private double preloadStartedAt;
 
         /// <summary>Keep only one upcoming track beside the current track. Empty cancels it.</summary>
@@ -28,154 +24,73 @@ namespace SailwindRadio
             preloadPath = path;
         }
 
-        private void PollPreload()
+        private void PollPreload(bool currentReady)
         {
-            if (String.IsNullOrEmpty(preloadPath) || preloadFailed) return;
+            if (String.IsNullOrEmpty(preloadPath) || preloadSkipped) return;
             try
             {
-                // Give the selected track priority and avoid a third decoded allocation.
                 if (!preloadStarted)
                 {
-                    if (!state.Powered || clip == null || clip.loadState != AudioDataLoadState.Loaded || streamedMp3 != null) return;
-                    if (!Path.IsPathRooted(preloadPath)) throw new IOException("Expected an absolute local path");
-                    string fullPath = Path.GetFullPath(preloadPath);
-                    var uri = new Uri(fullPath);
-                    if (!uri.IsFile || uri.IsUnc || !File.Exists(fullPath)) throw new IOException("Upcoming track unavailable");
-                    if (new FileInfo(fullPath).Length > MaximumMp3FileBytes) throw new IOException("Upcoming file exceeds the size limit");
-                    string extension = Path.GetExtension(fullPath).ToLowerInvariant();
+                    if (!currentReady) return;
+                    string fullPath = LocalPath(preloadPath);
                     preloadStartedAt = Time.realtimeSinceStartup;
                     preloadStarted = true;
-                    if (extension == ".mp3")
-                    {
-                        preloadCancellation = new CancellationTokenSource();
-                        preloadCancellation.CancelAfter((int)(LoadTimeoutSeconds * 1000));
-                        CancellationToken token = preloadCancellation.Token;
-                        preloadTask = Task.Run(() =>
-                        {
-                            if (IsLongMp3(fullPath, token))
-                                throw new IOException("Long MP3 starts streaming only when selected");
-                            return new Mp3LoadResult { Decoded = DecodeMp3(fullPath, token) };
-                        }, token);
-                    }
-                    else
-                    {
-                        AudioType type = extension == ".ogg" ? AudioType.OGGVORBIS : extension == ".wav" ? AudioType.WAV : AudioType.UNKNOWN;
-                        if (type == AudioType.UNKNOWN) throw new IOException("Unsupported upcoming format");
-                        preloadRequest = UnityWebRequestMultimedia.GetAudioClip(uri.AbsoluteUri, type);
-                        ((DownloadHandlerAudioClip)preloadRequest.downloadHandler).streamAudio = false;
-                        preloadRequest.SendWebRequest();
-                    }
+                    if (!PcmDecoders.Supports(fullPath))
+                        throw new IOException(PcmDecoders.UnsupportedMessage(fullPath) ?? PcmDecoders.ChooseFormatMessage);
+                    preloadStream = StreamedAudio.Start(fullPath, 0);
                 }
-                if (preloadRequest != null && preloadRequest.isDone)
-                {
-                    if (preloadRequest.isNetworkError || preloadRequest.isHttpError) throw new IOException("Upcoming decode failed");
-                    preloadClip = DownloadHandlerAudioClip.GetContent(preloadRequest);
-                    preloadRequest.Dispose();
-                    preloadRequest = null;
-                    ValidatePreloadClip();
-                }
-                if (preloadTask != null && preloadTask.IsCompleted)
-                {
-                    if (preloadTask.IsCanceled || preloadTask.IsFaulted) throw new IOException("Upcoming MP3 decode failed");
-                    DecodedMp3 decoded = preloadTask.Result.Decoded;
-                    preloadTask = null;
-                    preloadCancellation.Dispose();
-                    preloadCancellation = null;
-                    preloadClip = AudioClip.Create("Sailwind Radio next MP3", decoded.SampleCount / decoded.Channels, decoded.Channels, decoded.SampleRate, false);
-                    if (preloadClip == null) throw new IOException("Upcoming clip allocation failed");
-                    int offset = 0;
-                    foreach (float[] block in decoded.Blocks)
-                    {
-                        if (!preloadClip.SetData(block, offset)) throw new IOException("Upcoming clip upload failed");
-                        offset += block.Length / decoded.Channels;
-                    }
-                    ValidatePreloadClip();
-                }
-                if (preloadClip != null && preloadClip.loadState == AudioDataLoadState.Failed) throw new IOException("Upcoming audio data failed");
-                if ((preloadClip == null || preloadClip.loadState != AudioDataLoadState.Loaded) &&
-                    Time.realtimeSinceStartup - preloadStartedAt >= LoadTimeoutSeconds) throw new IOException("Upcoming load timed out");
+                if (preloadStream.Fault != null) throw new IOException("Upcoming stream failed");
+                if (!preloadStream.IsOpen && Time.realtimeSinceStartup - preloadStartedAt >= LoadTimeoutSeconds)
+                    throw new IOException("Upcoming load timed out");
             }
             catch
             {
                 // Speculation never interrupts or warns over the current song. A real
                 // selection retries through the normal loader and exposes failure there.
-                string failedPath = preloadPath;
-                ReleasePreload();
-                preloadPath = failedPath;
-                preloadFailed = true;
+                SkipPreload();
             }
         }
 
-        private void ValidatePreloadClip()
+        private void SkipPreload()
         {
-            if (preloadClip == null || preloadClip.samples <= 0 || preloadClip.frequency <= 0 ||
-                preloadClip.loadState == AudioDataLoadState.Failed || (long)preloadClip.samples * preloadClip.channels > MaximumMp3Samples)
-                throw new IOException("Upcoming audio exceeds the decoded limit or is invalid");
+            string skippedPath = preloadPath;
+            ReleasePreload();
+            preloadPath = skippedPath;
+            preloadSkipped = true;
         }
 
         private bool AdoptPreload(string path)
         {
-            if (!preloadStarted || preloadFailed || !String.Equals(path, preloadPath, StringComparison.OrdinalIgnoreCase)) return false;
+            if (!preloadStarted || preloadSkipped || !String.Equals(path, preloadPath, StringComparison.OrdinalIgnoreCase)) return false;
             requestedPath = path;
             TrackLabel = SafeLabel(path);
-            clip = preloadClip;
-            request = preloadRequest;
-            mp3Task = preloadTask;
-            mp3Cancellation = preloadCancellation;
-            loadStartedAt = preloadStartedAt;
-            if (source != null) source.clip = clip;
-            preloadClip = null;
-            preloadRequest = null;
-            preloadTask = null;
-            preloadCancellation = null;
+            // An open stream gets its clip on the next Tick. One still opening is simply awaited there.
+            streamed = preloadStream;
+            // The load deadline counts from adoption, so a preload still opening cannot time out at once.
+            loadStartedAt = Time.realtimeSinceStartup;
+            preloadStream = null;
             preloadPath = null;
-            preloadStarted = preloadFailed = false;
+            preloadStarted = preloadSkipped = false;
             return true;
+        }
+
+        // A preload of another track survives a selection that cannot adopt it, such as a restart of
+        // the current track. PreloadTrack reconciles it with the queue on the next Tick. A preload of
+        // the selected track that cannot be adopted is released, so the track never opens twice.
+        private bool KeepOrAdoptPreload(string path)
+        {
+            if (AdoptPreload(path)) return true;
+            if (String.Equals(path ?? "", preloadPath ?? "", StringComparison.OrdinalIgnoreCase)) ReleasePreload();
+            return false;
         }
 
         private void ReleasePreload()
         {
-            if (preloadCancellation != null)
-            {
-                Task<Mp3LoadResult> abandoned = preloadTask;
-                CancellationTokenSource cancellation = preloadCancellation;
-                cancellation.Cancel();
-                if (abandoned == null) cancellation.Dispose();
-                else abandoned.ContinueWith(completed =>
-                {
-                    if (completed.IsFaulted) { var observed = completed.Exception; }
-                    cancellation.Dispose();
-                }, TaskScheduler.Default);
-            }
-            try { DiscardRequest(ref preloadRequest, preloadClip); }
-            finally
-            {
-                if (preloadClip != null) UnityEngine.Object.Destroy(preloadClip);
-                preloadPath = null;
-                preloadClip = null;
-                preloadTask = null;
-                preloadCancellation = null;
-                preloadStarted = preloadFailed = false;
-            }
-        }
-
-        private static void DiscardRequest(ref UnityWebRequest owned, AudioClip retained)
-        {
-            UnityWebRequest abandoned = owned;
-            owned = null;
-            if (abandoned == null) return;
-            try
-            {
-                if (!abandoned.isDone) abandoned.Abort();
-                else if (!abandoned.isNetworkError && !abandoned.isHttpError)
-                {
-                    // A completed request can own a native clip before Tick observes it.
-                    AudioClip unused = DownloadHandlerAudioClip.GetContent(abandoned);
-                    if (unused != null && unused != retained) UnityEngine.Object.Destroy(unused);
-                }
-            }
-            catch { /* Teardown must still release the request if native content is gone. */ }
-            finally { abandoned.Dispose(); }
+            // Stream disposal only signals its worker, so this never blocks the Unity thread.
+            if (preloadStream != null) preloadStream.Dispose();
+            preloadPath = null;
+            preloadStream = null;
+            preloadStarted = preloadSkipped = false;
         }
     }
 }

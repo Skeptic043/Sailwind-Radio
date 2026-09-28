@@ -1,18 +1,19 @@
 # Isolated Unity editor audio probe
 
-`Run-UnityEditorProbe.ps1` copies the production playback and state files into an ignored project under `.local/audio/unity-probe`. It launches only an owned hidden batchmode editor process, with a 180-second default deadline. It does not launch Sailwind or modify its installation, profile or saves.
+`Run-UnityEditorProbe.ps1` copies the production playback and state files into an ignored project under `.local/audio/unity-probe`. It launches only an owned hidden batchmode editor process, with a 1800-second default deadline. It does not launch Sailwind or modify its installation, profile or saves. It needs a licensed Unity 2019.1.10f1 editor and uses ffmpeg to generate its longer synthetic fixtures on first run.
 
-The probe generates an original eight-second PCM WAV, then checks decoding, sample progression at time scales 1, 8 and 0.5, pause preservation, manual resume and game suspension. Output volume is zero. This can establish editor sample progression, never audible quality or live Sailwind acceptance.
+The probe checks, with output volume at zero:
 
-## September 15, 2026 attempt
+- decoding of an original PCM WAV, sample progression at time scales 1, 8 and 0.5, pause preservation, manual resume and game suspension
+- streamed clip playback at 44.1, 88.2, 96, 176.4 and 192 kHz
+- short WAV, MP3, FLAC, M4A and OGG tracks, a looping 1 second track and a 3-frame track streaming through the production engine, with time to playing, saved-position start, real-time progression, drift repairs and main-thread cost per update (under 5 ms)
+- streamed long WAV, M4A and 20- and 27-minute OGG tracks starting at a saved position and tracking real time without drift repairs
+- which Unity calls trigger a streamed clip's position callback (creation, scheduled play and position writes do, while stop, pause, unpause and clip assignment do not)
+- output synchronization: the actual audio content of the radio and speaker outputs is decoded from a position-encoding test signal and must match within one DSP buffer across 13 scenarios, including power on with speakers connected, late joins, pause, power cycling, track changes with and without preload, drift repair and short tracks
+- start-of-track gaps: every format, through a fresh open and an adopted preload, first touch and warm, must start without silent gaps, late starts or audio read before it was decoded
 
-Installed executable: `C:\Program Files\Unity\Hub\Editor\2019.1.10f1\Editor\Unity.exe`.
+This establishes editor behavior only, never audible quality or acceptance in Sailwind's standalone player.
 
-- The sandboxed run could not create `C:/ProgramData/Unity` and reported no valid editor license.
-- One run with ordinary Unity cache and existing-license access removed the directory error, but still reported `BatchMode: Unity has not been activated with a valid License. Could be a new activation or renewal...`.
-- Both attempts stopped before project import, compilation or playback. The harness is prepared, but not yet compiled or executed by Unity.
-- The owned editor processes were stopped. No activation, installation or account change was performed.
+## Results
 
-The ignored evidence logs are `.local/audio/unity-probe/sandbox-editor.log` and `.local/audio/unity-probe/editor.log`. A future successful run writes `probe-result.txt`. The launcher clears a prior result before starting so a stale report cannot be mistaken for a new success.
-
-An existing license usable by this legacy editor is required before retrying. Activation is a separate user action. Production DLL compilation against installed Sailwind Unity assemblies and the console lifecycle checks remain separate validation results.
+The probe passed all 190 checks, including a real music folder passed through `-MusicFolder`, on the 1.2.0 release candidate.

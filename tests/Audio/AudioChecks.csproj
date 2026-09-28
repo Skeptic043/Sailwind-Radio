@@ -11,6 +11,11 @@
     <Compile Include="../../src/RadioState.cs" Link="RadioState.cs" />
     <Compile Include="AudioChecks.cs" />
     <Compile Include="UnityAudioDoubles.cs" />
+    <Compile Include="FlacRoutingChecks.cs" />
+    <Compile Include="M4aChecks.cs" />
+    <Compile Include="StreamingChecks.cs" />
+    <Compile Include="OggChecks.cs" />
     <Content Include="Fixtures/stereo-noise.mp3" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Fixtures/sine-stereo.ogg" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

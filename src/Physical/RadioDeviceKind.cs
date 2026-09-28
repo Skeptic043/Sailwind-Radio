@@ -2,10 +2,6 @@ using UnityEngine;
 
 namespace SailwindRadio.Physical
 {
-    public enum RadioDeviceKind
-    {
-        Radio, SmallSpeaker, Speaker, TurboWoofer
-    }
     public enum RadioAction
     {
         Power, PlayPause, Previous, Next, Shuffle, Collections

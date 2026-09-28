@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UseAppHost>false</UseAppHost>
+    <TargetFramework>net10.0</TargetFramework>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <Nullable>disable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/Audio/IPcmDecoder.cs" Link="IPcmDecoder.cs" />
+    <Compile Include="../../src/Audio/AudioFiles.cs" Link="AudioFiles.cs" />
+    <Compile Include="../../src/Audio/ChannelDownmix.cs" Link="ChannelDownmix.cs" />
+    <Compile Include="../../src/Audio/OggReader.cs" Link="OggReader.cs" />
+    <Compile Include="../../src/Audio/VorbisCodec.cs" Link="VorbisCodec.cs" />
+    <Compile Include="../../src/Audio/VorbisDecoder.cs" Link="VorbisDecoder.cs" />
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+</Project>

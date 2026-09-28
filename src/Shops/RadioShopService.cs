@@ -26,7 +26,6 @@ namespace SailwindRadio.Shops
             internal IslandSceneryScene Scenery;
             internal ShopArea Area;
             internal Slot[] Slots;
-            internal int LastAvailable = -1;
             internal RadioShopStand Stand;
             internal GameObject OwnedNpc;
             internal Collider[] MerchantTriggers;
@@ -175,9 +174,8 @@ namespace SailwindRadio.Shops
             if(!vendor.DisplayShown && (merchantReady ||
                 (vendor.StageReadyAt >= 0f && Time.unscaledTime-vendor.StageReadyAt>=5f)))
             {
-                // Attempt every initial slot in the same update, then reveal the
-                // display as one group. A missing economy/slot must not hide the
-                // location forever; the visible stall remains diagnostic.
+                // Every initial slot is attempted in one update so the display appears as one
+                // group. A stall whose stock cannot be created still appears after the delay.
                 vendor.DisplayShown=true;
                 vendor.Stand.SetVisible(true);
                 SetNpcVisible(vendor.OwnedNpc,true);
@@ -193,58 +191,47 @@ namespace SailwindRadio.Shops
             else if(vendor.DisplayShown && open)
                 foreach(var slot in vendor.Slots)
                     if(slot.Stock) slot.Stock.gameObject.SetActive(true);
-            if(open && Time.unscaledTime>=nextScan)
-            {
-                int available=0;
-                foreach(var slot in vendor.Slots) if(slot.Stock) available++;
-                if(available!=vendor.LastAvailable)
-                {
-                    vendor.LastAvailable=available;
-                    if(available<vendor.Slots.Length) warn("Radio shop at "+vendor.Scenery.name+" has "+available+" of "+vendor.Slots.Length+" devices. Remaining slots are waiting for stock creation or restocking");
-                }
-            }
         }
 
         private void TryDisplay(Vendor vendor)
         {
             if(!RadioShopPlacement.TryStand(vendor.Scenery,out var position,out var rotation,out string reason))
-            { ReportPlacement(vendor,reason); return; }
+            { ReportSetupFailure(vendor,reason); return; }
             try
             {
                 vendor.Stand=RadioShopStand.Create(vendor.Scenery.transform,position,rotation,vendor.Scenery.parentIslandIndex);
                 vendor.Stand.SetVisible(false);
                 Physics.SyncTransforms();
-                if(reason.Length>0) ReportPlacement(vendor,reason);
                 TryMerchant(vendor);
             }
             catch(Exception error)
             {
                 Clear(vendor);
                 for(int i=0;i<vendor.Slots.Length;i++) vendor.Slots[i]=new Slot{Kind=RadioShopCatalog.StockKinds[i],Index=i};
-                ReportPlacement(vendor,error.Message);
+                ReportSetupFailure(vendor,error.Message);
             }
         }
 
         private void TryMerchant(Vendor vendor)
         {
-            try
-            {
-                CreateMerchant(vendor);
-                warn("Radio merchant at "+vendor.Scenery.name+" position "+vendor.Stand.transform.position+" is ready for native region and economy checks");
-            }
-            catch(Exception error)
+            try { CreateMerchant(vendor); }
+            catch (Exception error)
             {
                 if(vendor.Area) UnityEngine.Object.Destroy(vendor.Area.gameObject);
                 if(vendor.OwnedNpc) UnityEngine.Object.Destroy(vendor.OwnedNpc);
                 vendor.Area=null;
                 vendor.OwnedNpc=null;
                 vendor.MerchantTriggers=null;
-                // Streaming can load the native appearance template after the
-                // scenery. Show an incomplete diagnostic preview only after the
-                // native item world has also had time to become ready.
+                // Streaming can load the native keeper template after the scenery. The stall
+                // appears without a keeper once the item world has been ready for 10 s.
                 if(vendor.Stand && vendor.StageReadyAt >= 0f && Time.unscaledTime-vendor.StageReadyAt>=10f)
-                { vendor.DisplayShown=true; vendor.Stand.SetVisible(true); }
-                ReportPlacement(vendor,"merchant setup waiting: "+error.Message);
+                {
+                    vendor.DisplayShown=true;
+                    vendor.Stand.SetVisible(true);
+                    // A keeper still missing a minute after the world is ready is not just streaming.
+                    if(Time.unscaledTime-vendor.StageReadyAt>=60f)
+                        ReportSetupFailure(vendor,"its merchant is unavailable ("+error.Message+")");
+                }
             }
         }
 
@@ -393,18 +380,14 @@ namespace SailwindRadio.Shops
             return found;
         }
 
-        private void ReportPlacement(Vendor vendor,string reason)
+        private void ReportSetupFailure(Vendor vendor,string reason)
         {
-            if(!vendor.ReportedReasons.Add(reason)) return;
-            warn("Radio display at "+vendor.Scenery.name+" has placement diagnostic: "+reason);
+            if(vendor.ReportedReasons.Add(reason)) warn("Radio shop at "+vendor.Scenery.name+" could not be set up: "+reason);
         }
 
-        private bool TryStock(Vendor vendor, Slot slot)
+        private void TryStock(Vendor vendor, Slot slot)
         {
-            if (!ReadyToStock(vendor)) return false;
-            if(!RadioShopPlacement.SlotClear(vendor.Stand,slot.Index,slot.Kind,out string reason))
-            { ReportPlacement(vendor,"stock slot blocked by "+reason); return false; }
-            if(reason!=null) ReportPlacement(vendor,"stock slot "+slot.Index+" overlaps "+reason);
+            if (!ReadyToStock(vendor)) return;
             var position=vendor.Stand.transform.TransformPoint(RadioStandLayout.Slot(vendor.Scenery.parentIslandIndex,slot.Index,vendor.Stand.UsesNativeGoldRockCounter));
             var rotation=vendor.Stand.transform.rotation * RadioStandLayout.SlotRotation(slot.Kind);
             GameObject anchor=null;
@@ -426,7 +409,7 @@ namespace SailwindRadio.Shops
                 anchorRenderer.enabled=false;
                 anchor.SetActive(true);
                 controller=world.CreateShopStock(anchor.transform,position,rotation,slot.Kind);
-                if(!controller) { UnityEngine.Object.Destroy(anchor); return false; }
+                if(!controller) { UnityEngine.Object.Destroy(anchor); return; }
                 var stock=controller.gameObject.AddComponent<RadioShopStock>();
                 stock.Service=this;
                 stock.Shop=vendor.Area;
@@ -440,14 +423,12 @@ namespace SailwindRadio.Shops
                 slot.Clock.Spawned();
                 stock.gameObject.SetActive(false);
                 Physics.SyncTransforms();
-                return true;
             }
             catch(Exception error)
             {
                 if(controller) { vendor.Area.itemsForSale.Remove(controller.GetComponent<ShipItem>()); UnityEngine.Object.Destroy(controller.gameObject); }
                 if(anchor) UnityEngine.Object.Destroy(anchor);
-                warn("Radio shop stock could not be placed: "+error.Message);
-                return false;
+                ReportSetupFailure(vendor,error.Message);
             }
         }
 

@@ -176,7 +176,7 @@ static class Program
             var nativeRegion=(Region)typeof(Shopkeeper).GetField("parentRegion",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ownArea.GetShopkeeper());
             nativeRegion.portRegion=PortRegion.emerald;
             ownNpc.GetComponentsInChildren<Collider>(true).Single(c=>c.transform!=ownNpc.transform).enabled=true;
-            Sun.sun.localTime=12;RadioShopPlacement.FailSlot=6;
+            Sun.sun.localTime=12;world.StockBudget=6;
             world.ReadyToStageShop=true;Time.unscaledTime=12;service.Tick();Check(RadioShopStand.Created==1,"repeat scan deduplicates owned merchant");
             Check(!ownNpc.GetComponentsInChildren<Collider>(true).Single(c=>c.transform!=ownNpc.transform).enabled,
                 "late native NPC initialization cannot reopen broad child sale trigger");
@@ -187,7 +187,7 @@ static class Program
                 "visible staged stock cannot be purchased before full save readiness");
             Sun.sun.localTime=22;Time.unscaledTime=13;service.Tick();
             Check(!ownArea.itemsForSale[0].gameObject.activeInHierarchy,"night stock stays closed after staging");
-            RadioShopPlacement.FailSlot=-1;Sun.sun.localTime=12;world.ReadyForShop=true;Time.unscaledTime=18;service.Tick();
+            world.StockBudget=-1;Sun.sun.localTime=12;world.ReadyForShop=true;Time.unscaledTime=18;service.Tick();
             Check(ownArea.itemsForSale.Count==7,"owned merchant receives all seven devices after native readiness; found "+ownArea.itemsForSale.Count+"; "+string.Join(" | ",warnings));
             Check(ownNpc.GetComponent<Renderer>().enabled,"complete seven-item display becomes visible together");
             var ownedStock=ownArea.itemsForSale[0];int recordsBeforeGate=world.Store.Records.Count();
@@ -247,7 +247,7 @@ static class Program
             Check((bool)Call("BeforePurchase",ownArea.GetShopkeeper(),ownedStock),"native merchant can purchase ready radio stock");
             Check(world.Store.Records.Count()==recordsBeforeGate+1&&!ownedStock.sold,"purchase reserves before native sale");
             Call("AfterPurchase",ownedStock,null);
-            Check(warnings.Any(w=>w.Contains("Radio merchant at")),"merchant location reported");
+            Check(warnings.Count==0,"normal setup, partial stock and restocking log nothing: "+string.Join(" | ",warnings));
             GameState.currentlyLoading=true;service.Tick();GameState.currentlyLoading=false;
             Check(GameObject.All.Where(g=>g.name=="test stand").All(g=>g.Destroyed),"world load cleans up unsold preview");
             Check(ownNpc.Destroyed,"world load cleans up detached owned merchant");
@@ -264,6 +264,19 @@ static class Program
             Check(!streamingStand.Visible,"first merchant retry does not reveal stand alone");
             Time.unscaledTime=36;service.Tick();
             Check(streamingStand.Visible,"extended missing template reveals placement for diagnosis");
+            Check(warnings.Count==0,"a keeper template that is still streaming is not reported");
+            Time.unscaledTime=82;service.Tick();Time.unscaledTime=90;service.Tick();
+            Check(warnings.Count==1&&warnings[0].StartsWith("Radio shop at streaming scenery could not be set up: its merchant is unavailable ("),
+                "a keeper still missing after a minute is reported once: "+string.Join(" | ",warnings));
+            warnings.Clear();
+            UnityEngine.Object.Found.Clear();
+            var refusedScene=new GameObject("refused scenery").AddComponent<IslandSceneryScene>();
+            refusedScene.parentIslandIndex=9;UnityEngine.Object.Found.Add(refusedScene);
+            RadioShopPlacement.Clear=false;
+            Time.unscaledTime=96;service.Tick();Time.unscaledTime=102;service.Tick();
+            RadioShopPlacement.Clear=true;
+            Check(warnings.Count==1&&warnings[0]=="Radio shop at refused scenery could not be set up: blocked",
+                "a real setup failure is reported once with the shop name: "+string.Join(" | ",warnings));
             UnityEngine.Object.Found.Clear();
         }
     }

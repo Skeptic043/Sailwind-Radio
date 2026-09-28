@@ -10,8 +10,10 @@ $executable = Join-Path $output 'AudioChecks.exe'
 $audioSources = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src/Audio') -Filter '*.cs' | ForEach-Object { $_.FullName })
 & $mono (Join-Path $MonoRoot 'lib/mono/4.5/mcs.exe') "-out:$executable" "-r:$decoder" "-r:$(Join-Path $MonoRoot 'lib/mono/4.5/Facades/netstandard.dll')" `
     $audioSources (Join-Path $projectRoot 'src/RadioState.cs') `
-    (Join-Path $PSScriptRoot 'UnityAudioDoubles.cs') (Join-Path $PSScriptRoot 'AudioChecks.cs')
+    (Join-Path $PSScriptRoot 'UnityAudioDoubles.cs') (Join-Path $PSScriptRoot 'AudioChecks.cs') `
+    (Join-Path $PSScriptRoot 'FlacRoutingChecks.cs') (Join-Path $PSScriptRoot 'M4aChecks.cs') (Join-Path $PSScriptRoot 'StreamingChecks.cs') (Join-Path $PSScriptRoot 'OggChecks.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Mono audio harness compilation failed' }
 Copy-Item -LiteralPath $decoder -Destination (Join-Path $output 'NLayer.dll')
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Fixtures') -Destination $output -Recurse -Force
 & $mono $executable
 if ($LASTEXITCODE -ne 0) { throw 'Mono audio checks failed' }

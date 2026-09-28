@@ -33,7 +33,14 @@ After the first launch, close the game and edit `BepInEx/config/local.sailwind.r
 | Music | `MusicFolders` | Blank | Music folders separated by `\|`. |
 | Audio | `ContinueWhileSleeping` | `false` | Keep music playing while the player sleeps. |
 
-Example folder setup: `MusicFolders = D:\Music | E:\Sailing Music`. MP3, OGG and WAV files are supported. Each folder is one collection, including music within its subfolders. The radio reads file metadata to display title, artist and album tags from these formats, and uses the filename when a title tag is missing.
+Example folder setup: `MusicFolders = D:\Music | E:\Sailing Music`. Each folder is one collection, including music within its subfolders. The radio reads file metadata to display title, artist and album tags, and uses the filename when a title tag is missing.
+
+Supported formats:
+
+- MP3, OGG (Vorbis), WAV and FLAC files.
+- M4A and AAC files on Windows. These file types are currently turned off automatically on Steam Deck and Linux (Proton).
+
+Sample rates up to 192 kHz are supported, and surround files are mixed down to stereo.
 
 ## Shop Locations
 

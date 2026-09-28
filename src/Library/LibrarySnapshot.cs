@@ -24,10 +24,6 @@ namespace SailwindRadio.Library
     {
         internal string Path { get; }
         internal TrackInfo Info { get; }
-        internal string Label => Info.Label;
-        internal string Title => Info.Title;
-        internal string Artist => Info.Artist;
-        internal string Album => Info.Album;
         internal MusicTrack(string path, TrackInfo info = null)
         {
             Path = path;
@@ -51,19 +47,27 @@ namespace SailwindRadio.Library
     internal sealed class LibrarySnapshot
     {
         private readonly Dictionary<string, TrackInfo> tracks = new Dictionary<string, TrackInfo>(LibraryPaths.Comparer);
+        private readonly string[] warnings;
         internal static readonly LibrarySnapshot Empty = new LibrarySnapshot(Array.Empty<MusicCollection>(), Array.Empty<string>());
         internal IReadOnlyList<MusicCollection> Collections { get; }
         internal IReadOnlyList<string> Warnings { get; }
         internal LibrarySnapshot(MusicCollection[] collections, string[] warnings)
         {
             Collections = Array.AsReadOnly(collections);
+            this.warnings = warnings;
             Warnings = Array.AsReadOnly(warnings);
             foreach (var collection in collections)
                 foreach (var track in collection.Tracks) tracks[track.Path] = track.Info;
         }
         internal TrackInfo GetTrackInfo(string path) => !string.IsNullOrEmpty(path) && tracks.TryGetValue(path, out var info)
             ? info : new TrackInfo(path);
-        internal string GetLabel(string path) => GetTrackInfo(path).Label;
+
+        // Every power-on rescans, so only problems the previous scan did not report are new.
+        internal IEnumerable<string> WarningsSince(LibrarySnapshot previous)
+        {
+            foreach (string warning in warnings)
+                if (previous == null || Array.IndexOf(previous.warnings, warning) < 0) yield return warning;
+        }
     }
 
     internal static class LibraryPaths
@@ -82,10 +86,16 @@ namespace SailwindRadio.Library
             string root = System.IO.Path.GetPathRoot(full);
             return full.Length > root.Length ? full.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar) : full;
         }
+        // Set once at plugin start, before the first scan, from the Media Foundation decision.
+        // When false, M4A and AAC never enter a collection, so shuffle cannot land on them.
+        private static volatile bool mediaFoundationFormats;
+        internal static bool MediaFoundationFormats { get => mediaFoundationFormats; set => mediaFoundationFormats = value; }
         internal static bool Supported(string path)
         {
             string extension = System.IO.Path.GetExtension(path);
-            return Comparer.Equals(extension, ".mp3") || Comparer.Equals(extension, ".ogg") || Comparer.Equals(extension, ".wav");
+            return Comparer.Equals(extension, ".mp3") || Comparer.Equals(extension, ".ogg") || Comparer.Equals(extension, ".wav") ||
+                Comparer.Equals(extension, ".flac") ||
+                (MediaFoundationFormats && (Comparer.Equals(extension, ".m4a") || Comparer.Equals(extension, ".aac")));
         }
         internal static string FileLabel(string path)
         {

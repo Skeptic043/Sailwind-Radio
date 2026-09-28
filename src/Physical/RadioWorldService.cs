@@ -25,7 +25,7 @@ namespace SailwindRadio.Physical
         private readonly HashSet<SaveablePrefab> loadingPrefabs = new HashSet<SaveablePrefab>();
         private readonly List<SaveablePrefab> pendingRegistrations = new List<SaveablePrefab>();
         private readonly HashSet<SaveablePrefab> pendingRestores = new HashSet<SaveablePrefab>();
-        private readonly HashSet<int> reportedAmbiguousIds = new HashSet<int>();
+        private readonly RestoreDeferrals deferrals = new RestoreDeferrals();
         private PrefabsDirectory templateDirectory;
         private readonly List<KeyValuePair<MethodInfo, MethodInfo>> patches = new List<KeyValuePair<MethodInfo, MethodInfo>>();
         private static readonly FieldInfo BusyField = AccessTools.Field(typeof(SaveLoadManager), "busy");
@@ -34,6 +34,7 @@ namespace SailwindRadio.Physical
         private bool missingRadioData;
         private bool disposed;
         private bool malformedHouseReported;
+        private string reportedTemplateProblem;
         private float nextRestoreRetry;
         internal static bool HookCompatible { get; private set; }
         public IReadOnlyList<RadioItemController> Items => items;
@@ -305,6 +306,13 @@ namespace SailwindRadio.Physical
             {
                 if (!RadioNativeHooks.Compatible)
                     throw new MissingFieldException("Native HangableItem.currentHook contract changed");
+                var target = typeof(ShipItem).GetMethod("AllowOnItemClick", BindingFlags.Instance | BindingFlags.Public,
+                    null, new[] { typeof(GoPointerButton) }, null);
+                if (target == null || target.ReturnType != typeof(bool))
+                    throw new MissingMethodException("Native hook target check changed");
+                var patch = AccessTools.Method(typeof(RadioWorldService), nameof(HookTargetPostfix));
+                harmony.Patch(target, postfix: new HarmonyMethod(patch));
+                patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
                 PatchNativeHook(typeof(ShipItem), "OnPickup", Type.EmptyTypes, nameof(HookReleasePostfix), false);
                 PatchNativeHook(typeof(ShipItem), "OnEnterInventory", Type.EmptyTypes, nameof(HookInventoryPostfix), false);
                 PatchNativeHook(typeof(HangableItem), "LateUpdate", Type.EmptyTypes, nameof(HookPositionPrefix), true);
@@ -353,6 +361,16 @@ namespace SailwindRadio.Physical
             patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
         }
 
+        private static void HookTargetPostfix(ShipItem __instance, GoPointerButton lookedAtButton, ref bool __result)
+        {
+            if (__result || active == null || active.disposed || !HookCompatible || !__instance || !__instance.sold)
+                return;
+            // A HangableItem handles attachment, but plain ShipItem does not grant the
+            // pointer permission to click hooks. Match ShipItemHangable's target rule.
+            // Native hook click handling still owns occupied-hook rejection and attachment.
+            if (RadioNativeHooks.AllowsHookTarget(__instance, lookedAtButton)) __result = true;
+        }
+
         private static void HookReleasePostfix(ShipItem __instance) => Guard(() => { RadioNativeHooks.Release(__instance); });
         private static void HookInventoryPostfix(ShipItem __instance) => Guard(() => RadioNativeHooks.EnterInventory(__instance));
         private static void HookPositionPrefix(HangableItem __instance) => Guard(() => RadioNativeHooks.RejectPhantomHook(__instance));
@@ -386,7 +404,7 @@ namespace SailwindRadio.Physical
             {
                 items.Clear();
                 pendingRestores.Clear();
-                reportedAmbiguousIds.Clear();
+                deferrals.Clear();
                 nextRestoreRetry = 0f;
                 manager = SaveLoadManager.instance;
                 loading = false;
@@ -458,14 +476,14 @@ namespace SailwindRadio.Physical
                         directory.shipItems != null && directory.shipItems.Length > RadioSaveStore.ItemIndex(kind) &&
                         directory.shipItems[RadioSaveStore.ItemIndex(kind)] == templates[kind].GetComponent<ShipItem>();
                 if (intact) return true;
-                warn("Radio item directory entries were replaced after registration");
+                ReportTemplateProblem("Radio item directory entries were replaced after registration");
                 return false;
             }
             if (!RadioSaveStore.CanClaimItemSlots(index =>
                 (directory.directory.Length > index && directory.directory[index]) ||
                 (directory.shipItems != null && directory.shipItems.Length > index && directory.shipItems[index]), out int collision))
             {
-                warn("Radio item ID " + collision + " is occupied. Radio templates were not registered");
+                ReportTemplateProblem("Radio item ID " + collision + " is occupied. Radio templates were not registered");
                 return false;
             }
             var created = new GameObject[4];
@@ -533,6 +551,14 @@ namespace SailwindRadio.Physical
             }
         }
 
+        // Templates are checked every frame, so a lasting problem is logged once.
+        private void ReportTemplateProblem(string message)
+        {
+            if (message == reportedTemplateProblem) return;
+            reportedTemplateProblem = message;
+            warn(message);
+        }
+
         private bool TryLoadTemplateBundle()
         {
             if (templateBundle) return true;
@@ -542,7 +568,7 @@ namespace SailwindRadio.Physical
             {
                 if (source == null)
                 {
-                    warn("Radio item assets are unavailable; scene templates remain available for direct item spawning");
+                    warn("Radio item assets are unavailable. Scene templates remain available for direct item spawning");
                     return false;
                 }
                 using (var bytes = new MemoryStream())
@@ -783,7 +809,7 @@ namespace SailwindRadio.Physical
             EnsureTemplates();
             pendingRegistrations.Clear();
             pendingRestores.Clear();
-            reportedAmbiguousIds.Clear();
+            deferrals.Clear();
             nextRestoreRetry = 0f;
             manager = source;
             loading = true;
@@ -892,10 +918,14 @@ namespace SailwindRadio.Physical
         {
             int id = prefab.instanceId;
             if (id <= 0 || !manager) return false;
-            if (RadioSaveStore.HasUniqueNativeOwner(id, NativeOwnerIds(), out int count)) return true;
+            if (RadioSaveStore.HasUniqueNativeOwner(id, NativeOwnerIds(), out _))
+            {
+                deferrals.Restored(id);
+                return true;
+            }
             pendingRestores.Add(prefab);
-            if (reportedAmbiguousIds.Add(id))
-                warn("Radio restoration deferred because native item ID " + id + " has " + count + " owners");
+            if (deferrals.Defer(id, Time.unscaledTime, GameState.loadingBoatLocalItems || GameState.currentlyLoading))
+                warn("A saved radio device was not restored because another item uses its item ID " + id);
             return false;
         }
 

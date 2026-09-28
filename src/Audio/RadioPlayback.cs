@@ -1,14 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
-using UnityEngine.Networking;
 
 namespace SailwindRadio
 {
-    /// <summary>One local clip and one positional emitter. Call only from the Unity main thread.</summary>
+    /// <summary>One local track streamed to the built-in emitter and any speaker endpoints. Call only from the Unity main thread.</summary>
     public sealed partial class RadioPlayback : IDisposable
     {
         private const double ScheduleLeadSeconds = 0.05;
@@ -25,10 +22,7 @@ namespace SailwindRadio
         private Vector3 listenerPosition;
         private bool listenerKnown;
         private AudioClip clip;
-        private UnityWebRequest request;
-        private Task<Mp3LoadResult> mp3Task;
-        private CancellationTokenSource mp3Cancellation;
-        private StreamedMp3 streamedMp3;
+        private StreamedAudio streamed;
         private string requestedPath;
         private string failure;
         private bool disposed;
@@ -41,6 +35,8 @@ namespace SailwindRadio
         private double scheduledDsp;
         private double lastDsp;
         private int scheduledSample;
+        // Playhead at the previous running Tick, so loop damage ends the track only where it is crossed.
+        private int lastSample;
         private double loadStartedAt;
         private double streamWaitingSince = -1;
 
@@ -50,6 +46,8 @@ namespace SailwindRadio
         public bool TrackEnded { get; private set; }
         public bool LoadFailed { get { return failure != null; } }
         public string FailedPath { get; private set; }
+        // Diagnostic count of corrective seeks. Checks and the editor probe observe churn with it.
+        internal int DriftRepairs { get; private set; }
 
         public RadioPlayback(MonoBehaviour coroutineHost, RadioState state, Action<string> warning)
         {
@@ -82,7 +80,7 @@ namespace SailwindRadio
             FailedPath = null;
             TrackEnded = false;
             requestedPath = null; // Explicit selection also retries a previously failed file.
-            if (!AdoptPreload(path)) ReleasePreload();
+            KeepOrAdoptPreload(path);
         }
 
         public void SetCarried(bool carried) { if (!disposed) builtIn.Carried = carried; }
@@ -139,8 +137,7 @@ namespace SailwindRadio
             builtIn.Position = worldPosition;
             builtIn.LocalVolume = state.LocalVolume;
             state.Volume = Single.IsNaN(state.Volume) ? 0.5f : Mathf.Clamp01(state.Volume);
-            // Preserve the saved knob value. A lower ceiling and squared gain provide
-            // useful quiet settings for a tabletop radio without changing playback time.
+            // The saved knob value stays as set. Outputs square it for useful quiet tabletop settings.
             builtIn.Update(state.Volume, listenerPosition, listenerKnown);
             source.loop = RepeatTrack;
             foreach (var endpoint in endpoints.Values)
@@ -158,8 +155,6 @@ namespace SailwindRadio
             }
             lastDsp = dsp;
 
-            PollPreload();
-
             if (!String.Equals(requestedPath, state.TrackPath ?? "", StringComparison.Ordinal))
             {
                 ReleaseTrack();
@@ -168,48 +163,38 @@ namespace SailwindRadio
                 FailedPath = null;
                 TrackEnded = false;
                 TrackLabel = SafeLabel(requestedPath);
-                if (!AdoptPreload(requestedPath))
-                {
-                    ReleasePreload();
-                    if (state.Powered) BeginLoad();
-                }
+                if (!KeepOrAdoptPreload(requestedPath) && state.Powered) BeginLoad();
             }
-            else if (state.Powered && !wasPowered && clip == null && request == null && mp3Task == null)
+            else if (state.Powered && !wasPowered && clip == null && streamed == null)
             {
                 failure = null;
                 FailedPath = null;
                 BeginLoad();
             }
             wasPowered = state.Powered;
-            CompleteLoad();
-            CompleteMp3Load();
-            if (streamedMp3 != null)
+            AttachStream();
+            if (streamed != null)
             {
-                if (streamedMp3.Fault != null) Fail("Unable to decode music", streamedMp3.Fault.Message);
-                else
-                {
-                    int frame = SafeSavedFrame();
-                    streamedMp3.Request(running ? SampleAt(dsp) : frame);
-                }
+                streamed.Loop = RepeatTrack;
+                Exception fault = streamed.Fault;
+                if (fault != null) FailStream(fault);
+                else if (clip != null) streamed.Request(running ? SampleAt(dsp) : SafeSavedFrame());
             }
-            if (request != null || mp3Task != null || (clip != null && clip.loadState != AudioDataLoadState.Loaded))
-            {
-                if (clip != null && clip.loadState == AudioDataLoadState.Failed)
-                    Fail("Unable to decode music", "The decoder failed to load audio data");
-                else if (Time.realtimeSinceStartup - loadStartedAt >= LoadTimeoutSeconds)
-                    Fail("Unable to load music", "Audio loading timed out after 60 seconds");
-            }
+            // An open stream still decoding its opening falls under the buffer deadline below instead.
+            if (Loading && !streamed.IsOpen && Time.realtimeSinceStartup - loadStartedAt >= LoadTimeoutSeconds)
+                Fail("Unable to load music", "Audio loading timed out after 60 seconds");
 
             FinishIfEnded();
+            FinishIfDamaged(dsp, state.Powered && !state.Paused && !suspended && !AudioListener.pause);
             bool shouldPlay = state.Powered && !state.Paused && !suspended && !AudioListener.pause && !TrackEnded;
             int wantedFrame = SafeSavedFrame();
-            bool streamReady = streamedMp3 == null || streamedMp3.Ready(running ? SampleAt(dsp) : wantedFrame);
-            if (streamedMp3 != null && shouldPlay && !streamReady)
+            bool streamReady = streamed == null || (clip != null && streamed.Ready(running ? SampleAt(dsp) : wantedFrame));
+            if (streamed != null && shouldPlay && !streamReady)
             {
                 if (streamWaitingSince < 0) streamWaitingSince = Time.realtimeSinceStartup;
                 else if (Time.realtimeSinceStartup - streamWaitingSince >= LoadTimeoutSeconds)
                 {
-                    Fail("Unable to decode music", "Streamed MP3 buffer did not recover");
+                    Fail("Unable to decode music", "Streamed audio buffer did not recover");
                     shouldPlay = false;
                 }
             }
@@ -219,17 +204,21 @@ namespace SailwindRadio
                 CapturePosition();
                 PauseOutputs();
             }
-            if (shouldPlay && clip != null && clip.loadState == AudioDataLoadState.Loaded && !running && streamReady)
+            if (shouldPlay && clip != null && !running && streamReady)
                 StartAtSavedPosition();
             if (running) CapturePosition();
             if (running) JoinEndpoints();
             if (running) CheckOutputHealth();
 
-            Status = !state.Powered ? "Off" : failure != null ? failure :
-                request != null || mp3Task != null || (clip != null && clip.loadState != AudioDataLoadState.Loaded) ||
-                (streamedMp3 != null && !running && !streamReady) ? "Loading" : clip == null ? "No track" :
+            bool loading = Loading || (streamed != null && !running && !streamReady);
+            Status = !state.Powered ? "Off" : failure != null ? failure : loading ? "Loading" : clip == null ? "No track" :
                 TrackEnded ? "Ended" : state.Paused ? "Paused" : suspended || AudioListener.pause ? "Suspended" : "Playing";
+            // The selected track keeps priority. The next one opens only once this one can play.
+            PollPreload(state.Powered && failure == null && clip != null && !loading);
         }
+
+        // True while the current track's stream is still opening.
+        private bool Loading { get { return streamed != null && clip == null; } }
 
         public void CapturePosition()
         {
@@ -239,11 +228,14 @@ namespace SailwindRadio
         }
 
         private int SafeSavedFrame()
+        { return clip == null ? 0 : SavedFrame(clip.samples, clip.frequency); }
+
+        private int SavedFrame(int samples, int frequency)
         {
-            if (clip == null || clip.samples <= 0 || clip.frequency <= 0) return 0;
+            if (samples <= 0 || frequency <= 0) return 0;
             double seconds = state.PositionSeconds;
             if (Double.IsNaN(seconds) || Double.IsInfinity(seconds) || seconds < 0) return 0;
-            return (int)Math.Min(clip.samples - 1, Math.Floor(seconds * clip.frequency));
+            return (int)Math.Min(samples - 1, Math.Floor(seconds * frequency));
         }
 
         private int SampleAt(double dsp)
@@ -261,224 +253,44 @@ namespace SailwindRadio
             if (String.IsNullOrWhiteSpace(requestedPath)) return;
             try
             {
-                // Only absolute local filesystem paths. A URL or UNC share must never turn
-                // a music setting into an HTTP request or a network filesystem operation.
-                if (!Path.IsPathRooted(requestedPath))
-                    throw new IOException("Choose an absolute local music file path");
-                string fullPath = Path.GetFullPath(requestedPath);
-                var uri = new Uri(fullPath);
-                if (!uri.IsFile || uri.IsUnc) throw new IOException("Choose a local music file");
-                AudioType type;
-                switch (Path.GetExtension(fullPath).ToLowerInvariant())
-                {
-                    case ".mp3": type = AudioType.MPEG; break;
-                    case ".ogg": type = AudioType.OGGVORBIS; break;
-                    case ".wav": type = AudioType.WAV; break;
-                    default: throw new IOException("Choose an MP3, OGG or WAV file");
-                }
-                if (!File.Exists(fullPath)) throw new IOException("Music file is missing or inaccessible");
-                if (new FileInfo(fullPath).Length > (type == AudioType.MPEG ? MaximumStreamedMp3FileBytes : MaximumMp3FileBytes))
-                    throw new IOException("Audio file exceeds the size limit");
+                string fullPath = LocalPath(requestedPath);
                 loadStartedAt = Time.realtimeSinceStartup;
-                if (type == AudioType.MPEG)
-                {
-                    // Sailwind's Windows Unity 2019 player rejects MPEG in its runtime
-                    // audio loader. Decode locally on a worker, then upload PCM on Tick.
-                    mp3Cancellation = new CancellationTokenSource();
-                    mp3Cancellation.CancelAfter((int)(LoadTimeoutSeconds * 1000));
-                    CancellationToken token = mp3Cancellation.Token;
-                    double saved = state.PositionSeconds;
-                    mp3Task = Task.Run(() => PrepareMp3(fullPath, saved, token), token);
-                    return;
-                }
-                request = UnityWebRequestMultimedia.GetAudioClip(uri.AbsoluteUri, type);
-                // Fully decode this one clip. Seeking and repeat must not race an unfinished stream.
-                ((DownloadHandlerAudioClip)request.downloadHandler).streamAudio = false;
-                request.SendWebRequest();
+                if (!PcmDecoders.Supports(fullPath))
+                    throw new IOException(PcmDecoders.UnsupportedMessage(fullPath) ?? PcmDecoders.ChooseFormatMessage);
+                // The stream's own worker opens and decodes the file, never this thread.
+                streamed = StreamedAudio.Start(fullPath, state.PositionSeconds);
             }
             catch (Exception ex) { Fail("Unable to load music", ex.Message); }
         }
 
-        private void CompleteLoad()
+        // Only absolute local filesystem paths. A URL or UNC share must never turn
+        // a music setting into an HTTP request or a network filesystem operation.
+        private static string LocalPath(string path)
         {
-            if (request == null || !request.isDone) return;
-            try
-            {
-                if (request.isNetworkError || request.isHttpError)
-                    throw new IOException(request.error ?? "Audio request failed");
-                clip = DownloadHandlerAudioClip.GetContent(request);
-                if (clip == null || clip.loadState == AudioDataLoadState.Failed ||
-                    clip.samples <= 0 || clip.frequency <= 0 || (long)clip.samples * clip.channels > MaximumMp3Samples)
-                    throw new IOException("The file could not be decoded as audio");
-                source.clip = clip;
-                request.Dispose();
-                request = null;
-            }
-            catch (Exception ex) { Fail("Unable to decode music", ex.Message); }
+            if (!Path.IsPathRooted(path)) throw new IOException("Choose an absolute local music file path");
+            string fullPath = Path.GetFullPath(path);
+            var uri = new Uri(fullPath);
+            if (!uri.IsFile || uri.IsUnc) throw new IOException("Choose a local music file");
+            return fullPath;
         }
 
-        private void CompleteMp3Load()
+        // Creating a PCM-reader clip allocates no sample data. Each output gets its own reader. Unity pre-reads
+        // the opening of a new clip and plays it unchanged when the track starts at frame 0, so the clip waits
+        // until the stream holds the start. Otherwise it would begin with silence for frames still decoding.
+        private void AttachStream()
         {
-            if (mp3Task == null || !mp3Task.IsCompleted) return;
+            if (streamed == null || clip != null || !streamed.IsOpen || streamed.Fault != null) return;
+            int frame = SavedFrame(streamed.Frames, streamed.SampleRate);
+            streamed.Request(frame);
+            if (!streamed.Ready(frame)) return;
             try
             {
-                if (mp3Task.IsCanceled) throw new IOException("MP3 decoding timed out");
-                if (mp3Task.IsFaulted)
-                    throw new IOException("MP3 decoding failed: " + mp3Task.Exception.GetBaseException().Message);
-                Mp3LoadResult result = mp3Task.Result;
-                mp3Task = null;
-                mp3Cancellation.Dispose();
-                mp3Cancellation = null;
-                if (result.Stream != null)
-                {
-                    streamedMp3 = result.Stream;
-                    var reader = streamedMp3.CreateReader();
-                    clip = streamedMp3.CreateClip(reader);
-                    if (clip == null) throw new IOException("Unable to create streamed audio clip");
-                    builtIn.StreamClip = clip;
-                    source.clip = clip;
-                    ReleasePreload();
-                    return;
-                }
-                DecodedMp3 decoded = result.Decoded;
-                // Unity counts sample frames per channel, while decoder buffers contain
-                // interleaved floats. Dividing by channels avoids double-length stereo.
-                clip = AudioClip.Create("Sailwind Radio MP3", decoded.SampleCount / decoded.Channels,
-                    decoded.Channels, decoded.SampleRate, false);
-                if (clip == null) throw new IOException("Unable to allocate the decoded audio clip");
-                int offset = 0;
-                foreach (float[] block in decoded.Blocks)
-                {
-                    if (!clip.SetData(block, offset)) throw new IOException("Unable to upload decoded audio");
-                    offset += block.Length / decoded.Channels;
-                }
+                clip = streamed.CreateClip(streamed.CreateReader());
+                if (clip == null) throw new IOException("Unable to create streamed audio clip");
+                builtIn.StreamClip = clip;
                 source.clip = clip;
             }
             catch (Exception ex) { Fail("Unable to decode music", ex.Message); }
-        }
-
-        internal sealed class DecodedMp3
-        {
-            internal readonly List<float[]> Blocks = new List<float[]>();
-            internal int Channels, SampleRate, SampleCount;
-        }
-
-        internal sealed class Mp3LoadResult
-        {
-            internal DecodedMp3 Decoded;
-            internal StreamedMp3 Stream;
-        }
-
-        // 256 MiB of float PCM per clip. Managed blocks are released after upload.
-        // Native clip allocation temporarily doubles that footprint during handoff.
-        internal const int MaximumMp3Samples = 64 * 1024 * 1024;
-        internal const long MaximumMp3FileBytes = 128L * 1024 * 1024;
-        internal const long MaximumStreamedMp3FileBytes = 1024L * 1024 * 1024;
-        private static readonly SemaphoreSlim Mp3DecodeSlot = new SemaphoreSlim(1, 1);
-
-        internal static Mp3LoadResult PrepareMp3(string path, double initialSeconds, CancellationToken token,
-            int maximumSamples = MaximumMp3Samples)
-        {
-            token.ThrowIfCancellationRequested();
-            using (var input = new CancellableFileStream(path, token))
-            {
-                if (input.Length > MaximumStreamedMp3FileBytes)
-                    throw new IOException("MP3 exceeds the streamed file size limit");
-                using (var decoder = new NLayer.MpegFile(input))
-                {
-                    int channels = decoder.Channels;
-                    if (channels < 1 || channels > 2 || decoder.SampleRate < 8000 || decoder.SampleRate > 96000)
-                        throw new IOException("Unsupported MP3 channel count or sample rate");
-                    long samples = decoder.Length < 0 ? -1 : decoder.Length / sizeof(float);
-                    if (samples > maximumSamples || input.Length > MaximumMp3FileBytes)
-                    {
-                        if (decoder.Length % (channels * sizeof(float)) != 0)
-                            throw new IOException("Invalid MP3 sample length");
-                        if (Double.IsNaN(initialSeconds) || Double.IsInfinity(initialSeconds) || initialSeconds < 0)
-                            initialSeconds = 0;
-                        int requested = (int)Math.Min(Int32.MaxValue - 1, initialSeconds * decoder.SampleRate);
-                        return new Mp3LoadResult { Stream = StreamedMp3.Open(path, requested, token) };
-                    }
-                }
-            }
-            return new Mp3LoadResult { Decoded = DecodeMp3(path, token, maximumSamples) };
-        }
-
-        internal static bool IsLongMp3(string path, CancellationToken token)
-        {
-            token.ThrowIfCancellationRequested();
-            using (var input = new CancellableFileStream(path, token))
-            {
-                if (input.Length > MaximumMp3FileBytes) return true;
-                using (var decoder = new NLayer.MpegFile(input))
-                    return decoder.Length > (long)MaximumMp3Samples * sizeof(float);
-            }
-        }
-
-        internal static DecodedMp3 DecodeMp3(string path, CancellationToken token, int maximumSamples = MaximumMp3Samples,
-            long maximumFileBytes = MaximumMp3FileBytes)
-        {
-            Mp3DecodeSlot.Wait(token);
-            try { return DecodeMp3Core(path, token, maximumSamples, maximumFileBytes); }
-            finally { Mp3DecodeSlot.Release(); }
-        }
-
-        private static DecodedMp3 DecodeMp3Core(string path, CancellationToken token, int maximumSamples, long maximumFileBytes)
-        {
-            token.ThrowIfCancellationRequested();
-            // Own the stream outside MpegFile so a malformed-header constructor failure
-            // still closes the file. Read/seek cancellation covers header scanning too.
-            using (var input = new CancellableFileStream(path, token))
-            {
-              if (input.Length > maximumFileBytes) throw new IOException("MP3 exceeds the 128 MiB file size limit");
-              using (var decoder = new NLayer.MpegFile(input))
-              {
-                var decoded = new DecodedMp3 { Channels = decoder.Channels, SampleRate = decoder.SampleRate };
-                if (decoded.Channels < 1 || decoded.Channels > 2 || decoded.SampleRate < 8000 || decoded.SampleRate > 96000)
-                    throw new IOException("Unsupported MP3 channel count or sample rate");
-                while (true)
-                {
-                    token.ThrowIfCancellationRequested();
-                    var block = new float[16384];
-                    int count = decoder.ReadSamples(block, 0, block.Length);
-                    if (count == 0) break;
-                    if (count < 0 || count % decoded.Channels != 0)
-                        throw new IOException("MP3 decoder returned incomplete sample frames");
-                    if (count > maximumSamples - decoded.SampleCount)
-                        throw new IOException("MP3 exceeds the 256 MiB decoded audio limit");
-                    if (count != block.Length) Array.Resize(ref block, count);
-                    for (int i = 0; i < block.Length; i++)
-                        block[i] = Single.IsNaN(block[i]) ? 0f : Math.Max(-1f, Math.Min(1f, block[i]));
-                    decoded.Blocks.Add(block);
-                    decoded.SampleCount += count;
-                }
-                token.ThrowIfCancellationRequested();
-                if (decoded.SampleCount == 0) throw new IOException("The MP3 contains no decodable audio");
-                return decoded;
-              }
-            }
-        }
-
-        internal sealed class CancellableFileStream : Stream
-        {
-            private readonly FileStream input;
-            private readonly CancellationToken token;
-            internal CancellableFileStream(string path, CancellationToken token)
-            {
-                this.token = token;
-                input = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            }
-            public override bool CanRead { get { return true; } }
-            public override bool CanSeek { get { return true; } }
-            public override bool CanWrite { get { return false; } }
-            public override long Length { get { return input.Length; } }
-            public override long Position { get { return input.Position; } set { token.ThrowIfCancellationRequested(); input.Position = value; } }
-            public override int Read(byte[] buffer, int offset, int count) { token.ThrowIfCancellationRequested(); return input.Read(buffer, offset, count); }
-            public override long Seek(long offset, SeekOrigin origin) { token.ThrowIfCancellationRequested(); return input.Seek(offset, origin); }
-            public override void Flush() { }
-            public override void SetLength(long value) { throw new NotSupportedException(); }
-            public override void Write(byte[] buffer, int offset, int count) { throw new NotSupportedException(); }
-            protected override void Dispose(bool disposing) { if (disposing) input.Dispose(); base.Dispose(disposing); }
         }
 
         private void StartAtSavedPosition()
@@ -495,6 +307,7 @@ namespace SailwindRadio
             scheduledSample = (int)Math.Min(clip.samples - 1, Math.Floor((position % duration) * clip.frequency));
             double now = AudioSettings.dspTime;
             scheduledDsp = now + (voicesPaused ? 0 : ScheduleLeadSeconds);
+            lastSample = scheduledSample;
             if (voicesPaused)
             {
                 ResumeOutput(builtIn, now);
@@ -512,8 +325,11 @@ namespace SailwindRadio
 
         private void ResumeOutput(RadioSpeakerOutput output, double now)
         {
-            if (output.Paused && output.Source != null && output.Source.clip ==
-                (output.StreamClip != null ? output.StreamClip : clip)) output.Resume(scheduledSample, now);
+            if (output.Paused && output.Source != null && output.StreamClip != null && output.Source.clip == output.StreamClip)
+            {
+                Want(scheduledSample);
+                output.Resume(scheduledSample, now);
+            }
             else ScheduleEndpoint(output, now + ScheduleLeadSeconds, SampleAt(now + ScheduleLeadSeconds));
         }
 
@@ -528,6 +344,35 @@ namespace SailwindRadio
             StopOutputs();
             return true;
         }
+
+        // A decode failure after audio played ends the track where the damage starts, like a normal
+        // end, so the queue advances and keeps the song. A paused radio ends only once it would play.
+        // Damage found by the looping look-ahead lies behind the playhead, so it ends the track only
+        // once the wrapped playhead crosses it, and never from a saved position.
+        private void FinishIfDamaged(double dsp, bool wantsToPlay)
+        {
+            if (streamed == null || clip == null || TrackEnded) return;
+            int damage = streamed.DamageFrame, loopDamage = streamed.LoopDamageFrame;
+            bool reached;
+            if (running)
+            {
+                int sample = SampleAt(dsp), previous = lastSample;
+                lastSample = sample;
+                reached = sample >= damage || (loopDamage < clip.samples && (sample >= previous
+                    ? previous <= loopDamage && loopDamage <= sample
+                    : previous <= loopDamage || sample >= loopDamage));
+            }
+            else reached = wantsToPlay && SafeSavedFrame() >= damage;
+            if (!reached) return;
+            Exception reason = streamed.Damage;
+            state.PositionSeconds = clip.samples / (double)clip.frequency;
+            TrackEnded = true;
+            StopOutputs();
+            warning("Music ended early at damaged audio: " + (reason == null ? "The decoder failed" : reason.Message) + NamedFile(requestedPath));
+        }
+
+        // The main thread alone moves the stream worker. Every native seek asks for its frame first.
+        private void Want(int frame) { if (streamed != null) streamed.Request(frame); }
 
         private void JoinEndpoints()
         {
@@ -550,10 +395,17 @@ namespace SailwindRadio
         {
             if (endpoint.Source == null) return;
             if (clip == null || sample < 0 || sample >= clip.samples || (!RepeatTrack && start >= EndDspTime())) return;
-            if (streamedMp3 != null && endpoint.StreamClip == null)
-                endpoint.StreamClip = streamedMp3.CreateClip(streamedMp3.CreateReader());
-            endpoint.Source.clip = endpoint.StreamClip != null ? endpoint.StreamClip : clip;
+            Want(sample);
+            if (endpoint.StreamClip == null)
+            {
+                endpoint.StreamClip = streamed.CreateClip(streamed.CreateReader());
+                // A refused clip leaves this output silent. Sharing another output's clip would share its cursor.
+                if (endpoint.StreamClip == null) return;
+            }
+            endpoint.Source.clip = endpoint.StreamClip;
             endpoint.Source.loop = RepeatTrack;
+            // Unity alone positions the reader. It seeks it on PlayScheduled to a nonzero sample and, at sample 0,
+            // plays the opening it pre-read. Moving the reader here would desynchronize it from that buffered audio.
             endpoint.Source.timeSamples = sample;
             endpoint.Source.PlayScheduled(start);
             endpoint.Running = true;
@@ -637,7 +489,8 @@ namespace SailwindRadio
         private void RepairOutput(RadioSpeakerOutput output, double now)
         {
             if (!output.Running || output.Source == null || now < output.SettlesAt) return;
-            if (output.Source.isVirtual || output.Source.volume <= 0) { output.DriftObservations = 0; return; }
+            // Unity reports a stopped voice as virtual, so only a playing one is skipped as unmeasurable.
+            if (output.Source.isPlaying && (output.Source.isVirtual || output.Source.volume <= 0)) { output.DriftObservations = 0; return; }
             int expected = SampleAt(now);
             int difference = Math.Abs(output.Source.timeSamples - expected);
             if (RepeatTrack) difference = Math.Min(difference, clip.samples - difference);
@@ -650,10 +503,31 @@ namespace SailwindRadio
                 if (++output.DriftObservations < 2) return;
             }
             output.DriftObservations = 0;
+            DriftRepairs++;
             // Native cursors are observations, never the radio's master clock. Repair
             // a revived/lagging output without restarting healthy neighboring voices.
-            if (output.Source.isPlaying) { output.Pause(); output.Resume(expected, now); }
+            if (output.Source.isPlaying)
+            {
+                Want(expected);
+                output.Pause();
+                output.Resume(expected, now);
+            }
             else ScheduleEndpoint(output, now + ScheduleLeadSeconds, SampleAt(now + ScheduleLeadSeconds));
+        }
+
+        // A missing or unreadable file keeps its saved position for when it returns. A decode failure
+        // happens before any audio, possibly because the saved position lies in damaged data, so the
+        // position resets and a later selection starts from the beginning.
+        private void FailStream(Exception fault)
+        {
+            if (fault is FileNotFoundException || fault is DirectoryNotFoundException || fault is DriveNotFoundException ||
+                fault is UnauthorizedAccessException)
+            {
+                Fail("Unable to load music", fault.Message);
+                return;
+            }
+            state.PositionSeconds = 0;
+            Fail("Unable to decode music", fault.Message);
         }
 
         private void Fail(string message, string detail)
@@ -661,7 +535,19 @@ namespace SailwindRadio
             ReleaseTrack();
             failure = message;
             FailedPath = requestedPath;
-            warning(message + ": " + detail);
+            warning(message + ": " + detail + NamedFile(requestedPath));
+        }
+
+        // The file name only. Players post logs, so a full path never appears in a warning.
+        private static string NamedFile(string path)
+        {
+            if (String.IsNullOrWhiteSpace(path)) return "";
+            try
+            {
+                string name = Path.GetFileName(path);
+                return String.IsNullOrEmpty(name) ? "" : " (" + name + ")";
+            }
+            catch (ArgumentException) { return ""; }
         }
 
         private static string SafeLabel(string path)
@@ -679,38 +565,17 @@ namespace SailwindRadio
 
         private void ReleaseTrackResources()
         {
-            if (mp3Cancellation != null)
+            foreach (var endpoint in endpoints.Values) endpoint.ReleaseStreamClip();
+            if (builtIn != null)
             {
-                Task<Mp3LoadResult> abandoned = mp3Task;
-                CancellationTokenSource cancellation = mp3Cancellation;
-                mp3Task = null;
-                mp3Cancellation = null;
-                cancellation.Cancel();
-                // Never block the Unity thread waiting for file IO. Observe faults and
-                // release the token after the worker exits. No continuation touches Unity.
-                if (abandoned == null) cancellation.Dispose();
-                else abandoned.ContinueWith(completed =>
-                {
-                    if (completed.IsFaulted) { var observed = completed.Exception; }
-                    if (completed.Status == TaskStatus.RanToCompletion && completed.Result.Stream != null)
-                        completed.Result.Stream.Dispose();
-                    cancellation.Dispose();
-                }, TaskScheduler.Default);
+                if (builtIn.StreamClip == clip) builtIn.StreamClip = null;
+                else builtIn.ReleaseStreamClip();
             }
-            try { DiscardRequest(ref request, clip); }
-            finally
-            {
-                foreach (var endpoint in endpoints.Values) endpoint.ReleaseStreamClip();
-                if (builtIn != null)
-                {
-                    if (builtIn.StreamClip == clip) builtIn.StreamClip = null;
-                    else builtIn.ReleaseStreamClip();
-                }
-                if (clip != null) UnityEngine.Object.Destroy(clip);
-                clip = null;
-                if (streamedMp3 != null) { streamedMp3.Dispose(); streamedMp3 = null; }
-                streamWaitingSince = -1;
-            }
+            if (clip != null) UnityEngine.Object.Destroy(clip);
+            clip = null;
+            // Disposal never waits for the stream worker. A late open result dies with it.
+            if (streamed != null) { streamed.Dispose(); streamed = null; }
+            streamWaitingSince = -1;
         }
 
         private void OnAudioConfigurationChanged(bool deviceWasChanged) { resetRequested = true; }

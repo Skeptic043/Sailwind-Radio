@@ -205,9 +205,11 @@ namespace SailwindRadio.Physical
     {
         public bool ReadyForShop=true,ReadyToStageShop=true;
         public RadioSaveStore Store=new();internal GlobalRadioArbiter Arbiter=new();public int NextId=10,Finishes;
+        public int StockBudget=-1;
         public RadioItemController CreateShopStock(UnityEngine.Transform parent,UnityEngine.Vector3 pos,UnityEngine.Quaternion rot,int kind)
         {
-            if(!ReadyToStageShop)return null;
+            if(!ReadyToStageShop||StockBudget==0)return null;
+            if(StockBudget>0)StockBudget--;
             var go=new UnityEngine.GameObject();go.transform.SetParent(parent,true);go.AddComponent<ShipItem>();go.AddComponent<SaveablePrefab>();
             var c=go.AddComponent<RadioItemController>();c.State.Kind=kind;return c;
         }
@@ -234,9 +236,7 @@ namespace SailwindRadio.Shops
     internal static class RadioShopPlacement
     {
         internal static bool Clear=true;
-        internal static int FailSlot=-1;
         internal static bool TryStand(IslandSceneryScene a,out UnityEngine.Vector3 p,out UnityEngine.Quaternion r,out string reason){RadioStandLayout.TryAnchor(a.parentIslandIndex,out var anchor,out _);p=a.transform.TransformPoint(anchor);r=default;reason=Clear?"":"blocked";return Clear;}
-        internal static bool SlotClear(RadioShopStand stand,int index,int kind,out string reason){reason="blocked";return index!=FailSlot;}
     }
     internal sealed class RadioShopStand:UnityEngine.Component
     {

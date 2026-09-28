@@ -170,11 +170,6 @@ namespace SailwindRadio.Physical
             album = newAlbum;
             displayContent = title + "\n" + artist + "\n" + album;
         }
-        public void SetPlaybackDisplay(string track, string playbackStatus)
-        {
-            if (State != null && State.Kind == 0 && string.IsNullOrEmpty(title))
-                SetTrackInfo(track, "", "");
-        }
         private static string Clean(string value, int limit)
         {
             value = (value ?? "").Replace('\n', ' ').Replace('\r', ' ');

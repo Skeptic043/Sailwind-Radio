@@ -8,7 +8,6 @@ namespace SailwindRadio.Library
     {
         // Read bounded text headers only. Discovery must never decode audio or trust a claimed tag size.
         private const int MaximumTagBytes = 65536;
-        internal static string ReadLabel(string path) => ReadInfo(path).Label;
         internal static TrackInfo ReadInfo(string path)
         {
             bool readable;
@@ -35,6 +34,18 @@ namespace SailwindRadio.Library
                         ReadWave(stream, ref title, ref artist, ref album);
                         return new TrackInfo(path, title, artist, album);
                     }
+                    if (LibraryPaths.Comparer.Equals(extension, ".flac"))
+                    {
+                        byte[] packet = FlacMetadata.ReadVorbisCommentPacket(stream, MaximumTagBytes);
+                        if (packet != null) ReadVorbisComments(packet, ref title, ref artist, ref album);
+                        return new TrackInfo(path, title, artist, album);
+                    }
+                    if (LibraryPaths.Comparer.Equals(extension, ".m4a"))
+                    {
+                        Mp4Metadata.Read(stream, ref title, ref artist, ref album);
+                        return new TrackInfo(path, title, artist, album);
+                    }
+                    // MP3 and ADTS AAC share the leading ID3v2 and trailing ID3v1 layout.
                     var header = new byte[10];
                     if (Read(stream, header, header.Length) && header[0] == 'I' && header[1] == 'D' && header[2] == '3' &&
                         (header[3] == 3 || header[3] == 4) && header[5] == 0)
@@ -243,7 +254,7 @@ namespace SailwindRadio.Library
             }
         }
 
-        private static string Clean(string value)
+        internal static string Clean(string value)
         {
             int terminator = value.IndexOf('\0');
             if (terminator >= 0) value = value.Substring(0, terminator);

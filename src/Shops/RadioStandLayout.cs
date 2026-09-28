@@ -21,9 +21,8 @@ namespace SailwindRadio.Shops
             var position = Slots[index];
             if (island == 1)
             {
-                // Gold Rock's Wolfer stands clear of the wider native counter.
-                // The player reports a small visible gap after lowering the
-                // stall, so settle this device alone another 4 cm.
+                // Gold Rock's Wolfer stands clear of the wider native counter,
+                // 4 cm lower than the stall so its feet meet the visible ground.
                 if (index == 0) { position.x = 1.9f; position.y = -.04f; }
                 else if (nativeGoldCounter)
                 {
@@ -42,17 +41,8 @@ namespace SailwindRadio.Shops
         internal static Quaternion SlotRotation(int kind) => Quaternion.identity;
         internal static bool TryAnchor(int island, out Vector3 sceneryLocalPosition, out float yaw)
         {
-            // Gold Rock's old merchant position was local (1599.16, -434.19).
-            // Face the player's logged -126.6 degree yaw, then move the NPC
-            // .25 world metres forward and .25 left in that new facing. The
-            // later .25 m forward correction is another .5 scenery-local m.
-            // Later corrections advanced the merchant .0625 m, rotated its
-            // facing 5 degrees clockwise, shifted it .06 m right, then
-            // advanced the whole stand another .0625 m in that facing.
-            // The scenery's half scale makes each world metre two local metres.
-            // Subtract the rotated 1.04 m keeper offset to locate the stand.
-            // Fort keeps its approved facing and moves .30 m forward. Dragon
-            // Cliffs keeps its approved location and facing.
+            // Scenery-local stand anchors for Gold Rock (1), Dragon Cliffs (9) and Fort Aestrin (15).
+            // Gold Rock's scenery has half scale, so one world metre is two local metres there.
             yaw = island == 1 ? 58.4f : island == 9 ? 45f : 180f;
             sceneryLocalPosition = island == 1 ? new Vector3(1596.6110f, 3.1f, -436.3066f) :
                 island == 9 ? new Vector3(-104.6f, 2.1f, -530f) : new Vector3(-136.97f, 2.3f, 43.95f);

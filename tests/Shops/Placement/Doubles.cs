@@ -22,7 +22,6 @@ namespace UnityEngine
   public T Add<T>() where T:Component,new(){var c=new T{transform=this};Components[typeof(T)]=c;return c;}
   public T GetComponent<T>() where T:Component=>Components.TryGetValue(typeof(T),out var c)?(T)c:null;
   public T GetComponentInParent<T>() where T:Component=>GetComponent<T>()??parent?.GetComponentInParent<T>();
-  public bool IsChildOf(Transform t)=>this==t || (parent!=null&&parent.IsChildOf(t));
   public Vector3 TransformPoint(Vector3 v)=>position+rotation*Vector3.Scale(v,lossyScale);
   public Vector3 InverseTransformPoint(Vector3 v){var p=Quaternion.Inverse(rotation)*(v-position);return new(p.x/lossyScale.x,p.y/lossyScale.y,p.z/lossyScale.z);}
  }
@@ -67,4 +66,4 @@ public class IslandSceneryScene:UnityEngine.Component{public int parentIslandInd
 public class Shopkeeper:UnityEngine.Component{}
 public class ShopArea:UnityEngine.Component{public Shopkeeper Keeper;public Shopkeeper GetShopkeeper()=>Keeper;}
 public class ShipItem:UnityEngine.Component{}
-namespace SailwindRadio.Shops{public class RadioShopStock:UnityEngine.Component{} internal class RadioShopStand:UnityEngine.Component{internal bool UsesNativeGoldRockCounter {get;set;}}}
+namespace SailwindRadio.Shops{public class RadioShopStock:UnityEngine.Component{}}

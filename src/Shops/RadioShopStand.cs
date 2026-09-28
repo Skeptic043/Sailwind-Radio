@@ -70,8 +70,7 @@ namespace SailwindRadio.Shops
                 }
                 if (island == 9 && !stand.NativeDragonCliffsDeck(scenery))
                 {
-                    // The native scenery mesh is unavailable after a scene or
-                    // asset change. Keep the stand usable until that is fixed.
+                    // Plain planks stand in when the native deck mesh is not loaded.
                     for (int i = -5; i <= 7; i++)
                         stand.Board("Dragon Cliffs platform plank", new Vector3(i * .33f, -.045f, .7f), new Vector3(.31f, .09f, 3.8f),stand.platformWood);
                     for (int z = -1; z <= 1; z += 2)

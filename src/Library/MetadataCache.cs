@@ -16,7 +16,6 @@ namespace SailwindRadio.Library
         private readonly Dictionary<string, Entry> entries = new Dictionary<string, Entry>(LibraryPaths.Comparer);
         internal int Count => entries.Count;
 
-        internal string GetLabel(string path) => GetInfo(path).Label;
         internal TrackInfo GetInfo(string path)
         {
             if (!LibraryPaths.Supported(path)) return new TrackInfo(path);

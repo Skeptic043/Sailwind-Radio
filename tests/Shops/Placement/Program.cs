@@ -111,7 +111,7 @@ static class Program
         Check(MathF.Abs(dragonYaw-45f)<.01f,"approved Dragon Cliffs orientation preserved");
         var blocker = new Transform { name = "player crate" }.Add<Collider>();
         Physics.Overlap = _ => new[] { blocker };
-        Check(RadioShopPlacement.TryStand(scene, out var first, out var facing, out var reason) && reason.Contains("player crate") && reason.Contains("footprint"), "overlap diagnosed without suppressing preview");
+        Check(RadioShopPlacement.TryStand(scene, out _, out _, out var reason) && reason.Contains("player crate") && reason.Contains("footprint"), "overlap diagnosed without suppressing preview");
         Physics.Overlap = _ => Array.Empty<Collider>();
         var old = Physics.Support;
         Physics.Support = (_, _) => null;
@@ -120,14 +120,12 @@ static class Program
         Check(RadioShopPlacement.TryStand(scene, out var unlifted, out _, out reason) &&
             MathF.Abs(unlifted.y-(dragon.y+.02f))<.001f && reason.Contains("differs"),
             "nearby static prop cannot lift authored preview");
-        Physics.Support = old;
-        var stand = new Transform { position = first, rotation = facing }.Add<RadioShopStand>();
-        var board = new Transform { parent = stand.transform }.Add<Collider>();
-        Physics.Overlap = _ => new[] { board };
-        Check(RadioShopPlacement.SlotClear(stand, 0, 3, out reason) && reason == null, "own structure ignored");
-        board.transform.Add<ShipItem>();
-        Check(RadioShopPlacement.SlotClear(stand, 0, 3, out reason) && reason != null, "item overlap visible in slot diagnostic");
+        Physics.Support = (_, _) => null;
+        Physics.Overlap = _ => new[] { blocker };
+        Check(RadioShopPlacement.TryStand(scene, out _, out _, out reason) && reason.Contains("anchor, uneven") && reason.IndexOf(';') < 0,
+            "several placement reasons are joined without semicolons");
         Physics.Overlap = _ => Array.Empty<Collider>();
+        Physics.Support = old;
         for (int i = 0; i < RadioStandLayout.Slots.Length; i++)
         {
             int kind = RadioShopCatalog.StockKinds[i];

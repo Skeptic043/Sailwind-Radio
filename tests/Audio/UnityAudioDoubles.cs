@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 
 // Narrow lifecycle doubles only. No decoding, real DSP clock or audible output is simulated.
+// Unity web requests have no double. Production audio never uses them, so a reference fails to compile.
 namespace UnityEngine
 {
     public class Object
@@ -74,8 +75,6 @@ namespace UnityEngine
         public AudioLowPassFilter() { Last=this; }
         public float cutoffFrequency, lowpassResonanceQ;
     }
-    public enum AudioDataLoadState { Failed, Loaded, Loading }
-    public enum AudioType { MPEG, OGGVORBIS, WAV, UNKNOWN }
     public class AudioClip : Object
     {
         public delegate void PCMReaderCallback(float[] data);
@@ -83,35 +82,63 @@ namespace UnityEngine
         public PCMReaderCallback PcmRead;
         public PCMSetPositionCallback PcmSetPosition;
         public bool Streaming;
+        // The Unity 2019.1 editor probe measured a 0.8 s pre-read, in 2048-frame reads, each time Unity
+        // positions a streamed clip's reader. A start at sample 0 plays the creation pre-read unchanged.
+        public static double PreReadSeconds = .8;
+        public int PreReadFrom = -1;
+        public float[] PreReadData;
+        // Set by the first scheduled play. Unity rewinds a replayed stream before it plays.
+        public bool Played;
         public int samples = 480000, channels = 1;
         public int frequency = 48000;
-        public AudioDataLoadState loadState = AudioDataLoadState.Loaded;
-        public static int CreateThread;
-        public int UploadedSamples;
-        public static bool RejectUpload;
+        public static int CreateThread, Created;
+        public static bool RejectCreate;
         public static AudioClip LastCreated;
+        // Production audio never uploads PCM, so this double deliberately has no SetData.
+        // Any SetData call in src/Audio fails to compile in every harness that links it.
         public static AudioClip Create(string name, int lengthSamples, int channels, int frequency, bool stream)
         {
             CreateThread = Environment.CurrentManagedThreadId;
+            if (RejectCreate) return null;
+            if (lengthSamples <= 0 || channels < 1 || frequency <= 0) throw new ArgumentException("Invalid clip dimensions");
+            Created++;
             return LastCreated = new AudioClip { samples = lengthSamples, channels = channels, frequency = frequency, Streaming = stream };
         }
         public static AudioClip Create(string name, int lengthSamples, int channels, int frequency, bool stream,
             PCMReaderCallback read, PCMSetPositionCallback setPosition)
         {
             var clip = Create(name, lengthSamples, channels, frequency, stream);
+            if (clip == null) return null;
             clip.PcmRead = read;
             clip.PcmSetPosition = setPosition;
+            // The Unity 2019.1 editor probe saw a streamed clip seek its reader to 0 during creation.
+            if (stream && setPosition != null) { setPosition(0); clip.PreRead(0); }
             return clip;
         }
-        public bool SetData(float[] values, int offset)
+        public void Seek(int position)
         {
-            if (RejectUpload) return false;
-            if (offset * channels != UploadedSamples || UploadedSamples + values.Length > samples * channels)
-                throw new InvalidOperationException("PCM upload offset or clip dimensions are incorrect");
-            UploadedSamples += values.Length;
-            return true;
+            if (!Streaming || PcmSetPosition == null) return;
+            PcmSetPosition(position);
+            PreRead(position);
+        }
+        private void PreRead(int position)
+        {
+            if (PcmRead == null) return;
+            PreReadFrom = position;
+            int frames = (int)Math.Max(0, Math.Min(samples - position, Math.Round(frequency * PreReadSeconds)));
+            PreReadData = new float[frames * channels];
+            for (int done = 0; done < frames; done += 2048)
+            {
+                var block = new float[Math.Min(2048, frames - done) * channels];
+                PcmRead(block);
+                Array.Copy(block, 0, PreReadData, done * channels, block.Length);
+            }
         }
     }
+    // Set-position callbacks follow the Unity 2019.1 editor probe: a timeSamples write seeks a streamed
+    // clip's reader only while the source plays or is paused, PlayScheduled rewinds a stream that already
+    // played and then seeks it to a pending nonzero position, and clip assignment, Pause, UnPause and Stop
+    // never call it. Every seek pre-reads as AudioClip describes.
     public class AudioSource : Object
     {
         public static AudioSource Last;
@@ -132,7 +159,7 @@ namespace UnityEngine
                 if (Destroyed) throw new InvalidOperationException("Destroyed native AudioSource");
                 if (value < 0 || (clip != null && value >= clip.samples)) throw new ArgumentOutOfRangeException("timeSamples");
                 cursor=value;
-                if (clip != null && clip.Streaming) clip.PcmSetPosition?.Invoke(value);
+                if ((isPlaying || paused) && clip != null) clip.Seek(value);
             }
         }
         public int Schedules;
@@ -140,14 +167,23 @@ namespace UnityEngine
         public bool ThrowOnNextStop;
         public bool enabled = true, isVirtual, isPlaying;
         public int Pauses, UnPauses;
-        public void Pause() { Pauses++; isPlaying = false; }
-        public void UnPause() { UnPauses++; isPlaying = true; }
+        private bool paused;
+        public void Pause() { Pauses++; paused = isPlaying || paused; isPlaying = false; }
+        public void UnPause() { UnPauses++; paused = false; isPlaying = true; }
         public void Stop()
         {
             if (ThrowOnNextStop) { ThrowOnNextStop = false; throw new InvalidOperationException("Injected native Stop failure"); }
-            timeSamples = 0; isPlaying = false;
+            if (Destroyed) throw new InvalidOperationException("Destroyed native AudioSource");
+            cursor = 0; isPlaying = false; paused = false;
         }
-        public void PlayScheduled(double value) { Schedules++; ScheduledAt=value; isPlaying = true; }
+        public void PlayScheduled(double value)
+        {
+            Schedules++; ScheduledAt=value; isPlaying = true; paused = false;
+            if (clip == null) return;
+            if (clip.Played) clip.Seek(0);
+            if (cursor != 0) clip.Seek(cursor);
+            clip.Played = true;
+        }
     }
     public static class Mathf { public static float Clamp01(float v) { return Math.Max(0,Math.Min(v,1)); } }
     public static class AudioListener { public static bool pause; }
@@ -159,34 +195,5 @@ namespace UnityEngine
         public static event Action<bool> OnAudioConfigurationChanged;
         public static int Subscribers { get { return OnAudioConfigurationChanged == null ? 0 : OnAudioConfigurationChanged.GetInvocationList().Length; } }
         public static void Reset() { OnAudioConfigurationChanged?.Invoke(true); }
-    }
-}
-namespace UnityEngine.Networking
-{
-    public class DownloadHandlerAudioClip
-    {
-        public bool streamAudio;
-        public UnityEngine.AudioClip Content = new UnityEngine.AudioClip();
-        public static UnityEngine.AudioClip GetContent(UnityWebRequest request) { return request.downloadHandler.Content; }
-    }
-    public class UnityWebRequest : IDisposable
-    {
-        public static readonly List<UnityWebRequest> All = new List<UnityWebRequest>();
-        public bool isDone, isNetworkError, isHttpError, Aborted, Disposed;
-        public string error;
-        public DownloadHandlerAudioClip downloadHandler = new DownloadHandlerAudioClip();
-        public void SendWebRequest() { }
-        public void Abort() { Aborted = true; }
-        public void Dispose() { Disposed = true; }
-    }
-    public static class UnityWebRequestMultimedia
-    {
-        public static string LastUri;
-        public static UnityEngine.AudioType LastType;
-        public static UnityWebRequest GetAudioClip(string uri, UnityEngine.AudioType type)
-        {
-            LastUri=uri; LastType=type;
-            var result = new UnityWebRequest(); UnityWebRequest.All.Add(result); return result;
-        }
     }
 }

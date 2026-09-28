@@ -6,7 +6,7 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <AssemblyName>SailwindRadio</AssemblyName>
     <RootNamespace>SailwindRadio</RootNamespace>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
     <!-- Source ZIP builds must match checkouts without inheriting an enclosing repository's metadata. -->
@@ -37,7 +37,5 @@
     <Reference Include="UnityEngine.IMGUIModule" HintPath="$(Managed)\UnityEngine.IMGUIModule.dll" Private="false" />
     <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(Managed)\UnityEngine.TextRenderingModule.dll" Private="false" />
     <Reference Include="UnityEngine.JSONSerializeModule" HintPath="$(Managed)\UnityEngine.JSONSerializeModule.dll" Private="false" />
-    <Reference Include="UnityEngine.UnityWebRequestModule" HintPath="$(Managed)\UnityEngine.UnityWebRequestModule.dll" Private="false" />
-    <Reference Include="UnityEngine.UnityWebRequestAudioModule" HintPath="$(Managed)\UnityEngine.UnityWebRequestAudioModule.dll" Private="false" />
   </ItemGroup>
 </Project>

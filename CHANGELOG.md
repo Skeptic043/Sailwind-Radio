@@ -1,5 +1,31 @@
 # Sailwind Radio
 
+## 1.2.0
+
+### Added
+
+- FLAC playback.
+- M4A and AAC playback. These formats are turned off automatically on Steam Deck and Linux (Proton).
+
+### Fixed
+
+- OGG tracks no longer freeze the game for about half a second when they start or are prepared as the next track.
+- Long OGG files can now play.
+- Starting any track should no longer cause a small frame hitch, and very long MP3s start almost immediately.
+- WAV files longer than about 12 minutes now play instead of failing to decode.
+- 1.1 accidentally removed the ability for the radio to hang on hooks, which has now been restored.
+- A valid long track is no longer skipped as broken when selected while the radio is still preparing it.
+- An error in one radio no longer stops the whole mod. The radio skips to its next track, and turns itself off if it keeps failing.
+
+### Changed
+
+- Every format now streams from disk.
+- WAV files support more variants, including 24-bit and 32-bit float. 
+- Files the radio cannot play are skipped with a log line naming the file.
+- Removed routine shop and save-loading warnings from the log. 
+- The pause button no longer turns a radio on from an off state.
+- The startup log line now reports how many music folders are configured, and only asks you to set MusicFolders when none are already set.
+
 ## 1.1.0
 
 ### Changed
