@@ -1,5 +1,11 @@
 # Sailwind Radio
 
+## 1.2.1
+
+### Fixed
+
+- Radios and speakers now use the game's normal purchase flow. This fixes Radio/Speaker controls not working when purchased with the [Economy Overhaul](https://github.com/DogEggz01/EconomyOverhaul) mod enabled.
+
 ## 1.2.0
 
 ### Added

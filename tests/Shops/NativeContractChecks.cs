@@ -7,9 +7,8 @@ internal static class NativeContractChecks
     {
         try
         {
-            var sale=typeof(Shopkeeper).GetMethod("SellItem",BindingFlags.Instance|BindingFlags.NonPublic,null,new[]{typeof(ShipItem),typeof(int),typeof(int)},null);
             var sell=typeof(ShipItem).GetMethod("Sell",Type.EmptyTypes);
-            if(!NativeShopContract.Supports(sale,sell)) throw new Exception("Installed native ownership/charge order is unsupported");
+            if(!NativeShopContract.SupportsOwnership(sell)) throw new Exception("Installed native ownership/registration order is unsupported");
             if(typeof(ShopItemSpawner).GetField("priceMult").FieldType!=typeof(float)) throw new Exception("Native price multiplier changed");
             if(typeof(SaveablePrefab).GetMethod("RegisterToSave",Type.EmptyTypes)==null)throw new Exception("Native registration unavailable");
             var enterBoat=typeof(ShipItem).GetMethod("EnterBoat",BindingFlags.Instance|BindingFlags.NonPublic,null,new[]{typeof(UnityEngine.Collider)},null);

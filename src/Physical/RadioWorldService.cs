@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace SailwindRadio.Physical
 {
-    public sealed class RadioWorldService : IDisposable
+    public sealed partial class RadioWorldService : IDisposable
     {
         public const string DonorName = "138 model ship junk (small)";
         private static RadioWorldService active;
@@ -82,55 +82,6 @@ namespace SailwindRadio.Physical
             }
         }
 
-        internal bool ReservePurchase(RadioItemController controller)
-        {
-            if (!ReadyForShop || !controller || items.Contains(controller)) return false;
-            var item = controller.GetComponent<ShipItem>();
-            var saveable = controller.GetComponent<SaveablePrefab>();
-            if (!item || item.sold || !saveable || saveable.instanceId != 0 || !TryGetTemplate(controller.State.Kind, out _) ||
-                saveable.prefabIndex != RadioSaveStore.ItemIndex(controller.State.Kind) || saveable.GetType() != typeof(SaveablePrefab)) return false;
-            try
-            {
-                // Native RegisterToSave accepts a preassigned ID. Exclude both its live/cached IDs and
-                // retained mod records. Nothing is registered as a native owned item before Sell.
-                saveable.instanceId = ShopPurchaseReservation.Reserve(store, arbiter, controller.State,
-                    () => UnityEngine.Random.Range(1, int.MaxValue),
-                    IdUsed);
-                return true;
-            }
-            catch (Exception error)
-            {
-                warn("Radio purchase unavailable: " + error.Message);
-                return false;
-            }
-        }
-
-        internal bool FinishPurchase(RadioItemController controller)
-        {
-            if (!controller) return false;
-            var item = controller.GetComponent<ShipItem>();
-            var prefab = controller.GetComponent<SaveablePrefab>();
-            bool registered = manager && manager == SaveLoadManager.instance && manager.GetCurrentPrefabs().Contains(prefab);
-            if (!item.sold || !registered)
-            {
-                ShopPurchaseReservation.Cancel(store, arbiter, prefab.instanceId);
-                if (item.sold)
-                {
-                    // Sell marks sold before RegisterToSave. A failed registration is not ownership.
-                    // Remove partial native registration rather than leave an item that cannot be saved.
-                    prefab.Unregister();
-                    UnityEngine.Object.Destroy(controller.gameObject);
-                }
-                prefab.instanceId = 0;
-                return false;
-            }
-            // The state was fully validated and reserved before native Sell. Keep ownership even if
-            // an unrelated native UI callback throws after registration, rather than lose a paid item.
-            controller.RefreshOwnership();
-            if (!items.Contains(controller)) items.Add(controller);
-            return true;
-        }
-
         public RadioWorldService(Harmony harmony, Action<string> warn)
         {
             if (active != null)
@@ -187,42 +138,6 @@ namespace SailwindRadio.Physical
         }
 
         private static void DirectoryPrefix(PrefabsDirectory __instance) => Guard(() => active.EnsureTemplates(__instance));
-
-        private static bool RegisterPrefix(SaveablePrefab __instance, ref bool __state)
-        {
-            __state = false;
-            if (active == null || active.disposed) return true;
-            if (active.loading && !active.loadingPrefabs.Contains(__instance))
-            {
-                var marker = __instance ? __instance.GetComponent<RadioTemplateMarker>() : null;
-                var item = __instance ? __instance.GetComponent<ShipItem>() : null;
-                if (marker && item && item.sold && __instance.GetComponent<RadioItemController>())
-                {
-                    if (!active.pendingRegistrations.Contains(__instance)) active.pendingRegistrations.Add(__instance);
-                    return false;
-                }
-            }
-            if (active.loading) return true;
-            try { return active.PrepareRegistration(__instance, out __state); }
-            catch (Exception error) { active.warn("Radio item registration refused: " + error.Message); return false; }
-        }
-
-        private static void RegisterPostfix(SaveablePrefab __instance)
-        {
-            Guard(() => active.CompleteRegistration(__instance));
-        }
-
-        private static Exception RegisterFinalizer(SaveablePrefab __instance, bool __state, Exception __exception)
-        {
-            if (__exception != null && __state && active != null && !active.disposed)
-            {
-                try { __instance.Unregister(); } catch { }
-                active.store.Remove(__instance.instanceId);
-                active.arbiter.Remove(__instance.instanceId);
-                __instance.instanceId = 0;
-            }
-            return __exception;
-        }
 
         private void TryPatchControlHover()
         {
@@ -432,7 +347,10 @@ namespace SailwindRadio.Physical
                 if (!items[i])
                     items.RemoveAt(i);
                 else
+                {
+                    ReconcileShopOwnership(items[i]);
                     items[i].Tick();
+                }
             }
         }
 
@@ -599,78 +517,6 @@ namespace SailwindRadio.Physical
             prefab.enabled = true;
             var controller = marker.gameObject.AddComponent<RadioItemController>();
             controller.Initialize(this, new RadioState { Kind = kind, Volume = kind == 0 ? .5f : .75f, TrackPath = "" });
-        }
-
-        private bool PrepareRegistration(SaveablePrefab prefab, out bool created)
-        {
-            created = false;
-            if (!prefab || loadingPrefabs.Contains(prefab) || !RadioSaveStore.IsItemIndex(prefab.prefabIndex)) return true;
-            var marker = prefab.GetComponent<RadioTemplateMarker>();
-            var controller = prefab.GetComponent<RadioItemController>();
-            var item = prefab.GetComponent<ShipItem>();
-            if (!marker) return true;
-            if (!controller || controller.State == null || !item || !item.sold || marker.Kind != controller.State.Kind ||
-                prefab.prefabIndex != RadioSaveStore.ItemIndex(marker.Kind) ||
-                !IsTemplateInstanceName(prefab.gameObject.name, marker.Kind)) return false;
-            if (items.Contains(controller)) return true;
-            if (!store.Writable) return false;
-            if (manager != SaveLoadManager.instance) Tick();
-            var stock = prefab.GetComponent<RadioShopStock>();
-            if (prefab.instanceId > 0 && stock && stock.Reserved && stock.Controller == controller &&
-                store.TryGet(prefab.instanceId, prefab.prefabIndex, out _)) return true;
-            int id = prefab.instanceId;
-            if (id <= 0 || IdUsed(id))
-            {
-                id = 0;
-                for (int attempt = 0; attempt < 64; attempt++)
-                {
-                    int candidate = UnityEngine.Random.Range(1, int.MaxValue);
-                    if (!IdUsed(candidate)) { id = candidate; break; }
-                }
-                if (id == 0) return false;
-            }
-            prefab.instanceId = id;
-            try
-            {
-                store.Put(RadioRecord.Capture(id, prefab.prefabIndex, controller.State));
-                store.Save();
-                arbiter.Register(id, controller.State);
-                created = true;
-                return true;
-            }
-            catch
-            {
-                store.Remove(id);
-                arbiter.Remove(id);
-                prefab.instanceId = 0;
-                throw;
-            }
-        }
-
-        private bool IdUsed(int id)
-        {
-            if (store.TryGetAny(id, out _) || arbiter.TryGet(id, out _) ||
-                (SaveablePrefab.existingInstanceIds != null && SaveablePrefab.existingInstanceIds.Contains(id))) return true;
-            if (!manager) return false;
-            foreach (var live in manager.GetCurrentPrefabs()) if (live && live.instanceId == id) return true;
-            foreach (var obj in manager.GetCurrentObjects())
-                if (obj && obj.localItems && obj.localItems.HasLocalItems())
-                    foreach (var cached in obj.localItems.GetCachedItems()) if (cached.instanceId == id) return true;
-            return false;
-        }
-
-        private void CompleteRegistration(SaveablePrefab prefab)
-        {
-            // SaveablePrefab.Load calls RegisterToSave before our Load postfix can bind
-            // the controller to its persisted arbiter state.
-            if (loading || !prefab || loadingPrefabs.Contains(prefab) || !manager ||
-                !manager.GetCurrentPrefabs().Contains(prefab)) return;
-            var controller = prefab.GetComponent<RadioItemController>();
-            if (!controller || controller.State == null || !RadioSaveStore.IsItemIndex(prefab.prefabIndex) ||
-                prefab.prefabIndex != RadioSaveStore.ItemIndex(controller.State.Kind) ||
-                !store.TryGet(prefab.instanceId, prefab.prefabIndex, out _)) return;
-            controller.RefreshOwnership();
-            if (!items.Contains(controller)) items.Add(controller);
         }
 
         private bool Convert(SaveablePrefab saveable, RadioState state, bool migratedLegacy = false)
@@ -927,16 +773,6 @@ namespace SailwindRadio.Physical
             if (deferrals.Defer(id, Time.unscaledTime, GameState.loadingBoatLocalItems || GameState.currentlyLoading))
                 warn("A saved radio device was not restored because another item uses its item ID " + id);
             return false;
-        }
-
-        private IEnumerable<int> NativeOwnerIds()
-        {
-            foreach (var live in manager.GetCurrentPrefabs())
-                if (live) yield return live.instanceId;
-            foreach (var obj in manager.GetCurrentObjects())
-                if (obj && obj.localItems && obj.localItems.HasLocalItems())
-                    foreach (var cached in obj.localItems.GetCachedItems())
-                        if (cached != null) yield return cached.instanceId;
         }
 
         // Exceptions must never interrupt the game's save/load call or suppress its original body.

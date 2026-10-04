@@ -8,7 +8,7 @@ using SailwindRadio.Persistence;
 using SailwindRadio.Playback;
 using UnityEngine;
 
-static class Program
+static partial class Program
 {
     static int checks;
     static void Check(bool value,string name){checks++;if(!value)throw new Exception(name);}
@@ -20,38 +20,11 @@ static class Program
     }
     static void Run()
     {
-        var store=new RadioSaveStore();var arbiter=new GlobalRadioArbiter();
-        store.Put(RadioRecord.Capture(10,138,new RadioState{Powered=true,PositionSeconds=22}));arbiter.Reset(store.Records);
-        int sequence=8;
-        int id=ShopPurchaseReservation.Reserve(store,arbiter,new RadioState{Kind=3,Bass=.8f},()=>sequence++,n=>n==8||n==9);
-        Check(id==11,"reservation skips native and cached IDs");
-        Check(arbiter.ActiveId==10,"unsold reservation cannot displace active radio");
-        Check(store.TryGet(id,RadioSaveStore.ItemIndex(3),out var record)&&record.Kind==3&&record.Bass==.8f,"canonical state reserved before native charge");
-        Check(new RadioSaveStore().Load(store.Save()),"reserved data readable");
-        ShopPurchaseReservation.Cancel(store,arbiter,id);
-        Check(!store.TryGet(id,138,out _)&&!arbiter.TryGet(id,out _),"cancel removes all provisional ownership");
-        Check(store.TryGet(10,138,out var prior)&&prior.PositionSeconds==22,"cancel preserves existing cached state");
-        int tries=0;Reject(()=>ShopPurchaseReservation.Reserve(store,arbiter,new RadioState(),()=>{tries++;return 10;},_=>false),"duplicate IDs bounded failure");
-        Check(tries==64,"ID retry cap");
-        store.Put(RadioRecord.Capture(77,RadioSaveStore.ItemIndex(0),new RadioState{Kind=0,Volume=.5f}));
-        Reject(()=>ShopPurchaseReservation.Reserve(store,arbiter,new RadioState{Kind=1},()=>77,_=>false),
-            "reservation excludes retained registered Radio IDs as well as legacy donors");
-        store.Remove(77);
-        Reject(()=>ShopPurchaseReservation.Reserve(store,arbiter,new RadioState{Volume=float.NaN},()=>12,_=>false),"invalid data fails precharge");
-        Check(!store.TryGet(12,138,out _)&&!arbiter.TryGet(12,out _),"invalid reservation no residue");
-        var future=new RadioSaveStore();future.Load("{\"Schema\":999,\"Radios\":[]}");
-        Reject(()=>ShopPurchaseReservation.Reserve(future,new GlobalRadioArbiter(),new RadioState(),()=>1,_=>false),"future schema blocks purchase");
-        Check(!future.Writable,"future data remains closed");
-        var full=new RadioSaveStore();for(int i=1;i<=RadioSaveStore.MaximumRecords;i++)full.Put(RadioRecord.Capture(i,138,new RadioState()));
-        Reject(()=>ShopPurchaseReservation.Reserve(full,new GlobalRadioArbiter(),new RadioState(),()=>9999,_=>false),"record capacity checked precharge");
-        Check(full.Records.Count()==RadioSaveStore.MaximumRecords,"capacity rejection keeps existing records");
-        var large=new RadioSaveStore();for(int i=1;i<=130;i++)large.Put(RadioRecord.Capture(i,138,new RadioState{TrackPath=new string('x',32768)}));
-        Reject(()=>ShopPurchaseReservation.Reserve(large,new GlobalRadioArbiter(),new RadioState(),()=>9999,_=>false),"full JSON size checked precharge");
-        Check(!large.TryGet(9999,138,out _),"oversized reservation rolled back");
+        PurchaseChecks();
         var clock=new ShopRestock();Check(clock.Ready,"new slot ready");clock.Spawned();Check(!clock.Ready,"occupied no duplicate");clock.Removed();clock.Removed();clock.Tick(119);Check(!clock.Ready,"restock waits120 simulationseconds");clock.Tick(float.NaN);clock.Tick(float.PositiveInfinity);clock.Tick(-1);Check(!clock.Ready,"badtime ignored");clock.Tick(1);Check(clock.Ready,"restock readyat120");
-        var sale=typeof(Shopkeeper).GetMethod("SellItem",BindingFlags.Instance|BindingFlags.NonPublic);var sell=typeof(ShipItem).GetMethod("Sell");
-        Check(NativeShopContract.Supports(sale,sell),"native order contract accepts sell before currency");
-        Check(!NativeShopContract.Supports(typeof(Shopkeeper).GetMethod("UnsafeSale",BindingFlags.Instance|BindingFlags.NonPublic),sell),"native order contract rejects charge before sell");
+        var sell=typeof(ShipItem).GetMethod("Sell");
+        Check(NativeShopContract.SupportsOwnership(sell),"native ownership contract accepts sold before registration");
+        Check(!NativeShopContract.SupportsOwnership(typeof(Shopkeeper).GetMethod("UnsafeSale",BindingFlags.Instance|BindingFlags.NonPublic)),"ownership contract rejects unrelated method");
         var correct=typeof(RadioShopService).GetMethod("CorrectRegion",BindingFlags.Static|BindingFlags.NonPublic);
         Check((bool)correct.Invoke(null,new object[]{new Region{portRegion=PortRegion.alankh},1}),"Gold Rock maps to Al'Ankh currency");
         Check((bool)correct.Invoke(null,new object[]{new Region{portRegion=PortRegion.emerald},9}),"Dragon Cliffs maps to Emerald currency");
@@ -69,7 +42,7 @@ static class Program
         Check(findRegion.Invoke(null,new object[]{new Vector3(),9})==null,"ambiguous nearby same-currency regions cannot be chosen arbitrarily");
         UnityEngine.Physics.Nearby=Array.Empty<Collider>();
         Lifecycle();
-        Console.WriteLine(checks+" production shop reservation, callback and restock checks passed. Native physics and buying UI remain live checks.");
+        Console.WriteLine(checks+" production native ownership, shop callback and restock checks passed. Native physics and buying UI remain live checks.");
     }
     static object Call(string method,params object[] args)=>typeof(RadioShopService).GetMethod(method,BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,args);
     static void Lifecycle()
@@ -86,33 +59,16 @@ static class Program
             Check(item.transform.parent==stock.Anchor,"native hover pricing sees repaired direct anchor");
             item.held=true;item.transform.position=new Vector3(3,0,0);Call("BeforePrice",item);
             Check(item.Returns==1&&!item.held,"held stock beyond1.8m uses native return");
-            Check(!(bool)Call("BeforePurchase",new GameObject().AddComponent<Shopkeeper>(),item),"wrong keeper cannot purchase");
-            world.ReadyForShop=false;Check(!(bool)Call("BeforePurchase",keeper,item),"loading blocks purchase");world.ReadyForShop=true;
-            Check((bool)Call("BeforePurchase",keeper,item)&&stock.Reserved,"purchase reserves before native callback");
-            Check(world.Store.Records.Count()==1&&!item.sold&&!item.GetComponent<SaveablePrefab>().registered,"unsold reservation not native registered");
-            Check(!(bool)Call("BeforePurchase",keeper,item),"duplicate purchase blocked");
-            Call("AfterPurchase",item,null);Check(!stock.Reserved&&world.Store.Records.Count()==0&&item.GetComponent<SaveablePrefab>().instanceId==0,"skipped native body cancels reservation");
-            Check((bool)Call("BeforePurchase",keeper,item),"cancelled stock purchasable again");
-            item.Sell();Call("AfterNativeSell",item);
+            world.ReadyForShop=false;Reject(()=>item.Sell(),"loading blocks native stock sale");world.ReadyForShop=true;
+            area.itemsForSale.Remove(item);item.Sell();
             Check(stock.Purchased&&!controller.IsStock&&controller.InstanceId>0,"native sale promotes existing controller");
             Check((bool)Call("BeforeEnterBoat",item),"owned purchased item can board boat");
             Check(item.GetComponent<SaveablePrefab>().registered,"native sale owns stable registration");
-            var error=new Exception("native UI failed");Check(ReferenceEquals(Call("AfterPurchase",item,error),error),"native exception preserved");
-            Check(world.Store.Records.Count()==1&&!stock.Reserved,"post-registration error retains canonical owned item");
-            Check(!(bool)Call("BeforePurchase",keeper,item),"sold item cannot be charged twice");
+            Reject(()=>item.Sell(),"sold stock cannot be sold twice");
             var failed=world.CreateShopStock(root.transform,default,default,0);var failedItem=failed.GetComponent<ShipItem>();var failedStock=failed.gameObject.AddComponent<RadioShopStock>();
             failedStock.Service=service;failedStock.Shop=area;failedStock.Controller=failed;failedStock.PurchaseEnabled=true;
-            Check((bool)Call("BeforePurchase",keeper,failedItem),"second stock can reserve");
-            failedItem.sold=true;Call("AfterPurchase",failedItem,new Exception("registration failed"));
-            Check(!failedStock.Purchased&&world.Store.Records.Count()==1,"sold flag without native registration never promotes orphan record");
-            var noOp=world.CreateShopStock(root.transform,default,default,0);var noOpItem=noOp.GetComponent<ShipItem>();var noOpStock=noOp.gameObject.AddComponent<RadioShopStock>();
-            noOpStock.Service=service;noOpStock.Shop=area;noOpStock.Controller=noOp;noOpStock.PurchaseEnabled=true;
-            Check((bool)Call("BeforePurchase",keeper,noOpItem),"no-op registration fixture reserves");noOpItem.sold=true;
-            Exception cancellation=null;
-            try{Call("AfterNativeSell",noOpItem);}catch(TargetInvocationException e){cancellation=e.InnerException;}
-            Check(cancellation!=null&&!noOpStock.Purchased,"silent registration failure aborts before currency code");
-            Check(Call("AfterPurchase",noOpItem,cancellation)==null,"controlled abort cleanup suppresses only own cancellation");
-            var unrelated=new GameObject().AddComponent<ShipItem>();Check((bool)Call("BeforePurchase",keeper,unrelated),"unrelated native stock unchanged");
+            SaveablePrefab.SkipNative=true;Reject(()=>failedItem.Sell(),"silent registration skip rejects native sale");SaveablePrefab.SkipNative=false;
+            Check(!failedStock.Purchased&&failedItem.sold&&!failed.gameObject.Destroyed,"incomplete sold object preserved without fake ownership");
             Region.DefaultPortRegion=PortRegion.none;
             var scenery = root.AddComponent<IslandSceneryScene>();scenery.parentIslandIndex=9;
             var template=new GameObject("shopkeeper (3)");template.transform.SetParent(scenery.transform,false);
@@ -242,11 +198,11 @@ static class Program
             foreign.GetComponent<ShipItem>().held=true;
             Check(!(bool)Call("BeforeKeeperEnter",ownArea.GetShopkeeper(),foreignCollider),
                 "owned resale callback remains local to its counter");
-            Check(!(bool)Call("BeforePurchase",ownArea.GetShopkeeper(),ownedStock),"Radio purchase cannot be made three stalls away");
+            Reject(()=>ownedStock.Sell(),"Radio purchase cannot be made three stalls away");
             Camera.main.transform.position=previewAnchor;
-            Check((bool)Call("BeforePurchase",ownArea.GetShopkeeper(),ownedStock),"native merchant can purchase ready radio stock");
-            Check(world.Store.Records.Count()==recordsBeforeGate+1&&!ownedStock.sold,"purchase reserves before native sale");
-            Call("AfterPurchase",ownedStock,null);
+            ownArea.itemsForSale.Remove(ownedStock);ownedStock.Sell();
+            Check(ownedStock.sold&&ownedStock.GetComponent<RadioShopStock>().Purchased,"native sale owns ready stock");
+            Check(world.Store.Records.Count()==recordsBeforeGate+1,"native registration adds one owned record");
             Check(warnings.Count==0,"normal setup, partial stock and restocking log nothing: "+string.Join(" | ",warnings));
             GameState.currentlyLoading=true;service.Tick();GameState.currentlyLoading=false;
             Check(GameObject.All.Where(g=>g.name=="test stand").All(g=>g.Destroyed),"world load cleans up unsold preview");

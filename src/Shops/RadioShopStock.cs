@@ -10,7 +10,7 @@ namespace SailwindRadio.Shops
         internal ShopArea Shop;
         internal RadioItemController Controller;
         internal Transform Anchor;
-        internal bool Reserved;
+        internal bool Selling;
         internal bool Purchased;
         // Enabled only while native region, economy, UI and save preflight are ready.
         internal bool PurchaseEnabled=false;

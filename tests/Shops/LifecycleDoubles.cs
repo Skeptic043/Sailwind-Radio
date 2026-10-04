@@ -1,6 +1,7 @@
 // API doubles for production shop lifecycle and purchase callbacks. Not Unity physics acceptance.
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using SailwindRadio.Persistence;
 using SailwindRadio.Playback;
 using SailwindRadio.Shops;
@@ -125,6 +126,7 @@ namespace UnityEngine
         public static void SyncTransforms(){}
         public static Collider[] OverlapSphere(Vector3 p,float radius,int mask,QueryTriggerInteraction query)=>Nearby;
     }
+    public static class Random { public static int Next=10; public static Func<int> Source; public static int Range(int min,int max)=>Source!=null?Source():Next++; }
     public static class Time { public static float unscaledTime,deltaTime; }
 }
 namespace HarmonyLib
@@ -137,11 +139,64 @@ namespace HarmonyLib
     }
     public class HarmonyMethod { public HarmonyMethod(Type type,string name){} }
 }
-public class SaveLoadManager:UnityEngine.Object { public static SaveLoadManager instance=new(); }
+public class SaveLoadManager:UnityEngine.Object
+{
+    public static SaveLoadManager instance=new();
+    public readonly List<SaveablePrefab> Prefabs=new();
+    public readonly List<NativeObject> Objects=new();
+    public List<SaveablePrefab> GetCurrentPrefabs()=>Prefabs;
+    public List<NativeObject> GetCurrentObjects()=>Objects;
+}
+public class NativeObject:UnityEngine.Object { public LocalItems localItems; }
+public class LocalItems:UnityEngine.Object
+{
+    public readonly List<SaveablePrefab> Cached=new();
+    public bool HasLocalItems()=>Cached.Count>0;
+    public List<SaveablePrefab> GetCachedItems()=>Cached;
+}
 public class IslandSceneryScene:UnityEngine.Component { public int parentIslandIndex; }
 public static class GameState { public static bool currentlyLoading,playing=true; public static int loadingScenes; public static UnityEngine.Transform World=new UnityEngine.GameObject("world").transform; }
 public class Sun:UnityEngine.Object { public static Sun sun=new();public float localTime=12; }
-public class SaveablePrefab:UnityEngine.Component { public int instanceId;public bool registered; public void RegisterToSave(){registered=true;} }
+public class SaveablePrefab:UnityEngine.Component
+{
+    public static readonly List<int> existingInstanceIds=new();
+    public static bool SkipNative;
+    public static Action<SaveablePrefab> BeforeNative,AfterIdAdded,AfterNative;
+    public int instanceId,prefabIndex;public bool registered;
+    public void RegisterToSave()
+    {
+        object[] prefix={this,null};Exception error=null;
+        try
+        {
+            if((bool)Callbacks.World("RegisterPrefix",prefix))
+            {
+                BeforeNative?.Invoke(this);
+                if(!SkipNative&&!registered)
+                {
+                    existingInstanceIds.Add(instanceId);
+                    AfterIdAdded?.Invoke(this);
+                    SaveLoadManager.instance.Prefabs.Add(this);
+                    AfterNative?.Invoke(this);
+                    registered=true;
+                }
+            }
+            Callbacks.World("RegisterPostfix",this);
+        }
+        catch(Exception e){error=e;}
+        error=(Exception)Callbacks.World("RegisterFinalizer",this,prefix[1],error);
+        if(error!=null)throw error;
+    }
+}
+public static class Callbacks
+{
+    static object Call(Type type,string method,object[] args)
+    {
+        try{return type.GetMethod(method,BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,args);}
+        catch(TargetInvocationException e){throw e.InnerException;}
+    }
+    public static object Shop(string method,params object[] args)=>Call(typeof(SailwindRadio.Shops.RadioShopService),method,args);
+    public static object World(string method,params object[] args)=>Call(typeof(SailwindRadio.Physical.RadioWorldService),method,args);
+}
 public static class PlayerGold { public static int[] currency={10000,10000,10000,10000}; }
 public static class PlayerReputation { public static float[] retailDiscounts={0,0,0,0}; }
 public class CurrencyMarket:UnityEngine.Object { public static CurrencyMarket instance=new(); }
@@ -160,8 +215,32 @@ public class ShipItem:UnityEngine.Component
     public int Returns;
     public void ReturnToShopPos(){held=false;Returns++;}
     private void EnterBoat(UnityEngine.Collider collider){}
-    public void Sell(){sold=true;transform.SetParent(GameState.World,true);GetComponent<SaveablePrefab>().RegisterToSave();}
-    public void AddToShop(ShopArea area){area.itemsForSale.Add(this);}
+    public static bool SkipSell;
+    public static Action<ShipItem> BeforeBody,AfterOwnership,AfterRegister;
+    public int OnBuyCount;
+    public void Sell()
+    {
+        object[] prefix={this,false};Exception error=null;
+        try
+        {
+            Callbacks.Shop("BeforeNativeSell",prefix);
+            BeforeBody?.Invoke(this);
+            if(!SkipSell)
+            {
+                sold=true;
+                transform.SetParent(GameState.World,true);
+                AfterOwnership?.Invoke(this);
+                GetComponent<SaveablePrefab>().RegisterToSave();
+                AfterRegister?.Invoke(this);
+                OnBuyCount++;
+            }
+        }
+        catch(Exception e){error=e;}
+        error=(Exception)Callbacks.Shop("AfterNativeSell",this,prefix[1],error);
+        if(error!=null)throw error;
+    }
+    private ShopArea shopArea;
+    public void AddToShop(ShopArea area){if(!shopArea){area.itemsForSale.Add(this);shopArea=area;}}
 }
 public class Shopkeeper:UnityEngine.Component
 {
@@ -200,30 +279,44 @@ namespace SailwindRadio.Physical
     {
         public RadioState State=new();public bool IsStock;public int InstanceId;
         public void SetShopStock(bool value){IsStock=value;}
+        public void RefreshOwnership(){InstanceId=GetComponent<SaveablePrefab>().instanceId;}
+        public void ApplyRestoredState(RadioWorldService owner,RadioState state){State=state;RefreshOwnership();}
     }
-    public class RadioWorldService
+    public class RadioTemplateMarker:UnityEngine.Component { public int Kind; }
+    public sealed partial class RadioWorldService
     {
+        private static RadioWorldService active;
+        private bool disposed=false;
+        private bool loading=false;
+        private readonly HashSet<SaveablePrefab> loadingPrefabs=new();
+        private readonly List<SaveablePrefab> pendingRegistrations=new();
+        private readonly List<RadioItemController> items=new();
+        private SaveLoadManager manager=SaveLoadManager.instance;
+        private readonly RadioSaveStore store=new();
+        private readonly GlobalRadioArbiter arbiter=new();
+        public readonly List<string> Warnings=new();
+        private Action<string> warn;
         public bool ReadyForShop=true,ReadyToStageShop=true;
-        public RadioSaveStore Store=new();internal GlobalRadioArbiter Arbiter=new();public int NextId=10,Finishes;
+        public RadioSaveStore Store=>store;
+        internal GlobalRadioArbiter Arbiter=>arbiter;
+        public IReadOnlyList<RadioItemController> Items=>items;
         public int StockBudget=-1;
+        public RadioWorldService(){active=this;warn=Warnings.Add;}
+        public void Tick(){foreach(var item in items.ToArray())ReconcileShopOwnership(item);}
+        private static void Guard(Action action){try{action();}catch{}}
+        internal static bool IsTemplateInstanceName(string name,int kind)=>name=="Sailwind Radio item "+RadioSaveStore.ItemIndex(kind);
+        public void Loading(bool value){loading=value;}
+        public void LoadingPrefab(SaveablePrefab prefab,bool value){if(value)loadingPrefabs.Add(prefab);else loadingPrefabs.Remove(prefab);}
+        public int PendingCount=>pendingRegistrations.Count;
+        public void ReplayPending(){foreach(var p in pendingRegistrations)p.RegisterToSave();pendingRegistrations.Clear();}
         public RadioItemController CreateShopStock(UnityEngine.Transform parent,UnityEngine.Vector3 pos,UnityEngine.Quaternion rot,int kind)
         {
             if(!ReadyToStageShop||StockBudget==0)return null;
             if(StockBudget>0)StockBudget--;
-            var go=new UnityEngine.GameObject();go.transform.SetParent(parent,true);go.AddComponent<ShipItem>();go.AddComponent<SaveablePrefab>();
+            var go=new UnityEngine.GameObject("Sailwind Radio item "+RadioSaveStore.ItemIndex(kind));go.transform.SetParent(parent,true);go.AddComponent<ShipItem>();
+            go.AddComponent<SaveablePrefab>().prefabIndex=RadioSaveStore.ItemIndex(kind);
+            go.AddComponent<RadioTemplateMarker>().Kind=kind;
             var c=go.AddComponent<RadioItemController>();c.State.Kind=kind;return c;
-        }
-        public bool ReservePurchase(RadioItemController c)
-        {
-            if(!ReadyForShop||c.GetComponent<ShipItem>().sold)return false;
-            try {c.GetComponent<SaveablePrefab>().instanceId=ShopPurchaseReservation.Reserve(Store,Arbiter,c.State,()=>NextId++,i=>false);return true;}catch{return false;}
-        }
-        public bool FinishPurchase(RadioItemController c)
-        {
-            Finishes++;
-            if(c.GetComponent<ShipItem>().sold&&c.GetComponent<SaveablePrefab>().registered){c.InstanceId=c.GetComponent<SaveablePrefab>().instanceId;return true;}
-            ShopPurchaseReservation.Cancel(Store,Arbiter,c.GetComponent<SaveablePrefab>().instanceId);c.GetComponent<SaveablePrefab>().instanceId=0;
-            return false;
         }
     }
 }

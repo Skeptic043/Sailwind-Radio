@@ -5,7 +5,7 @@ using System.Reflection.Emit;
 
 namespace SailwindRadio.Shops
 {
-    // Fail closed if a game update moves charging ahead of the native ownership transition.
+    // Verify the shared native ownership boundary without depending on a merchant wrapper.
     internal static class NativeShopContract
     {
         internal static bool KeeperReady(ShopArea area)
@@ -21,18 +21,14 @@ namespace SailwindRadio.Shops
             internal OpCode Code;
             internal MemberInfo Member;
         }
-        internal static bool Supports(MethodInfo sale, MethodInfo sell)
+        internal static bool SupportsOwnership(MethodInfo sell)
         {
             try
             {
-                var owner = Read(sell);
-                int sold = owner.FindIndex(i=>i.Code==OpCodes.Stfld && i.Member?.Name=="sold" && i.Member.DeclaringType==typeof(ShipItem));
-                int register = owner.FindIndex(i=>i.Member is MethodInfo m && m.DeclaringType==typeof(SaveablePrefab) && m.Name=="RegisterToSave");
-                var transaction = Read(sale);
-                int ownership = transaction.FindIndex(i=>Equals(i.Member,sell));
-                int currency = transaction.FindIndex(i=>i.Member is FieldInfo f && f.DeclaringType==typeof(PlayerGold) && f.Name=="currency");
-                int charge = transaction.FindIndex(i=>i.Code==OpCodes.Stelem_I4 || i.Code==OpCodes.Stind_I4);
-                return sold>=0 && register>sold && ownership>=0 && currency>ownership && charge>currency;
+                var owner=Read(sell);
+                int sold=owner.FindIndex(i=>i.Code==OpCodes.Stfld && i.Member?.Name=="sold" && i.Member.DeclaringType==typeof(ShipItem));
+                int register=owner.FindIndex(i=>i.Member is MethodInfo m && m.DeclaringType==typeof(SaveablePrefab) && m.Name=="RegisterToSave");
+                return sold>=0 && register>sold;
             }
             catch { return false; }
         }
