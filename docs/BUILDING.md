@@ -17,11 +17,13 @@ NuGet restores the pinned NLayer 1.16.0 decoder and target-framework reference p
 
 `Package.ps1` writes a local test ZIP, a source ZIP, and a separate Thunderstore-ready ZIP containing only the player-facing release files, the plugin, and its decoder. Creating a ZIP does not upload or publish it.
 
+Use a complete ZIP for player testing. Keep `NLayer.dll` beside `SailwindRadio.dll` in `BepInEx/plugins/SailwindRadio/`, even when only the plugin changed. A standalone plugin DLL cannot decode MP3 files without its pinned decoder.
+
 The checked-in `assets/runtime/radio-items.assets` contains the four registered item prefabs. A normal build embeds this bundle and does not require the Unity editor. To regenerate it, run `tools/ItemBundle/BuildItemBundle.ps1` with a licensed Unity 2019.1.10f1 editor. An optional [Unity editor audio probe](../tests/Audio/UNITY-PROBE.md) is retained separately.
 
 If Unity 2019.1.10f1 is installed, `tests/Audio/Run-MonoAudioChecks.ps1`, `tests/Flac/Run-MonoFlacChecks.ps1`, `tests/Vorbis/Run-MonoVorbisChecks.ps1` and `tests/Library/Run-MonoLibraryChecks.ps1` run the console checks under its Mono runtime without launching the editor or game. Override `-MonoRoot` for another installation. The audio checks still use doubles for Unity audio objects.
 
-`tests/Shops/Run-NativeContractChecks.ps1` uses that Mono host to inspect the installed game's ownership-before-registration ordering and required shop members. Pass `-GameDir` and `-MonoRoot` for other paths. This probe does not run a purchase or change a save. See `tests/Shops/README.md` for purchase regression and Harmony patch-construction checks.
+`tests/Shops/Run-NativeContractChecks.ps1` uses that Mono host to inspect the installed game's required shop and registration signatures. Pass `-GameDir` and `-MonoRoot` for other paths. This probe does not run a purchase or change a save. See `tests/Shops/README.md` for purchase regression and native capture/load Harmony patch-construction checks.
 
 ## Original models
 

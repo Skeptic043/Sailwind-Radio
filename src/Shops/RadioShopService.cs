@@ -9,10 +9,6 @@ namespace SailwindRadio.Shops
 {
     internal sealed class RadioShopService : IDisposable
     {
-        private sealed class PurchaseAborted : InvalidOperationException
-        {
-            internal PurchaseAborted() : base("Native radio registration did not complete") { }
-        }
         private sealed class Slot
         {
             internal int Kind;
@@ -54,14 +50,10 @@ namespace SailwindRadio.Shops
             active = this;
             try
             {
-                var sell = typeof(ShipItem).GetMethod("Sell", Type.EmptyTypes);
                 var enterBoat = typeof(ShipItem).GetMethod("EnterBoat", BindingFlags.Instance|BindingFlags.NonPublic, null, new[]{typeof(Collider)}, null);
                 var price = typeof(Shopkeeper).GetMethod("GetPrice", BindingFlags.Instance|BindingFlags.NonPublic, null, new[]{typeof(ShipItem)}, null);
-                if (sell == null || enterBoat == null || price == null || enterBoat.ReturnType != typeof(void) || price.ReturnType != typeof(int) ||
-                    sell.ReturnType != typeof(void) || !NativeShopContract.SupportsOwnership(sell))
+                if (enterBoat == null || price == null || enterBoat.ReturnType != typeof(void) || price.ReturnType != typeof(int))
                     throw new MissingMethodException("Native shop purchase methods changed");
-                harmony.Patch(sell, prefix: new HarmonyMethod(typeof(RadioShopService),nameof(BeforeNativeSell)),
-                    finalizer: new HarmonyMethod(typeof(RadioShopService),nameof(AfterNativeSell)));
                 harmony.Patch(enterBoat, prefix: new HarmonyMethod(typeof(RadioShopService),nameof(BeforeEnterBoat)));
                 harmony.Patch(price, prefix: new HarmonyMethod(typeof(RadioShopService),nameof(BeforePrice)));
                 var areaEnter=typeof(ShopArea).GetMethod("OnTriggerEnter", BindingFlags.Instance|BindingFlags.NonPublic);
@@ -152,9 +144,8 @@ namespace SailwindRadio.Shops
                 }
                 if(slot.Stock)
                 {
-                    slot.Stock.PurchaseEnabled=saleReady;
                     ProtectStock(slot.Stock);
-                    slot.Stock.gameObject.SetActive(open && vendor.DisplayShown);
+                    slot.Stock.gameObject.SetActive(saleReady || (open && vendor.DisplayShown && KeepStockActive(slot.Stock)));
                     continue;
                 }
                 if(!merchantReady || !slot.Clock.Ready || !Camera.main || Vector3.Distance(Camera.main.transform.position,vendor.Area.transform.position)>100f) continue;
@@ -181,13 +172,12 @@ namespace SailwindRadio.Shops
                 foreach(var slot in vendor.Slots)
                 {
                     if(!slot.Stock) continue;
-                    slot.Stock.PurchaseEnabled=open && world.ReadyForShop && PurchaseEnvironmentReady(vendor);
-                    slot.Stock.gameObject.SetActive(open);
+                    slot.Stock.gameObject.SetActive(open && (world.ReadyForShop && PurchaseEnvironmentReady(vendor) || KeepStockActive(slot.Stock)));
                 }
             }
             else if(vendor.DisplayShown && open)
                 foreach(var slot in vendor.Slots)
-                    if(slot.Stock) slot.Stock.gameObject.SetActive(true);
+                    if(slot.Stock) slot.Stock.gameObject.SetActive(saleReady || KeepStockActive(slot.Stock));
         }
 
         private void TryDisplay(Vendor vendor)
@@ -412,7 +402,6 @@ namespace SailwindRadio.Shops
                 stock.Shop=vendor.Area;
                 stock.Controller=controller;
                 stock.Anchor=anchor.transform;
-                stock.PurchaseEnabled=vendor.DisplayShown && world.ReadyForShop && PurchaseEnvironmentReady(vendor);
                 controller.GetComponent<ShipItem>().AddToShop(vendor.Area);
                 controller.SetShopStock(true);
                 slot.Anchor=anchor;
@@ -501,17 +490,26 @@ namespace SailwindRadio.Shops
             return false;
         }
 
+        private static bool KeepStockActive(RadioShopStock stock)
+        {
+            // Native return clears held before its coroutine finishes. Its disabled
+            // root collider keeps the object active until that return completes.
+            var item = stock.GetComponent<ShipItem>();
+            var collider = stock.GetComponent<BoxCollider>();
+            return item && (item.held || (collider && !collider.enabled));
+        }
+
         private static void ProtectStock(RadioShopStock stock)
         {
             var item=stock.GetComponent<ShipItem>();
-            if(!item || item.sold || stock.Purchased || stock.Selling || !stock.Anchor) return;
-            // Native callers remove stock from the list before Sell. If Sell was refused before
-            // ownership changed, ordinary stock maintenance makes it available to try again.
+            if(!item || item.sold || stock.Purchased || !stock.Anchor) return;
+            // Native callers remove stock from the list before Sell. If ownership has not
+            // changed, ordinary stock maintenance makes it available again.
             // AddToShop cannot do this because its existing native shop association is retained.
             if(stock.Shop && stock.Shop.itemsForSale!=null && !stock.Shop.itemsForSale.Contains(item))
                 stock.Shop.itemsForSale.Add(item);
             // Native pricing requires the direct ShopItemSpawner parent, including hover pricing
-            // before the purchase guard runs. Preserve world position while repairing that contract.
+            // for stock. Preserve world position while repairing that contract.
             if(item.transform.parent!=stock.Anchor) item.transform.SetParent(stock.Anchor,true);
             if(item.held && Vector3.Distance(item.transform.position,stock.Anchor.position)>1.8f) item.ReturnToShopPos();
         }
@@ -528,63 +526,12 @@ namespace SailwindRadio.Shops
             return __instance.sold || !__instance.GetComponent<RadioShopStock>();
         }
 
-        private static void BeforeNativeSell(ShipItem __instance, ref bool __state)
-        {
-            __state=false;
-            var stock=__instance ? __instance.GetComponent<RadioShopStock>() : null;
-            if(!stock) return;
-            // Native Sell owns the transition and calls RegisterToSave just like any other item.
-            // Do not silently skip Sell: a caller may charge immediately after it returns.
-            if(active==null || stock.Service!=active || stock.Selling || stock.Purchased || __instance.sold ||
-                !stock.PurchaseEnabled || !active.world.ReadyForShop || !active.CanSell(stock))
-                throw new PurchaseAborted();
-            stock.Selling=true;
-            __state=true;
-        }
-
-        private bool CanSell(RadioShopStock stock)
-        {
-            foreach(var vendor in vendors)
-                if(vendor.Area==stock.Shop)
-                    return Camera.main && vendor.Stand &&
-                        Vector3.Distance(Camera.main.transform.position,vendor.Stand.transform.position)<=4f &&
-                        PurchaseEnvironmentReady(vendor) && stock.Anchor && stock.Anchor.GetComponent<ShopItemSpawner>() &&
-                        stock.Controller && stock.Controller.GetComponent<ShipItem>().value>0;
-            // Only this service creates marked stock, and teardown disables purchases
-            // before destroying it. This also covers a callback already in progress.
-            return stock.PurchaseEnabled && stock.Service==this && stock.Shop && stock.Controller;
-        }
-
-        private static Exception AfterNativeSell(ShipItem __instance, bool __state, Exception __exception)
-        {
-            var stock=__instance ? __instance.GetComponent<RadioShopStock>() : null;
-            if(!stock || stock.Service!=active || active==null) return __exception;
-            try
-            {
-                bool owned=active.world.CompleteRegistration(__instance.GetComponent<SaveablePrefab>());
-                // Also detects another patch silently skipping native registration or Sell itself.
-                // A returned error prevents callers that charge after Sell from continuing. Payment
-                // owned by another mod cannot be rolled back or guaranteed here.
-                if(__exception==null && !owned) return new PurchaseAborted();
-            }
-            catch(Exception error)
-            {
-                if(__exception==null) return error;
-            }
-            finally
-            {
-                if(__state) stock.Selling=false;
-            }
-            return __exception;
-        }
-
         private static void Clear(Vendor vendor)
         {
             foreach(var slot in vendor.Slots)
             {
                 if(slot.Stock && !slot.Stock.GetComponent<ShipItem>().sold)
                 {
-                    slot.Stock.PurchaseEnabled=false;
                     if(vendor.Area) vendor.Area.itemsForSale.Remove(slot.Stock.GetComponent<ShipItem>());
                     UnityEngine.Object.Destroy(slot.Stock.gameObject);
                 }

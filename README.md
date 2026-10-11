@@ -63,6 +63,10 @@ Item IDs: Radio `43040`, Small Speaker `43041`, Speaker `43042`, Turbo Wolfer `4
 
 Tested on Sailwind stable 0.39. Sailwind Radio has no known incompatibilities.
 
+## Credits
+
+Sailwind Radio includes [NLayer 1.16.0](https://www.nuget.org/packages/NLayer/1.16.0) by Mark Heath, Andrew Ward and contributors under the MIT License. Complete notices are included in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the release download.
+
 ## AI Use
 
 AI was used to write all of the code in this project. The original concept, design direction, testing, debugging, and release decisions are my own. If you prefer not to use mods developed with AI assistance, I understand and respect that choice.

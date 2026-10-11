@@ -165,26 +165,17 @@ public class SaveablePrefab:UnityEngine.Component
     public int instanceId,prefabIndex;public bool registered;
     public void RegisterToSave()
     {
-        object[] prefix={this,null};Exception error=null;
-        try
+        BeforeNative?.Invoke(this);
+        if(!SkipNative&&!registered)
         {
-            if((bool)Callbacks.World("RegisterPrefix",prefix))
-            {
-                BeforeNative?.Invoke(this);
-                if(!SkipNative&&!registered)
-                {
-                    existingInstanceIds.Add(instanceId);
-                    AfterIdAdded?.Invoke(this);
-                    SaveLoadManager.instance.Prefabs.Add(this);
-                    AfterNative?.Invoke(this);
-                    registered=true;
-                }
-            }
-            Callbacks.World("RegisterPostfix",this);
+            if(instanceId==0)
+                do { instanceId=UnityEngine.Random.Range(1,int.MaxValue); } while(existingInstanceIds.Contains(instanceId));
+            existingInstanceIds.Add(instanceId);
+            AfterIdAdded?.Invoke(this);
+            SaveLoadManager.instance.Prefabs.Add(this);
+            registered=true;
+            AfterNative?.Invoke(this);
         }
-        catch(Exception e){error=e;}
-        error=(Exception)Callbacks.World("RegisterFinalizer",this,prefix[1],error);
-        if(error!=null)throw error;
     }
 }
 public static class Callbacks
@@ -220,24 +211,16 @@ public class ShipItem:UnityEngine.Component
     public int OnBuyCount;
     public void Sell()
     {
-        object[] prefix={this,false};Exception error=null;
-        try
+        BeforeBody?.Invoke(this);
+        if(!SkipSell)
         {
-            Callbacks.Shop("BeforeNativeSell",prefix);
-            BeforeBody?.Invoke(this);
-            if(!SkipSell)
-            {
-                sold=true;
-                transform.SetParent(GameState.World,true);
-                AfterOwnership?.Invoke(this);
-                GetComponent<SaveablePrefab>().RegisterToSave();
-                AfterRegister?.Invoke(this);
-                OnBuyCount++;
-            }
+            sold=true;
+            transform.SetParent(GameState.World,true);
+            AfterOwnership?.Invoke(this);
+            GetComponent<SaveablePrefab>().RegisterToSave();
+            AfterRegister?.Invoke(this);
+            OnBuyCount++;
         }
-        catch(Exception e){error=e;}
-        error=(Exception)Callbacks.Shop("AfterNativeSell",this,prefix[1],error);
-        if(error!=null)throw error;
     }
     private ShopArea shopArea;
     public void AddToShop(ShopArea area){if(!shopArea){area.itemsForSale.Add(this);shopArea=area;}}
@@ -285,11 +268,9 @@ namespace SailwindRadio.Physical
     public class RadioTemplateMarker:UnityEngine.Component { public int Kind; }
     public sealed partial class RadioWorldService
     {
-        private static RadioWorldService active;
         private bool disposed=false;
         private bool loading=false;
         private readonly HashSet<SaveablePrefab> loadingPrefabs=new();
-        private readonly List<SaveablePrefab> pendingRegistrations=new();
         private readonly List<RadioItemController> items=new();
         private SaveLoadManager manager=SaveLoadManager.instance;
         private readonly RadioSaveStore store=new();
@@ -301,22 +282,25 @@ namespace SailwindRadio.Physical
         internal GlobalRadioArbiter Arbiter=>arbiter;
         public IReadOnlyList<RadioItemController> Items=>items;
         public int StockBudget=-1;
-        public RadioWorldService(){active=this;warn=Warnings.Add;}
-        public void Tick(){foreach(var item in items.ToArray())ReconcileShopOwnership(item);}
+        internal const string DonorName="138 model ship junk (small)";
+        public RadioWorldService(){warn=Warnings.Add;}
+        public void Tick(){BindPending();foreach(var item in items.ToArray())ReconcileShopOwnership(item);}
         private static void Guard(Action action){try{action();}catch{}}
         internal static bool IsTemplateInstanceName(string name,int kind)=>name=="Sailwind Radio item "+RadioSaveStore.ItemIndex(kind);
         public void Loading(bool value){loading=value;}
         public void LoadingPrefab(SaveablePrefab prefab,bool value){if(value)loadingPrefabs.Add(prefab);else loadingPrefabs.Remove(prefab);}
-        public int PendingCount=>pendingRegistrations.Count;
-        public void ReplayPending(){foreach(var p in pendingRegistrations)p.RegisterToSave();pendingRegistrations.Clear();}
+        public void Loaded(RadioItemController controller){pendingBindings.Remove(controller);}
+        public void Managed(RadioItemController controller){pendingBindings.Remove(controller);items.Add(controller);}
+        public string Save(){Tick();arbiter.WriteTo(store);return store.Save();}
+        public void Capture(RadioItemController controller){EnsureOwned(controller);if(items.Contains(controller))store.Put(RadioRecord.Capture(controller.InstanceId,controller.GetComponent<SaveablePrefab>().prefabIndex,controller.State));}
         public RadioItemController CreateShopStock(UnityEngine.Transform parent,UnityEngine.Vector3 pos,UnityEngine.Quaternion rot,int kind)
         {
             if(!ReadyToStageShop||StockBudget==0)return null;
             if(StockBudget>0)StockBudget--;
-            var go=new UnityEngine.GameObject("Sailwind Radio item "+RadioSaveStore.ItemIndex(kind));go.transform.SetParent(parent,true);go.AddComponent<ShipItem>();
+            var go=new UnityEngine.GameObject("Sailwind Radio item "+RadioSaveStore.ItemIndex(kind));go.transform.SetParent(parent,true);go.transform.position=pos;go.transform.rotation=rot;go.AddComponent<ShipItem>();go.AddComponent<UnityEngine.BoxCollider>();
             go.AddComponent<SaveablePrefab>().prefabIndex=RadioSaveStore.ItemIndex(kind);
             go.AddComponent<RadioTemplateMarker>().Kind=kind;
-            var c=go.AddComponent<RadioItemController>();c.State.Kind=kind;return c;
+            var c=go.AddComponent<RadioItemController>();c.State.Kind=kind;pendingBindings.Add(c);return c;
         }
     }
 }

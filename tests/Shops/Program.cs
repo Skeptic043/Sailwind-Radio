@@ -22,9 +22,6 @@ static partial class Program
     {
         PurchaseChecks();
         var clock=new ShopRestock();Check(clock.Ready,"new slot ready");clock.Spawned();Check(!clock.Ready,"occupied no duplicate");clock.Removed();clock.Removed();clock.Tick(119);Check(!clock.Ready,"restock waits120 simulationseconds");clock.Tick(float.NaN);clock.Tick(float.PositiveInfinity);clock.Tick(-1);Check(!clock.Ready,"badtime ignored");clock.Tick(1);Check(clock.Ready,"restock readyat120");
-        var sell=typeof(ShipItem).GetMethod("Sell");
-        Check(NativeShopContract.SupportsOwnership(sell),"native ownership contract accepts sold before registration");
-        Check(!NativeShopContract.SupportsOwnership(typeof(Shopkeeper).GetMethod("UnsafeSale",BindingFlags.Instance|BindingFlags.NonPublic)),"ownership contract rejects unrelated method");
         var correct=typeof(RadioShopService).GetMethod("CorrectRegion",BindingFlags.Static|BindingFlags.NonPublic);
         Check((bool)correct.Invoke(null,new object[]{new Region{portRegion=PortRegion.alankh},1}),"Gold Rock maps to Al'Ankh currency");
         Check((bool)correct.Invoke(null,new object[]{new Region{portRegion=PortRegion.emerald},9}),"Dragon Cliffs maps to Emerald currency");
@@ -52,22 +49,20 @@ static partial class Program
             var root=new GameObject("scenery");var areaGo=new GameObject("shop");areaGo.transform.parent=root.transform;var area=areaGo.AddComponent<ShopArea>();area.itemsForSale=new System.Collections.Generic.List<ShipItem>();
             var keeper=new GameObject().AddComponent<Shopkeeper>();area.Keeper=keeper;keeper.Register(area);
             var controller=world.CreateShopStock(root.transform,default,default,0);var item=controller.GetComponent<ShipItem>();var stock=controller.gameObject.AddComponent<RadioShopStock>();
-            stock.Service=service;stock.Shop=area;stock.Controller=controller;stock.PurchaseEnabled=true;controller.SetShopStock(true);
+            stock.Service=service;stock.Shop=area;stock.Controller=controller;controller.SetShopStock(true);
             stock.Anchor=new GameObject("price anchor").transform;item.transform.parent=stock.Anchor;
             Check(!(bool)Call("BeforeEnterBoat",item),"unsold stand stock cannot adopt boat parent");
             item.transform.parent=new GameObject("foreign parent").transform;Call("BeforePrice",item);
             Check(item.transform.parent==stock.Anchor,"native hover pricing sees repaired direct anchor");
             item.held=true;item.transform.position=new Vector3(3,0,0);Call("BeforePrice",item);
             Check(item.Returns==1&&!item.held,"held stock beyond1.8m uses native return");
-            world.ReadyForShop=false;Reject(()=>item.Sell(),"loading blocks native stock sale");world.ReadyForShop=true;
-            area.itemsForSale.Remove(item);item.Sell();
+            area.itemsForSale.Remove(item);item.Sell();world.Tick();
             Check(stock.Purchased&&!controller.IsStock&&controller.InstanceId>0,"native sale promotes existing controller");
             Check((bool)Call("BeforeEnterBoat",item),"owned purchased item can board boat");
             Check(item.GetComponent<SaveablePrefab>().registered,"native sale owns stable registration");
-            Reject(()=>item.Sell(),"sold stock cannot be sold twice");
             var failed=world.CreateShopStock(root.transform,default,default,0);var failedItem=failed.GetComponent<ShipItem>();var failedStock=failed.gameObject.AddComponent<RadioShopStock>();
-            failedStock.Service=service;failedStock.Shop=area;failedStock.Controller=failed;failedStock.PurchaseEnabled=true;
-            SaveablePrefab.SkipNative=true;Reject(()=>failedItem.Sell(),"silent registration skip rejects native sale");SaveablePrefab.SkipNative=false;
+            failedStock.Service=service;failedStock.Shop=area;failedStock.Controller=failed;
+            SaveablePrefab.SkipNative=true;failedItem.Sell();world.Tick();SaveablePrefab.SkipNative=false;
             Check(!failedStock.Purchased&&failedItem.sold&&!failed.gameObject.Destroyed,"incomplete sold object preserved without fake ownership");
             Region.DefaultPortRegion=PortRegion.none;
             var scenery = root.AddComponent<IslandSceneryScene>();scenery.parentIslandIndex=9;
@@ -138,9 +133,8 @@ static partial class Program
                 "late native NPC initialization cannot reopen broad child sale trigger");
             Check(ownStand.Visible&&ownNpc.GetComponent<Renderer>().enabled&&ownNpc.GetComponent<SphereCollider>().enabled&&ownArea.itemsForSale.Count==6,
                 "staged unsold stock and merchant appear together before full save readiness");
-            Check(ownArea.itemsForSale[0].gameObject.activeInHierarchy&&
-                !ownArea.itemsForSale[0].GetComponent<RadioShopStock>().PurchaseEnabled,
-                "visible staged stock cannot be purchased before full save readiness");
+            Check(!ownArea.itemsForSale[0].gameObject.activeInHierarchy,
+                "staged unsold stock remains inactive before persistence readiness");
             Sun.sun.localTime=22;Time.unscaledTime=13;service.Tick();
             Check(!ownArea.itemsForSale[0].gameObject.activeInHierarchy,"night stock stays closed after staging");
             world.StockBudget=-1;Sun.sun.localTime=12;world.ReadyForShop=true;Time.unscaledTime=18;service.Tick();
@@ -153,15 +147,24 @@ static partial class Program
             Check((bool)Call("BeforeAreaEnter",ownArea,ownedCollider)&&
                 (bool)Call("BeforeKeeperEnter",ownArea.GetShopkeeper(),ownedCollider),
                 "unsold Radio stock remains attached only to its owned shop");
-            Check(ownedStock.GetComponent<RadioShopStock>().PurchaseEnabled,"native purchase preflight enables priced stock");
+            Check(ownedStock.gameObject.activeInHierarchy,"native purchase preflight enables priced stock");
             MoneyNotification.instance=null;Time.unscaledTime=19;service.Tick();
-            Check(!ownedStock.GetComponent<RadioShopStock>().PurchaseEnabled,"existing stock closes purchase while native transaction UI is missing");
+            Check(!ownedStock.gameObject.activeInHierarchy,"existing stock closes purchase while native transaction UI is missing");
             MoneyNotification.instance=new MoneyNotification();Time.unscaledTime=20;service.Tick();
-            Check(ownedStock.GetComponent<RadioShopStock>().PurchaseEnabled,"existing stock reopens purchase when native transaction UI becomes ready");
+            Check(ownedStock.gameObject.activeInHierarchy,"existing stock reopens purchase when native transaction UI becomes ready");
             world.ReadyForShop=false;Time.unscaledTime=20.1f;service.Tick();
-            Check(ownStand.Visible&&ownedStock.gameObject.activeInHierarchy&&
-                !ownedStock.GetComponent<RadioShopStock>().PurchaseEnabled,
-                "a temporary save-readiness transition keeps the display visible but closes purchases");
+            Check(ownStand.Visible&&!ownedStock.gameObject.activeInHierarchy,
+                "temporary persistence-readiness transition leaves stand visible and stock inactive");
+            ownedStock.held=true;Time.unscaledTime=20.15f;service.Tick();
+            Check(ownedStock.held&&ownedStock.gameObject.activeInHierarchy,"transient readiness loss does not hide unsold stock held by native pointer");
+            ownedStock.held=false;Time.unscaledTime=20.16f;service.Tick();
+            Check(!ownedStock.gameObject.activeInHierarchy,"released display stock waits for persistence readiness");
+            // Model the native return coroutine's disabled root collider, not its movement.
+            var returningCollider=ownedStock.GetComponent<BoxCollider>();returningCollider.enabled=false;
+            Time.unscaledTime=20.17f;service.Tick();
+            Check(ownedStock.gameObject.activeInHierarchy,"native returning stock remains active until its disabled collider is restored");
+            returningCollider.enabled=true;Time.unscaledTime=20.18f;service.Tick();
+            Check(!ownedStock.gameObject.activeInHierarchy,"completed native return resumes unready display availability");
             world.ReadyForShop=true;Time.unscaledTime=20.2f;service.Tick();
             var foreign=new GameObject("foreign stock");foreign.AddComponent<ShipItem>();var foreignCollider=foreign.AddComponent<Collider>();
             Check(!(bool)Call("BeforeAreaEnter",ownArea,foreignCollider),"owned area excludes other merchants' stock despite overlaps");
@@ -198,9 +201,8 @@ static partial class Program
             foreign.GetComponent<ShipItem>().held=true;
             Check(!(bool)Call("BeforeKeeperEnter",ownArea.GetShopkeeper(),foreignCollider),
                 "owned resale callback remains local to its counter");
-            Reject(()=>ownedStock.Sell(),"Radio purchase cannot be made three stalls away");
             Camera.main.transform.position=previewAnchor;
-            ownArea.itemsForSale.Remove(ownedStock);ownedStock.Sell();
+            ownArea.itemsForSale.Remove(ownedStock);ownedStock.Sell();world.Tick();
             Check(ownedStock.sold&&ownedStock.GetComponent<RadioShopStock>().Purchased,"native sale owns ready stock");
             Check(world.Store.Records.Count()==recordsBeforeGate+1,"native registration adds one owned record");
             Check(warnings.Count==0,"normal setup, partial stock and restocking log nothing: "+string.Join(" | ",warnings));

@@ -43,30 +43,26 @@ internal static class PatchSmoke
         var native = Assembly.LoadFrom(nativePath);
         Console.WriteLine("Radio " + radio.FullName);
         Console.WriteLine("Native " + native.FullName);
-        var register = Method(native.GetType("SaveablePrefab", true), "RegisterToSave");
-        var sell = Method(native.GetType("ShipItem", true), "Sell");
+        var nativePrefab = native.GetType("SaveablePrefab", true);
+        var capture = Method(nativePrefab, "PrepareSaveData");
+        var load = Method(nativePrefab, "Load");
         var world = radio.GetType("SailwindRadio.Physical.RadioWorldService", true);
-        var shop = radio.GetType("SailwindRadio.Shops.RadioShopService", true);
         var harmony = new Harmony(owner);
         try
         {
-            harmony.Patch(register, prefix: new HarmonyMethod(Method(world, "RegisterPrefix")),
-                postfix: new HarmonyMethod(Method(world, "RegisterPostfix")),
-                finalizer: new HarmonyMethod(Method(world, "RegisterFinalizer")));
-            Verify(register, owner, 1, 1, 1);
-            Console.WriteLine("PASS RegisterToSave wrapper constructed");
-            harmony.Patch(sell, prefix: new HarmonyMethod(Method(shop, "BeforeNativeSell")),
-                finalizer: new HarmonyMethod(Method(shop, "AfterNativeSell")));
-            Verify(sell, owner, 1, 0, 1);
-            Console.WriteLine("PASS ShipItem.Sell wrapper constructed");
+            harmony.Patch(capture, prefix: new HarmonyMethod(Method(world, "CapturePrefix")));
+            Verify(capture, owner, 1, 0, 0);
+            harmony.Patch(load, prefix: new HarmonyMethod(Method(world, "PrefabLoadPrefix")),
+                postfix: new HarmonyMethod(Method(world, "PrefabPostfix")));
+            Verify(load, owner, 1, 1, 0);
+            Console.WriteLine("PASS native capture and restoration wrappers constructed");
         }
         finally
         {
-            // Explicit targets also remove partial records if patch construction threw.
-            harmony.Unpatch(register, HarmonyPatchType.All, owner);
-            harmony.Unpatch(sell, HarmonyPatchType.All, owner);
-            Verify(register, owner, 0, 0, 0);
-            Verify(sell, owner, 0, 0, 0);
+            harmony.Unpatch(capture, HarmonyPatchType.All, owner);
+            harmony.Unpatch(load, HarmonyPatchType.All, owner);
+            Verify(capture, owner, 0, 0, 0);
+            Verify(load, owner, 0, 0, 0);
             Console.WriteLine("PASS owned test patches removed");
         }
         Console.WriteLine("PASS construction only. No game method or Radio service was invoked. No Unity gameplay acceptance.");

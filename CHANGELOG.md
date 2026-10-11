@@ -1,5 +1,11 @@
 # Sailwind Radio
 
+## 1.2.2
+
+### Changed
+
+- Radio now lets Sailwind assign purchased-item identities and complete registration before attaching Radio settings. Existing item IDs, settings and save data are unchanged.
+
 ## 1.2.1
 
 ### Fixed

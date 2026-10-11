@@ -181,7 +181,8 @@ namespace SailwindRadio.Physical
             return value.Substring(0, end) + "…";
         }
         internal bool IsPlacedForControls => item && item.sold && !item.held && gameObject.activeInHierarchy && gameObject.layer != 5 &&
-            item.itemRigidbodyC && !item.itemRigidbodyC.GetCurrentBox() && item.GetCurrentInventorySlot() < 0;
+            item.itemRigidbodyC && !item.itemRigidbodyC.GetCurrentBox() && item.GetCurrentInventorySlot() < 0 &&
+            owner != null && owner.EnsureOwned(this);
         public void ReleaseControls()
         {
             foreach (var knob in knobs)

@@ -22,8 +22,8 @@ namespace SailwindRadio.Physical
         private readonly GameObject[] templates = new GameObject[4];
         private AssetBundle templateBundle;
         private bool bundleAttempted;
+        private bool buildingTemplates;
         private readonly HashSet<SaveablePrefab> loadingPrefabs = new HashSet<SaveablePrefab>();
-        private readonly List<SaveablePrefab> pendingRegistrations = new List<SaveablePrefab>();
         private readonly HashSet<SaveablePrefab> pendingRestores = new HashSet<SaveablePrefab>();
         private readonly RestoreDeferrals deferrals = new RestoreDeferrals();
         private PrefabsDirectory templateDirectory;
@@ -97,7 +97,7 @@ namespace SailwindRadio.Physical
                 Patch(typeof(SaveablePrefab), "Load", nameof(PrefabLoadPrefix), true);
                 Patch(typeof(SaveablePrefab), "Load", nameof(PrefabPostfix), false);
                 Patch(typeof(SaveablePrefab), "PrepareSaveData", nameof(CapturePrefix), true);
-                PatchDirectoryAndRegistration();
+                PatchDirectory();
                 TryPatchControlHover();
                 TryPatchHeldItemControlTarget();
                 TryPatchHammerNail();
@@ -118,23 +118,13 @@ namespace SailwindRadio.Physical
             patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
         }
 
-        private void PatchDirectoryAndRegistration()
+        private void PatchDirectory()
         {
             var start = AccessTools.DeclaredMethod(typeof(PrefabsDirectory), "Start");
-            var register = AccessTools.DeclaredMethod(typeof(SaveablePrefab), "RegisterToSave");
-            if (start == null || register == null)
-                throw new MissingMethodException("Native item registration lifecycle changed");
+            if (start == null) throw new MissingMethodException("Native item directory lifecycle changed");
             var directoryPatch = AccessTools.Method(typeof(RadioWorldService), nameof(DirectoryPrefix));
-            var prefix = AccessTools.Method(typeof(RadioWorldService), nameof(RegisterPrefix));
-            var postfix = AccessTools.Method(typeof(RadioWorldService), nameof(RegisterPostfix));
-            var finalizer = AccessTools.Method(typeof(RadioWorldService), nameof(RegisterFinalizer));
             harmony.Patch(start, prefix: new HarmonyMethod(directoryPatch) { priority = Priority.First });
             patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(start, directoryPatch));
-            harmony.Patch(register, prefix: new HarmonyMethod(prefix), postfix: new HarmonyMethod(postfix),
-                finalizer: new HarmonyMethod(finalizer));
-            patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(register, prefix));
-            patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(register, postfix));
-            patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(register, finalizer));
         }
 
         private static void DirectoryPrefix(PrefabsDirectory __instance) => Guard(() => active.EnsureTemplates(__instance));
@@ -318,6 +308,7 @@ namespace SailwindRadio.Physical
             if (manager != SaveLoadManager.instance)
             {
                 items.Clear();
+                pendingBindings.Clear();
                 pendingRestores.Clear();
                 deferrals.Clear();
                 nextRestoreRetry = 0f;
@@ -342,6 +333,7 @@ namespace SailwindRadio.Physical
                     else pendingRestores.Remove(deferred);
                 }
             }
+            BindPending();
             for (int i = items.Count - 1; i >= 0; i--)
             {
                 if (!items[i])
@@ -405,6 +397,7 @@ namespace SailwindRadio.Physical
                 return false;
             }
             var created = new GameObject[4];
+            buildingTemplates = true;
             try
             {
                 bool assetBacked = TryLoadTemplateBundle();
@@ -467,6 +460,7 @@ namespace SailwindRadio.Physical
                 foreach (var template in created) if (template && template.scene.IsValid()) UnityEngine.Object.Destroy(template);
                 throw;
             }
+            finally { buildingTemplates = false; }
         }
 
         // Templates are checked every frame, so a lasting problem is logged once.
@@ -508,6 +502,8 @@ namespace SailwindRadio.Physical
 
         private void AttachFresh(RadioTemplateMarker marker)
         {
+            if (buildingTemplates || !marker || marker.GetComponent<RadioItemController>()) return;
+            if (manager != SaveLoadManager.instance) Tick();
             if (!marker || marker.GetComponent<RadioItemController>()) return;
             int kind = marker.Kind;
             var item = marker.GetComponent<ShipItem>();
@@ -517,6 +513,7 @@ namespace SailwindRadio.Physical
             prefab.enabled = true;
             var controller = marker.gameObject.AddComponent<RadioItemController>();
             controller.Initialize(this, new RadioState { Kind = kind, Volume = kind == 0 ? .5f : .75f, TrackPath = "" });
+            pendingBindings.Add(controller);
         }
 
         private bool Convert(SaveablePrefab saveable, RadioState state, bool migratedLegacy = false)
@@ -539,6 +536,7 @@ namespace SailwindRadio.Physical
                 if (!registered && !migratedDonor) return false;
                 existing.ApplyRestoredState(this, arbiter.Register(saveable.instanceId, state));
                 if (!items.Contains(existing)) items.Add(existing);
+                pendingBindings.Remove(existing);
                 return true;
             }
             var item = saveable.GetComponent<ShipItem>();
@@ -574,7 +572,7 @@ namespace SailwindRadio.Physical
 
         internal void TogglePower(RadioItemController item)
         {
-            if (disposed || loading || !store.Writable || !items.Contains(item) || manager != SaveLoadManager.instance)
+            if (!EnsureOwned(item) || disposed || loading || !store.Writable || !items.Contains(item) || manager != SaveLoadManager.instance)
                 return;
             try
             {
@@ -593,7 +591,7 @@ namespace SailwindRadio.Physical
 
         internal void RequestAction(RadioItemController item, RadioAction action)
         {
-            if (disposed || loading || !store.Writable || !items.Contains(item) ||
+            if (!EnsureOwned(item) || disposed || loading || !store.Writable || !items.Contains(item) ||
                 manager != SaveLoadManager.instance || !item.IsPlacedForControls)
                 return;
             if (action == RadioAction.Power)
@@ -627,6 +625,7 @@ namespace SailwindRadio.Physical
                 }
                 catch (Exception ex) { warn("Could not capture radio state during unload: " + ex.Message); }
             items.Remove(item);
+            pendingBindings.Remove(item);
         }
 
         private void Save()
@@ -653,7 +652,7 @@ namespace SailwindRadio.Physical
         private void BeginLoad(SaveLoadManager source)
         {
             EnsureTemplates();
-            pendingRegistrations.Clear();
+            pendingBindings.Clear();
             pendingRestores.Clear();
             deferrals.Clear();
             nextRestoreRetry = 0f;
@@ -674,7 +673,7 @@ namespace SailwindRadio.Physical
             loading = false;
             if (!store.Load(json))
             {
-                pendingRegistrations.Clear();
+                pendingBindings.Clear();
                 arbiter.Reset(Array.Empty<RadioRecord>());
                 warn(PersistenceStatus);
                 return;
@@ -683,12 +682,12 @@ namespace SailwindRadio.Physical
             if (!manager)
                 return;
             MigrateLegacyItems();
-            foreach (var prefab in manager.GetCurrentPrefabs()) Restore(prefab);
-            foreach (var prefab in pendingRegistrations)
-                if (prefab && prefab.GetComponent<ShipItem>().sold)
-                    try { prefab.RegisterToSave(); }
-                    catch (Exception error) { warn("Radio startup item registration failed: " + error.Message); }
-            pendingRegistrations.Clear();
+            foreach (var prefab in manager.GetCurrentPrefabs())
+            {
+                var controller = prefab ? prefab.GetComponent<RadioItemController>() : null;
+                if (!controller || !pendingBindings.Contains(controller)) Restore(prefab);
+            }
+            BindPending();
         }
 
         private void MigrateLegacyItems()
@@ -779,7 +778,12 @@ namespace SailwindRadio.Physical
         private static void SavePrefix() => Guard(() => active.Save());
         private static void LoadPrefix(SaveLoadManager __instance) => Guard(() => active.BeginLoad(__instance));
         private static void LoadPostfix() => Guard(() => active.ReadNativeData());
-        private static void PrefabLoadPrefix(SaveablePrefab __instance) => Guard(() => active.loadingPrefabs.Add(__instance));
+        private static void PrefabLoadPrefix(SaveablePrefab __instance) => Guard(() =>
+        {
+            active.loadingPrefabs.Add(__instance);
+            var controller = __instance.GetComponent<RadioItemController>();
+            if (controller) active.pendingBindings.Remove(controller);
+        });
         private static void PrefabPostfix(SaveablePrefab __instance) => Guard(() => { active.loadingPrefabs.Remove(__instance); active.Restore(__instance); });
         private static void CapturePrefix(SaveablePrefab __instance) => Guard(() => active.Capture(__instance));
         private static void ControlHoverPostfix(LookUI __instance, GoPointerButton button) => Guard(() => RadioControlHover.ClearPickupHint(__instance, button));
@@ -800,7 +804,7 @@ namespace SailwindRadio.Physical
         private void Capture(SaveablePrefab prefab)
         {
             var item = prefab.GetComponent<RadioItemController>();
-            if (!item || !items.Contains(item) || !store.Writable || loading)
+            if (!EnsureOwned(item) || !items.Contains(item) || !store.Writable || loading)
                 return;
             item.CapturePosition?.Invoke();
             WriteCanonical(item.InstanceId);
@@ -834,6 +838,7 @@ namespace SailwindRadio.Physical
                     item.SuspendPlayback = null;
                 }
             items.Clear();
+            pendingBindings.Clear();
             foreach (var pair in patches)
                 harmony.Unpatch(pair.Key, pair.Value);
             patches.Clear();
