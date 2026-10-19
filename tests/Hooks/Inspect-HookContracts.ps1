@@ -61,6 +61,23 @@ try {
     }
     Show-HookMethod $postfix
 
+    # Native slots disable only the item's root collider. Radio disables its own control triggers.
+    $enterSlot = Find-HookMethod $game 'ItemRigidbody' 'EnterInventorySlot'
+    Assert-HookReference $enterSlot 'Collider::set_enabled'
+    Assert-HookReference $enterSlot 'ShipItem::OnEnterInventory'
+    Show-HookMethod $enterSlot
+    $exitSlot = Find-HookMethod $game 'ItemRigidbody' 'ExitInventorySlot'
+    Assert-HookReference $exitSlot 'Collider::set_enabled'
+    Show-HookMethod $exitSlot
+    $boarding = Find-HookMethod $game 'ShipItem' 'OnTriggerEnter'
+    Assert-HookReference $boarding 'ShipItem::currentlyStayedEmbarkCol'
+    $inventoryInstaller = Find-HookMethod $radio 'SailwindRadio.Physical.RadioWorldService' 'TryPatchInventoryControls'
+    foreach ($name in @('EnterInventorySlot', 'ExitInventorySlot', 'InventoryEnterPostfix', 'InventoryExitPostfix')) {
+        if (-not @($inventoryInstaller.Body.Instructions | Where-Object { $_.OpCode.Name -eq 'ldstr' -and $_.Operand -eq $name }).Count) {
+            throw "Inventory control installer is missing $name"
+        }
+    }
+
     if ($HooksHangMore) {
         $hhm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($HooksHangMore)
         try {

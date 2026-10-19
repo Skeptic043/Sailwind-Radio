@@ -145,5 +145,7 @@ namespace SailwindRadio.Physical
         public UnityEngine.Vector3 VisualAudioPosition;
         public int Releases;
         public void ReleaseControls(){Releases++;}
+        public bool? InventorySlot;
+        public void SetInventorySlot(bool value){InventorySlot=value;}
     }
 }

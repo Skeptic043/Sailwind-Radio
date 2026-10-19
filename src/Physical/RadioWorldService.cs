@@ -103,6 +103,7 @@ namespace SailwindRadio.Physical
                 TryPatchHammerNail();
                 TryPatchNativeHooks();
                 TryPatchHouseTriggers();
+                TryPatchInventoryControls();
                 EnsureTemplates();
             }
             catch { Dispose(); throw; }
@@ -255,6 +256,25 @@ namespace SailwindRadio.Physical
             }
         }
 
+        private void TryPatchInventoryControls()
+        {
+            int first = patches.Count;
+            try
+            {
+                PatchNativeHook(typeof(ItemRigidbody), "EnterInventorySlot", new[] { typeof(Transform) }, nameof(InventoryEnterPostfix), false);
+                PatchNativeHook(typeof(ItemRigidbody), "ExitInventorySlot", Type.EmptyTypes, nameof(InventoryExitPostfix), false);
+            }
+            catch (Exception error)
+            {
+                for (int i = patches.Count - 1; i >= first; i--)
+                {
+                    harmony.Unpatch(patches[i].Key, patches[i].Value);
+                    patches.RemoveAt(i);
+                }
+                warn("Radio inventory control cleanup unavailable. Slotted devices may join boats. " + error.Message);
+            }
+        }
+
         private void PatchNativeHook(Type type, string name, Type[] arguments, string callback, bool prefix)
         {
             var target = type.GetMethod(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
@@ -278,6 +298,8 @@ namespace SailwindRadio.Physical
 
         private static void HookReleasePostfix(ShipItem __instance) => Guard(() => { RadioNativeHooks.Release(__instance); });
         private static void HookInventoryPostfix(ShipItem __instance) => Guard(() => RadioNativeHooks.EnterInventory(__instance));
+        private static void InventoryEnterPostfix(ItemRigidbody __instance) => Guard(() => RadioNativeHooks.InventorySlotChanged(__instance, true));
+        private static void InventoryExitPostfix(ItemRigidbody __instance) => Guard(() => RadioNativeHooks.InventorySlotChanged(__instance, false));
         private static void HookPositionPrefix(HangableItem __instance) => Guard(() => RadioNativeHooks.RejectPhantomHook(__instance));
         private static void HookPositionPostfix(HangableItem __instance) => Guard(() => RadioNativeHooks.PositionBelowHook(__instance));
         private static bool HouseTriggerPrefix(ShipItem __instance, Collider other)

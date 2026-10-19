@@ -47,6 +47,7 @@ namespace SailwindRadio.Physical
         private readonly Dictionary<RadioVolumeKnob, float> knobAngles = new Dictionary<RadioVolumeKnob, float>();
         private Transform menuPointer;
         private Collider menuControl;
+        private bool shopStock, inventorySlot;
 
         public DeviceVessel Vessel => DeviceVessels.Resolve(item, UsesPlayerPosition);
         internal bool WithinMenuReach => RadioControlReach.Contains(menuPointer, menuControl);
@@ -136,6 +137,20 @@ namespace SailwindRadio.Physical
         {
             if (stock)
                 ReleaseControls();
+            shopStock = stock;
+            ApplyControlColliders();
+        }
+
+        // Native EnterInventorySlot disables only the item's root collider. Live control triggers in a
+        // slot would still reach ShipItem.OnTriggerEnter and board the item onto the player's boat.
+        internal void SetInventorySlot(bool slotted)
+        {
+            inventorySlot = slotted;
+            ApplyControlColliders();
+        }
+
+        private void ApplyControlColliders()
+        {
             if (parts == null)
                 return;
             foreach (var pair in parts)
@@ -144,7 +159,7 @@ namespace SailwindRadio.Physical
                     continue;
                 var collider = pair.Value.GetComponent<Collider>();
                 if (collider)
-                    collider.enabled = !stock;
+                    collider.enabled = !shopStock && !inventorySlot;
             }
         }
 

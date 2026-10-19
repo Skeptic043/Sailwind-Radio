@@ -1,5 +1,11 @@
 # Sailwind Radio
 
+## 1.2.3
+
+### Fixed
+
+- A Radio or Small Speaker kept in your inventory no longer counts as part of your boat. With [Furniture Fix](https://github.com/NANDbrew/FurnitureFix) installed, a Small Speaker could get stuck in an inventory slot after loading a save and boarding a boat. With [Deft Hands](https://github.com/KeeviDev/SailwindDeftHands) also installed, this logged an error.
+
 ## 1.2.2
 
 ### Changed

@@ -46,6 +46,26 @@ internal static class Program
         hook.Destroyed = false;
         radio.Destroyed = true;
         Check(!RadioNativeHooks.AllowsHookTarget(radio, target), "destroyed radio cannot grant placement");
+
+        // A slotted device must drop its control triggers, or they board it onto the player's boat
+        // while load-time attached state persists (Furniture Fix then refuses the pickup).
+        for (int kind = 0; kind <= 1; kind++)
+        {
+            var device = Device(kind, false);
+            var body = new ItemRigidbody { Item = device };
+            var controller = device.GetComponent<RadioItemController>();
+            RadioNativeHooks.InventorySlotChanged(body, true);
+            Check(controller.InventorySlot == true, "entering a slot reaches the device controller: " + kind);
+            RadioNativeHooks.InventorySlotChanged(body, false);
+            Check(controller.InventorySlot == false, "leaving a slot restores the device controls: " + kind);
+        }
+        RadioNativeHooks.InventorySlotChanged(new ItemRigidbody { Item = new ShipItem() }, true);
+        RadioNativeHooks.InventorySlotChanged(new ItemRigidbody(), true);
+        RadioNativeHooks.InventorySlotChanged(null, true);
+        var removed = Device(1, false);
+        removed.Destroyed = true;
+        RadioNativeHooks.InventorySlotChanged(new ItemRigidbody { Item = removed }, true);
+        Check(removed.GetComponent<RadioItemController>().InventorySlot == null, "destroyed device is ignored");
         Console.WriteLine($"Hook target checks passed: {checks}. Synthetic component checks, not live pointer or physics acceptance.");
     }
 }

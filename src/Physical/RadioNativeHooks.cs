@@ -62,6 +62,13 @@ namespace SailwindRadio.Physical
             if (!Release(item)) item.ToggleDisallowDisembarking(false);
         }
 
+        internal static void InventorySlotChanged(ItemRigidbody body, bool slotted)
+        {
+            var item = body ? body.GetShipItem() : null;
+            var controller = item ? item.GetComponent<RadioItemController>() : null;
+            if (controller) controller.SetInventorySlot(slotted);
+        }
+
         internal static void PositionBelowHook(HangableItem hangable)
         {
             if (!hangable || !IsRadio(hangable) || !HasLiveJoint(hangable, hangable.GetComponent<ShipItem>())) return;
