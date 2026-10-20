@@ -4,5 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
-  <ItemGroup><Compile Include="..\..\src\Acoustics\*.cs" Link="Acoustics\%(Filename)%(Extension)" /></ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\Acoustics\*.cs" Link="Acoustics\%(Filename)%(Extension)" />
+    <Compile Include="..\Shared\UnityValues.cs" Link="Shared\UnityValues.cs" />
+  </ItemGroup>
 </Project>

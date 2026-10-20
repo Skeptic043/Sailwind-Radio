@@ -2,12 +2,15 @@
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup>
   <ItemGroup>
     <Compile Remove="Models\**\*.cs" />
+    <Compile Include="..\Shared\UnityValues.cs" Link="Shared\UnityValues.cs" />
+    <Compile Include="..\Shared\PlayerStateDoubles.cs" Link="Shared\PlayerStateDoubles.cs" />
     <Compile Include="..\..\src\UI\*.cs" Link="UI\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Physical\DeviceVessels.cs" Link="DeviceVessels.cs" />
-    <Compile Include="..\..\src\Physical\RadioDeviceKind.cs" Link="RadioDeviceKind.cs" />
+    <Compile Include="..\..\src\Physical\RadioDevice.cs" Link="RadioDevice.cs" />
     <Compile Include="..\..\src\Physical\RadioControlReach.cs" Link="RadioControlReach.cs" />
     <Compile Include="..\..\src\Physical\RadioNativeHooks.cs" Link="RadioNativeHooks.cs" />
     <Compile Include="..\..\src\Physical\DeviceControlVisuals.cs" Link="DeviceControlVisuals.cs" />
     <Compile Include="..\..\src\RadioState.cs" Link="RadioState.cs" />
+    <Compile Include="..\..\src\DeviceKind.cs" Link="DeviceKind.cs" />
   </ItemGroup>
 </Project>

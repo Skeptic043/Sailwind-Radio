@@ -22,33 +22,8 @@ namespace UnityEngine
     }
     public struct RaycastHit { public Collider collider; public float distance; }
     public class GameObject : Object { public bool activeSelf = true; public void SetActive(bool value) { activeSelf = value; } }
-    public struct Vector3
-    {
-        public float x, y, z;
-        public Vector3(float x, float y, float z) { this.x = x; this.y = y; this.z = z; }
-        public static float Distance(Vector3 a, Vector3 b) => (float)System.Math.Sqrt(
-            (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y) + (a.z - b.z) * (a.z - b.z));
-    }
     public static class Application { public static bool isFocused = true; }
-    public static class Time { public static float timeScale = 1; }
-    public static class Mathf
-    {
-        public static float Clamp01(float value) => System.Math.Clamp(value, 0, 1);
-        public static int RoundToInt(float value) => (int)System.Math.Round(value);
-    }
 }
-public static class Refs
-{
-    public static Component charController = new Component();
-    public static Component ovrController = new Component();
-    public static GameObject mouseCrosshair = new GameObject();
-}
-public static class GameState
-{
-    public static bool playing = true, currentlyLoading, sleeping, inBed, inCursorMenu;
-    public static int loadingScenes;
-}
-public static class BoatCamera { public static bool on; }
 public static class GameInput { public static float Scroll; public static float GetScrollAxis() => Scroll; }
 public class GoPointer : Component
 {
@@ -99,6 +74,7 @@ namespace SailwindRadio.Physical
     public sealed class RadioItemController : Object
     {
         public bool IsPlacedForControls = true;
+        public bool EnsureOwned() => true;
         public RadioState State = new RadioState { Volume = .5f };
         public int RequestedCount;
         public RadioAction LastAction;

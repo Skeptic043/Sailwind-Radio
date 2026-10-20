@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
-namespace SailwindRadio
+namespace SailwindRadio.Audio
 {
     // Windows Media Foundation through P/Invoke and manual vtable calls. The Unity 2019.1 Mono
     // spike crashed on a [ComImport] interface out-parameter, so no runtime callable wrappers

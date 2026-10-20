@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using SailwindRadio;
+using SailwindRadio.Audio;
 using UnityEngine;
 
 static partial class AudioChecks
@@ -323,7 +324,7 @@ static partial class AudioChecks
     {
         AudioSettings.dspTime = 500;
         var state = new RadioState { TrackPath = path, Powered = true, PositionSeconds = 2, Volume = .5f };
-        var player = new RadioPlayback(new MonoBehaviour(), state, _ => { }) { RepeatTrack = false };
+        var player = new RadioPlayback(new MonoBehaviour(), state, _ => { });
         var radio = AudioSource.Last;
         player.SetAcoustics(new Vector3(), true, 0);
         int opens = FakeDecoder.OpensOf(path);
@@ -352,7 +353,7 @@ static partial class AudioChecks
             small.timeSamples == 96000 && normal.timeSamples == 96000 && woofer.timeSamples == 96000,
             "Initial endpoints schedule identical sample frames on the authoritative DSP start");
         Check(!radio.loop && !small.loop && !normal.loop && !woofer.loop,
-            "Playlist non-repeat mode reaches every source");
+            "No output source loops the track");
         Check(smallHigh.cutoffFrequency == 600 && smallLow.cutoffFrequency == 9000 && small.maxDistance == 15 &&
             normalHigh.cutoffFrequency == 160 && normalLow.cutoffFrequency == 18000 && normal.maxDistance == 20 &&
             wooferLow.cutoffFrequency == 140 && small.bypassReverbZones && normal.bypassReverbZones && woofer.bypassReverbZones,
@@ -450,7 +451,7 @@ static partial class AudioChecks
         string path = WriteHeldTrack("timeline.fake", 600), shortPath = WriteHeldTrack("timeline-short.fake", 1);
         AudioSettings.dspTime = 1000;
         var state = new RadioState { TrackPath = path, Powered = true, PositionSeconds = 3.25 };
-        var player = new RadioPlayback(new MonoBehaviour(), state, _ => { }) { RepeatTrack = false };
+        var player = new RadioPlayback(new MonoBehaviour(), state, _ => { });
         var radio = AudioSource.Last;
         player.SetAcoustics(new Vector3(), true, 0);
         player.BeginEndpoints();
@@ -531,7 +532,7 @@ static partial class AudioChecks
         {
             AudioSettings.dspTime = 10000;
             state = new RadioState { TrackPath = shortPath, Powered = true };
-            player = new RadioPlayback(new MonoBehaviour(), state, _ => { }) { RepeatTrack = false };
+            player = new RadioPlayback(new MonoBehaviour(), state, _ => { });
             radio = AudioSource.Last;
             player.SetAcoustics(new Vector3(), true, 0);
             player.Tick(new Vector3(), false); Settle(player); player.Tick(new Vector3(), false);
@@ -922,7 +923,7 @@ static partial class AudioChecks
         firstClip.PcmSetPosition(stream.Frames - 1024);
         firstClip.PcmSetPosition(0);
         stream.Request(0);
-        Check(WaitReady(stream, 0), "Loop wrap requests the beginning and the worker keeps it available");
+        Check(WaitReady(stream, 0), "A seek back to the beginning requests it and the worker keeps it available");
         Check(stream.Ready(Int32.MinValue), "Invalid direct buffer position is clamped safely");
 #if NET10_0_OR_GREATER
         firstClip.PcmRead(silent); // JIT callback before measuring steady-state work.
@@ -988,7 +989,7 @@ static partial class AudioChecks
         stream.Request(0);
         deadline = DateTime.UtcNow.AddSeconds(5);
         while (!stream.Ready(0) && stream.Fault == null && DateTime.UtcNow < deadline) Thread.Sleep(2);
-        Check(stream.Fault == null && stream.Ready(0), "Nonzero loop wrap refills the start of the file: " +
+        Check(stream.Fault == null && stream.Ready(0), "A nonzero seek back to the start refills the start of the file: " +
             (stream.Fault == null ? "not ready" : stream.Fault.ToString()));
         bool loopMatches = true, loopNonzero = false;
         int firstMismatch = -1;
@@ -1005,7 +1006,7 @@ static partial class AudioChecks
             }
         }
         Check(loopMatches && loopNonzero,
-            "After loop wrap, both readers reproduce nonzero full-decode PCM from the start: mismatch=" +
+            "After seeking back to the start, both readers reproduce nonzero full-decode PCM from the start: mismatch=" +
             firstMismatch);
         stream.Dispose();
         UnityEngine.Object.Destroy(clipA);

@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using UnityEngine;
 
-namespace SailwindRadio
+namespace SailwindRadio.Audio
 {
     public sealed partial class RadioPlayback
     {

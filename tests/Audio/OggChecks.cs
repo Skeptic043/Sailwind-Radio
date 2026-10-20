@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using SailwindRadio;
+using SailwindRadio.Audio;
 using UnityEngine;
 
 // OGG through the production routing, preload and streaming paths, plus the shared downmix policy.
@@ -121,7 +122,7 @@ static partial class AudioChecks
         AudioSettings.dspTime = 30000;
         int warnings = 0;
         var state = new RadioState { TrackPath = path, Powered = true };
-        var player = new RadioPlayback(new MonoBehaviour(), state, _ => warnings++) { RepeatTrack = false };
+        var player = new RadioPlayback(new MonoBehaviour(), state, _ => warnings++);
         var source = AudioSource.Last;
         player.SetAcoustics(new Vector3(), true, 0);
         PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);

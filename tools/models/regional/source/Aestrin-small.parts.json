@@ -1,0 +1,1206 @@
+{
+ "name": "Aestrin small — iron-bound carry speaker (low-poly)",
+ "pivot": [
+  0,
+  0,
+  0.7366000000000001
+ ],
+ "parts": [
+  {
+   "id": "Aestrin-small-body",
+   "name": "Oak box",
+   "type": "extrude",
+   "role": "body",
+   "parent": null,
+   "size": [
+    18,
+    18,
+    12
+   ],
+   "material": {
+    "name": "Weathered dark oak",
+    "color": "#4e382b",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    10,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-small-foot-1",
+   "name": "Brass foot 1",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Aestrin-small-body",
+   "size": [
+    2.2,
+    2.2,
+    1
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    -6.8,
+    0.5,
+    3.8,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.1,
+     0
+    ],
+    [
+     1.1,
+     1
+    ],
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-small-foot-2",
+   "name": "Brass foot 2",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Aestrin-small-body",
+   "size": [
+    2.2,
+    2.2,
+    1
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    6.8,
+    0.5,
+    3.8,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.1,
+     0
+    ],
+    [
+     1.1,
+     1
+    ],
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-small-foot-3",
+   "name": "Brass foot 3",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Aestrin-small-body",
+   "size": [
+    2.2,
+    2.2,
+    1
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    -6.8,
+    0.5,
+    -3.8,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.1,
+     0
+    ],
+    [
+     1.1,
+     1
+    ],
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-small-foot-4",
+   "name": "Brass foot 4",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Aestrin-small-body",
+   "size": [
+    2.2,
+    2.2,
+    1
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    6.8,
+    0.5,
+    -3.8,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.1,
+     0
+    ],
+    [
+     1.1,
+     1
+    ],
+    [
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-small-edge-front-left",
+   "name": "Iron edge strip front left",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-small-body",
+   "size": [
+    2.4,
+    18.4,
+    2.4
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -8,
+    10,
+    5,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-small-edge-front-right",
+   "name": "Iron edge strip front right",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-small-body",
+   "size": [
+    2.4,
+    18.4,
+    2.4
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    8,
+    10,
+    5,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-small-edge-back-left",
+   "name": "Iron edge strip back left",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-small-body",
+   "size": [
+    2.4,
+    18.4,
+    2.4
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    -1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    -1,
+    0,
+    8,
+    10,
+    -5,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-small-edge-back-right",
+   "name": "Iron edge strip back right",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-small-body",
+   "size": [
+    2.4,
+    18.4,
+    2.4
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    -1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    -1,
+    0,
+    -8,
+    10,
+    -5,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-small-bracket-top-left",
+   "name": "Corner bracket top-left",
+   "type": "extrude",
+   "role": "detail",
+   "parent": "Aestrin-small-body",
+   "size": [
+    5,
+    5,
+    0.5
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -6.5,
+    16.5,
+    6.45,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-small-rivet-top-left",
+   "name": "Bracket rivet top-left",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Aestrin-small-bracket-top-left",
+   "size": [
+    1.2,
+    1.2,
+    0.5
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -7.8,
+    17.8,
+    6.95,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     0.6,
+     0
+    ],
+    [
+     0.552,
+     0.225
+    ],
+    [
+     0.39,
+     0.41
+    ],
+    [
+     0.198,
+     0.485
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-small-bracket-top-right",
+   "name": "Corner bracket top-right",
+   "type": "extrude",
+   "role": "detail",
+   "parent": "Aestrin-small-body",
+   "size": [
+    5,
+    5,
+    0.5
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    6.5,
+    16.5,
+    6.45,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-small-rivet-top-right",
+   "name": "Bracket rivet top-right",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Aestrin-small-bracket-top-right",
+   "size": [
+    1.2,
+    1.2,
+    0.5
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    7.8,
+    17.8,
+    6.95,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     0.6,
+     0
+    ],
+    [
+     0.552,
+     0.225
+    ],
+    [
+     0.39,
+     0.41
+    ],
+    [
+     0.198,
+     0.485
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-small-bracket-bottom-left",
+   "name": "Corner bracket bottom-left",
+   "type": "extrude",
+   "role": "detail",
+   "parent": "Aestrin-small-body",
+   "size": [
+    5,
+    5,
+    0.5
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -6.5,
+    3.5,
+    6.45,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-small-rivet-bottom-left",
+   "name": "Bracket rivet bottom-left",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Aestrin-small-bracket-bottom-left",
+   "size": [
+    1.2,
+    1.2,
+    0.5
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -7.8,
+    2.2,
+    6.95,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     0.6,
+     0
+    ],
+    [
+     0.552,
+     0.225
+    ],
+    [
+     0.39,
+     0.41
+    ],
+    [
+     0.198,
+     0.485
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-small-bracket-bottom-right",
+   "name": "Corner bracket bottom-right",
+   "type": "extrude",
+   "role": "detail",
+   "parent": "Aestrin-small-body",
+   "size": [
+    5,
+    5,
+    0.5
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    6.5,
+    3.5,
+    6.45,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-small-rivet-bottom-right",
+   "name": "Bracket rivet bottom-right",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Aestrin-small-bracket-bottom-right",
+   "size": [
+    1.2,
+    1.2,
+    0.5
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    7.8,
+    2.2,
+    6.95,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     0.6,
+     0
+    ],
+    [
+     0.552,
+     0.225
+    ],
+    [
+     0.39,
+     0.41
+    ],
+    [
+     0.198,
+     0.485
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-small-bezel",
+   "name": "Brass porthole bezel",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "Aestrin-small-body",
+   "size": [
+    12.4,
+    12.4,
+    0.9
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    11.2,
+    6.45,
+    1
+   ],
+   "profile": [
+    [
+     4.8,
+     0
+    ],
+    [
+     6.2,
+     0
+    ],
+    [
+     6.2,
+     0.55
+    ],
+    [
+     5.85,
+     0.9
+    ],
+    [
+     4.8,
+     0.9
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-small-grille",
+   "name": "Woven grille cloth",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "Aestrin-small-body",
+   "size": [
+    9.8,
+    9.8,
+    0.3
+   ],
+   "material": {
+    "name": "Woven speaker cloth",
+    "color": "#5b5040",
+    "roughness": 0.97,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    11.2,
+    6.15,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-small-bezel-rivets",
+   "name": "Bezel rivets",
+   "type": "mesh",
+   "role": "detail",
+   "parent": "Aestrin-small-bezel",
+   "size": [
+    8.5542,
+    8.5542,
+    0.4
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    11.2,
+    7,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-small-volume-skirt",
+   "name": "Volume — skirt ring",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-small-body",
+   "size": [
+    2.5875,
+    2.5875,
+    0.25
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    5.1,
+    4.9,
+    6.125,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-small-volume-knob",
+   "name": "Volume — knob",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-small-volume-skirt",
+   "size": [
+    2.07,
+    2.07,
+    1.1385
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    5.1,
+    4.9,
+    6.81925,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.035,
+     0
+    ],
+    [
+     1.035,
+     0.9108
+    ],
+    [
+     0.9315,
+     1.1385
+    ],
+    [
+     0,
+     1.1385
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-small-volume-index",
+   "name": "Volume — pointer bar",
+   "type": "box",
+   "role": "control",
+   "parent": "Aestrin-small-volume-knob",
+   "size": [
+    0.414,
+    1.5318,
+    0.3416
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    5.1,
+    5.1484000000000005,
+    7.502400000000001,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-small-power-socket",
+   "name": "Power — socket",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-small-body",
+   "size": [
+    3.1857,
+    3.1857,
+    0.25
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -5.1,
+    4.9,
+    6.125,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-small-power-button",
+   "name": "Power — button",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-small-power-socket",
+   "size": [
+    2.3598,
+    2.3598,
+    0.8259
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -5.1,
+    4.9,
+    6.66295,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.1799,
+     0
+    ],
+    [
+     1.1799,
+     0.4956
+    ],
+    [
+     1.0147,
+     0.8259
+    ],
+    [
+     0,
+     0.8259
+    ]
+   ]
+  }
+ ]
+}

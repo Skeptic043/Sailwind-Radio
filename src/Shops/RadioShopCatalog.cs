@@ -2,7 +2,19 @@ namespace SailwindRadio.Shops
 {
     internal static class RadioShopCatalog
     {
-        internal static readonly int[] StockKinds = { 3, 2, 2, 0, 0, 1, 1 };
-        internal static int BasePrice(int kind) => kind == 0 ? 789 : kind == 1 ? 526 : kind == 2 ? 1579 : kind == 3 ? 2632 : 0;
+        internal static readonly DeviceRole[] StockRoles =
+        {
+            DeviceRole.Woofer, DeviceRole.Speaker, DeviceRole.Speaker, DeviceRole.Radio, DeviceRole.Radio, DeviceRole.SmallSpeaker, DeviceRole.SmallSpeaker
+        };
+        internal static int StallFamily(int island) => RadioStalls.TryGet(island, out var stall) ? stall.Family : DeviceKind.Walnut;
+        // Each regional stall sells its own family's radio and speakers. An island without a regional family gets the walnut set.
+        internal static int StockKind(int island, int slot) => DeviceKind.Of(StallFamily(island), StockRoles[slot]);
+        internal static int BasePrice(int kind)
+        {
+            if (!DeviceKind.IsValid(kind))
+                return 0;
+            var role = DeviceKind.Role(kind);
+            return role == DeviceRole.Radio ? 789 : role == DeviceRole.SmallSpeaker ? 526 : role == DeviceRole.Speaker ? 1579 : 2632;
+        }
     }
 }

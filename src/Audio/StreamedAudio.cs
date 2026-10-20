@@ -4,7 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 
-namespace SailwindRadio
+namespace SailwindRadio.Audio
 {
     // One decoder feeds all outputs. Its own worker opens the file, so the Unity thread never
     // touches disk or decoding. Audio callbacks only copy published, immutable PCM chunks and
@@ -21,7 +21,7 @@ namespace SailwindRadio
         private readonly string path;
         private readonly double initialSeconds;
         private readonly CancellationTokenSource cancellation = new CancellationTokenSource();
-        // Wakes the idle worker when the main thread moves its target or changes looping.
+        // Wakes the idle worker when the main thread moves its target.
         private readonly AutoResetEvent wake = new AutoResetEvent(false);
         private readonly Task worker;
         private IPcmDecoder decoder;
@@ -30,7 +30,6 @@ namespace SailwindRadio
         // because the worker may reuse it at any moment.
         private int[] slots;
         private long requestedFrame;
-        private volatile bool loop;
         // Worker only. Frames from here on are silence because the decoder ended early or failed.
         private int dataEnd = NoFrame;
         // Worker only. A fill has completed, so a later decode failure ends playback instead of failing it.
@@ -38,7 +37,7 @@ namespace SailwindRadio
         private bool reseek;
         private int channels, sampleRate, frames;
         private Exception fault, damage;
-        private int damageFrame = NoFrame, loopDamageFrame = NoFrame;
+        private int damageFrame = NoFrame;
         private volatile bool opened;
         private volatile bool disposed;
         private int missingFrames;
@@ -54,23 +53,10 @@ namespace SailwindRadio
         // First frame lost to a decode failure at or ahead of the worker target after audio was produced,
         // or Int32.MaxValue. Frames before it play normally and frames from it on are silence.
         internal int DamageFrame { get { return Volatile.Read(ref damageFrame); } }
-        // The same for a failure in the looping look-ahead, which lies behind the playhead until it wraps.
-        internal int LoopDamageFrame { get { return Volatile.Read(ref loopDamageFrame); } }
         internal Exception Damage { get { return Volatile.Read(ref damage); } }
         // Diagnostic count of frames Unity read before their chunk was decoded, so they played as silence unless
         // a later seek discarded them. The editor probe observes start underruns with it.
         internal int MissingFrames { get { return Volatile.Read(ref missingFrames); } }
-        // Main thread. When set, the look-ahead continues from the start of the track past its end.
-        internal bool Loop
-        {
-            get { return loop; }
-            set
-            {
-                if (loop == value) return;
-                loop = value;
-                Wake();
-            }
-        }
 
         private sealed class Chunk
         {
@@ -149,14 +135,13 @@ namespace SailwindRadio
             catch (ObjectDisposedException) { }
         }
 
-        // True once the audio Unity pre-reads from frame is decoded, continuing from the start when looping.
+        // True once the audio Unity pre-reads from frame is decoded.
         internal bool Ready(int frame)
         {
             if (disposed || !opened) return false;
             frame = Math.Max(0, Math.Min(Frames - 1, frame));
             long end = (long)frame + Math.Max(1L, (long)SampleRate * ReadyMilliseconds / 1000);
-            if (!Decoded(frame, (int)Math.Min(Frames, end))) return false;
-            return !loop || end <= Frames || Decoded(0, (int)Math.Min(frame, end - Frames));
+            return Decoded(frame, (int)Math.Min(Frames, end));
         }
 
         private bool Decoded(int from, int to)
@@ -217,7 +202,7 @@ namespace SailwindRadio
             // Unity AudioClip.Create and AudioSource.timeSamples both use int frames.
             if (length > Int32.MaxValue - rate * 2L)
                 throw new IOException("Track duration exceeds Unity's sample-position limit");
-            // A track shorter than the window is held whole, so repeats and backward seeks never decode again.
+            // A track shorter than the window is held whole, so backward seeks never decode again.
             int trackChunks = (int)((length + ChunkFrames - 1) / ChunkFrames);
             int windowChunks = (WindowSeconds * rate + ChunkFrames - 1) / ChunkFrames;
             // A cancelled open allocates no window and is never published as open.
@@ -246,17 +231,15 @@ namespace SailwindRadio
                 while (!token.IsCancellationRequested)
                 {
                     int target = (int)Interlocked.Read(ref requestedFrame);
-                    int first, forwardEnd, wrapEnd;
-                    Window(target, loop, out first, out forwardEnd, out wrapEnd);
+                    int first, forwardEnd;
+                    Window(target, out first, out forwardEnd);
                     // Fill the first chunk missing between the playhead and the look-ahead limit. Chunks
-                    // already held are kept, so wraps and short seeks inside the window cost nothing.
+                    // already held are kept, so short seeks inside the window cost nothing.
                     int missing = -1;
                     for (int index = first; index < forwardEnd && missing < 0; index++) if (!Holds(index)) missing = index;
-                    bool wrapped = missing < 0;
-                    for (int index = 0; index < wrapEnd && missing < 0; index++) if (!Holds(index)) missing = index;
-                    // Request, Loop and Dispose all signal, so an idle worker needs no timed poll.
+                    // Request and Dispose both signal, so an idle worker needs no timed poll.
                     if (missing < 0) { WaitHandle.WaitAny(signals); continue; }
-                    Fill(missing, Victim(first, forwardEnd, wrapEnd), wrapped, token);
+                    Fill(missing, Victim(first, forwardEnd), token);
                 }
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -264,14 +247,12 @@ namespace SailwindRadio
             finally { if (decoder != null) decoder.Dispose(); }
         }
 
-        // Worker only. The chunks the next ten seconds need: forward from the target to the end of the
-        // track, then from its start when looping. A short track never lists a chunk twice.
-        private void Window(int target, bool looping, out int first, out int forwardEnd, out int wrapEnd)
+        // Worker only. The chunks the next ten seconds need, forward from the target to the end of the track.
+        private void Window(int target, out int first, out int forwardEnd)
         {
             long ahead = (long)target + (long)AheadSeconds * sampleRate;
             first = target / ChunkFrames;
             forwardEnd = (int)((Math.Min(ahead, frames) + ChunkFrames - 1) / ChunkFrames);
-            wrapEnd = looping && ahead > frames ? (int)Math.Min(first, (ahead - frames + ChunkFrames - 1) / ChunkFrames) : 0;
         }
 
         // Worker only. It is the sole writer of Start, Count and the slot map.
@@ -286,7 +267,7 @@ namespace SailwindRadio
         // Worker only. An empty slot, otherwise the one whose chunk lies furthest behind the target
         // outside the window. The ring outgrows the window, and a track held whole always has an empty
         // slot for its missing chunk, so a slot is always found.
-        private int Victim(int first, int forwardEnd, int wrapEnd)
+        private int Victim(int first, int forwardEnd)
         {
             int best = -1, bestDistance = -1, trackChunks = slots.Length;
             for (int slot = 0; slot < chunks.Length; slot++)
@@ -294,7 +275,7 @@ namespace SailwindRadio
                 Chunk chunk = chunks[slot];
                 if (chunk.Count == 0) return slot;
                 int index = chunk.Start / ChunkFrames;
-                if ((index >= first && index < forwardEnd) || index < wrapEnd) continue;
+                if (index >= first && index < forwardEnd) continue;
                 int distance = (first - index + trackChunks) % trackChunks;
                 if (distance > bestDistance) { best = slot; bestDistance = distance; }
             }
@@ -302,7 +283,7 @@ namespace SailwindRadio
             return best;
         }
 
-        private void Fill(int index, int slot, bool wrapped, CancellationToken token)
+        private void Fill(int index, int slot, CancellationToken token)
         {
             Chunk chunk = chunks[slot];
             int start = index * ChunkFrames;
@@ -319,7 +300,7 @@ namespace SailwindRadio
                 chunk.Count = 0;
                 chunk.Start = start;
                 int count = Math.Min(ChunkFrames, frames - start);
-                int read = Decode(chunk.Samples, start, count, wrapped, token);
+                int read = Decode(chunk.Samples, start, count, token);
                 for (int i = 0; i < read; i++)
                     if (Single.IsNaN(chunk.Samples[i]) || Single.IsInfinity(chunk.Samples[i])) chunk.Samples[i] = 0f;
                     else chunk.Samples[i] = Math.Max(-1f, Math.Min(1f, chunk.Samples[i]));
@@ -333,7 +314,7 @@ namespace SailwindRadio
 
         // Worker only. Decodes up to count frames at start and returns the samples written. Frames past a
         // clean early end or a decode failure stay silent. A failure before any audio faults the stream.
-        private int Decode(float[] samples, int start, int count, bool wrapped, CancellationToken token)
+        private int Decode(float[] samples, int start, int count, CancellationToken token)
         {
             int wanted = (int)Math.Min(count, Math.Max(0L, (long)dataEnd - start)) * channels;
             if (wanted == 0) return 0;
@@ -372,9 +353,7 @@ namespace SailwindRadio
                 dataEnd = Math.Min(dataEnd, at);
                 reseek = true;
                 if (damage == null) Volatile.Write(ref damage, ex);
-                // Kept apart, so a failure behind the playhead never moves the end of the audio ahead of it.
-                if (wrapped) { if (at < loopDamageFrame) Volatile.Write(ref loopDamageFrame, at); }
-                else if (at < damageFrame) Volatile.Write(ref damageFrame, at);
+                if (at < damageFrame) Volatile.Write(ref damageFrame, at);
             }
             return read;
         }

@@ -50,7 +50,8 @@ static partial class Program
     }
     static void PurchaseChecks()
     {
-        for(int kind=0;kind<4;kind++)
+        // Walnut kinds plus one regional kind of each speaker role and region.
+        foreach(int kind in new[]{0,1,2,3,5,10,15})
         {
             foreach(bool wrapper in new[]{true,false})
             {

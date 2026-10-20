@@ -1,4 +1,3 @@
-using SailwindRadio.Persistence;
 using UnityEngine;
 
 namespace SailwindRadio.Physical
@@ -15,10 +14,9 @@ namespace SailwindRadio.Physical
 
         private void Awake()
         {
-            if (kind < 0 || kind > 3 || !gameObject.scene.IsValid() ||
-                !RadioWorldService.IsTemplateInstanceName(gameObject.name, kind)) return;
+            if (!gameObject.scene.IsValid()) return;
             var prefab = GetComponent<SaveablePrefab>();
-            if (!prefab || prefab.prefabIndex != RadioSaveStore.ItemIndex(kind)) return;
+            if (!prefab || !RadioWorldService.IsRegisteredClone(prefab, kind)) return;
             RadioWorldService.AttachTemplateClone(this);
         }
     }

@@ -10,7 +10,7 @@ namespace SailwindRadio.Physical
         }
         internal static bool IsLit(RadioState state, string control, bool momentary)
         {
-            bool enabled = state.Kind == 0 ? state.Powered : state.SpeakerEnabled;
+            bool enabled = state.Role == DeviceRole.Radio ? state.Powered : state.SpeakerEnabled;
             return enabled && (control == "power" || control == "playpause" && state.Paused || control == "shuffle" && state.Shuffle || momentary);
         }
     }

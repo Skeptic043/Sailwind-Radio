@@ -41,17 +41,6 @@ namespace UnityEngine
     }
     public class Behaviour : Component { public bool enabled = true; }
     public class AudioListener : Behaviour { }
-    public struct Vector3
-    {
-        public float x, y, z;
-        public Vector3(float x, float y=0, float z=0) { this.x=x; this.y=y; this.z=z; }
-        public float sqrMagnitude => x*x+y*y+z*z;
-        public float magnitude => (float)Math.Sqrt(sqrMagnitude);
-        public Vector3 normalized => new(x/magnitude,y/magnitude,z/magnitude);
-        public static Vector3 one => new(1,1,1);
-        public static Vector3 operator +(Vector3 a,Vector3 b) => new(a.x+b.x,a.y+b.y,a.z+b.z);
-        public static Vector3 operator -(Vector3 a,Vector3 b) => new(a.x-b.x,a.y-b.y,a.z-b.z);
-    }
     public struct Bounds
     {
         public Vector3 center;
@@ -73,7 +62,6 @@ namespace UnityEngine
     public class CapsuleCollider : Collider { }
     public class Mesh : Object { }
     public class MeshCollider : Collider { public bool convex=true; public Mesh sharedMesh=new(); }
-    public static class Time { public static float realtimeSinceStartup; }
     public struct RaycastHit { public Collider collider; }
     public enum QueryTriggerInteraction { Ignore }
     public static class Physics

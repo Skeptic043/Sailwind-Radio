@@ -55,17 +55,37 @@ namespace SailwindRadio.Persistence
         public const int DonorIndex = 138;
         // Fixed slots are part of the native save identity. Never derive them from directory length.
         public const int FirstItemIndex = 43040;
-        public static int ItemIndex(int kind) => kind >= 0 && kind < 4 ? FirstItemIndex + kind :
+        public static int ItemIndex(int kind) => DeviceKind.IsValid(kind) ? FirstItemIndex + kind :
             throw new ArgumentOutOfRangeException(nameof(kind));
-        public static bool IsItemIndex(int index) => index >= FirstItemIndex && index < FirstItemIndex + 4;
-        public static bool CanClaimItemSlots(Func<int, bool> occupied, out int collision)
+        public static bool IsItemIndex(int index) => index >= FirstItemIndex && index < FirstItemIndex + DeviceKind.Count;
+        // The walnut slots are required exactly as before. Each regional family present in the model
+        // document is claimed whole or skipped, so one occupied slot never leaves a partial set.
+        // Returns the ascending kinds to register, or null when a walnut slot is occupied.
+        public static int[] ClaimItemKinds(IEnumerable<int> present, Func<int, bool> occupied, Action<int, int> familySkipped, out int collision)
         {
+            if (present == null) throw new ArgumentNullException(nameof(present));
             if (occupied == null) throw new ArgumentNullException(nameof(occupied));
-            for (int kind = 0; kind < 4; kind++)
-                if (occupied(ItemIndex(kind))) { collision = ItemIndex(kind); return false; }
             collision = -1;
-            return true;
+            for (int kind = 0; kind < 4; kind++)
+                if (occupied(ItemIndex(kind))) { collision = ItemIndex(kind); return null; }
+            var claimed = new List<int> { 0, 1, 2, 3 };
+            var available = new HashSet<int>(present);
+            for (int family = 1; family < DeviceKind.Count / 4; family++)
+            {
+                var members = new List<int>();
+                int blocked = -1;
+                for (int kind = family * 4; kind < family * 4 + 4; kind++)
+                    if (available.Contains(kind))
+                    {
+                        members.Add(kind);
+                        if (blocked < 0 && occupied(ItemIndex(kind))) blocked = ItemIndex(kind);
+                    }
+                if (blocked >= 0) familySkipped?.Invoke(family, blocked);
+                else claimed.AddRange(members);
+            }
+            return claimed.ToArray();
         }
+        public static int DirectoryLength(int[] registered) => ItemIndex(registered[registered.Length - 1]) + 1;
         public static bool HasUniqueNativeOwner(int id, IEnumerable<int> nativeIds, out int count)
         {
             if (nativeIds == null) throw new ArgumentNullException(nameof(nativeIds));
@@ -178,12 +198,13 @@ namespace SailwindRadio.Persistence
 
         private static void Validate(RadioRecord record)
         {
-            if (record == null || record.InstanceId <= 0 || record.Kind < 0 || record.Kind > 3 ||
-                (record.PrefabIndex != DonorIndex && record.PrefabIndex != ItemIndex(record.Kind)))
+            // Only the walnut set ever used the legacy donor item.
+            if (record == null || record.InstanceId <= 0 || !DeviceKind.IsValid(record.Kind) ||
+                (record.PrefabIndex != ItemIndex(record.Kind) && !(record.PrefabIndex == DonorIndex && DeviceKind.IsWalnut(record.Kind))))
                 throw new SerializationException("invalid radio identity or donor");
             if (Double.IsNaN(record.PositionSeconds) || Double.IsInfinity(record.PositionSeconds) || record.PositionSeconds < 0 ||
                 Single.IsNaN(record.Volume) || Single.IsInfinity(record.Volume) || record.Volume < 0 || record.Volume > 1 ||
-                record.Kind < 0 || record.Kind > 3 || Single.IsNaN(record.Bass) || Single.IsInfinity(record.Bass) || record.Bass < 0 || record.Bass > 1 ||
+                Single.IsNaN(record.Bass) || Single.IsInfinity(record.Bass) || record.Bass < 0 || record.Bass > 1 ||
                 Single.IsNaN(record.LocalVolume) || Single.IsInfinity(record.LocalVolume) || record.LocalVolume < 0 || record.LocalVolume > 1 ||
                 (record.TrackPath != null && record.TrackPath.Length > 32768))
                 throw new SerializationException("invalid radio playback state");

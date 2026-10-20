@@ -106,7 +106,7 @@ internal static class Program
         Refs.charController = null; Refs.ovrController = null; Refs.mouseCrosshair = null; GameState.playing = false;
         Callback(knob, "OnDestroy");
         Check(!knob.IsStickyClicked() && !pointer.Sticky, "teardown detaches pointer after native UI and controllers disappear");
-        (knob,pointer)=Fresh(); knob.AdjustBass=true; knob.Radio.State.Kind=3;
+        (knob,pointer)=Fresh(); knob.Mode=RadioKnobMode.Bass; knob.Radio.State.Kind=3;
         knob.OnActivate(pointer); GameInput.Scroll=1; knob.ExtraLateUpdate();
         Check(knob.Radio.State.Bass==.75f && knob.Radio.State.Volume==.5f,"woofer bass knob changes bass independently from local volume");
         GameInput.Scroll=100; knob.ExtraLateUpdate(); Check(knob.Radio.State.Bass==1,"bass clamps upper bound");

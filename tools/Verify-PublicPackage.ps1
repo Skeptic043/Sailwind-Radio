@@ -4,7 +4,8 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $expected = @(
     'manifest.json', 'icon.png', 'README.md', 'CHANGELOG.md', 'LICENSE',
-    'THIRD_PARTY_NOTICES.md', 'licenses/NLayer.txt',
+    'ASSET_LICENSES.md', 'THIRD_PARTY_NOTICES.md',
+    'licenses/CC-BY-NC-4.0.txt', 'licenses/NLayer.txt',
     'BepInEx/plugins/SailwindRadio/SailwindRadio.dll',
     'BepInEx/plugins/SailwindRadio/NLayer.dll'
 )
@@ -14,6 +15,10 @@ try {
     if ($actual.Count -ne $expected.Count -or @($actual | Where-Object { $_ -notin $expected }).Count -ne 0 -or
         @($expected | Where-Object { $_ -notin $actual }).Count -ne 0) {
         throw 'Public package entries differ from the release allowlist.'
+    }
+
+    foreach ($licensedEntry in @('ASSET_LICENSES.md', 'licenses/CC-BY-NC-4.0.txt')) {
+        if (-not $archive.GetEntry($licensedEntry)) { throw "Missing regional model license entry: $licensedEntry" }
     }
 
     $userName = [Environment]::UserName

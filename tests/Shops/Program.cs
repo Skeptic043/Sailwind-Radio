@@ -22,22 +22,14 @@ static partial class Program
     {
         PurchaseChecks();
         var clock=new ShopRestock();Check(clock.Ready,"new slot ready");clock.Spawned();Check(!clock.Ready,"occupied no duplicate");clock.Removed();clock.Removed();clock.Tick(119);Check(!clock.Ready,"restock waits120 simulationseconds");clock.Tick(float.NaN);clock.Tick(float.PositiveInfinity);clock.Tick(-1);Check(!clock.Ready,"badtime ignored");clock.Tick(1);Check(clock.Ready,"restock readyat120");
-        var correct=typeof(RadioShopService).GetMethod("CorrectRegion",BindingFlags.Static|BindingFlags.NonPublic);
-        Check((bool)correct.Invoke(null,new object[]{new Region{portRegion=PortRegion.alankh},1}),"Gold Rock maps to Al'Ankh currency");
-        Check((bool)correct.Invoke(null,new object[]{new Region{portRegion=PortRegion.emerald},9}),"Dragon Cliffs maps to Emerald currency");
-        Check((bool)correct.Invoke(null,new object[]{new Region{portRegion=PortRegion.medi},15}),"Fort Aestrin maps to Aestrin currency");
-        Check(!(bool)correct.Invoke(null,new object[]{new Region{portRegion=PortRegion.none},15}),"Gold or no-port region cannot stock a capital merchant");
+        foreach(var (island,family) in new[]{(1,1),(9,3),(15,2),(25,0),(0,0),(4,0)})
+            Check(Enumerable.Range(0,RadioShopCatalog.StockRoles.Length).Select(i=>RadioShopCatalog.StockKind(island,i))
+                .SequenceEqual(new[]{family*4+3,family*4+2,family*4+2,family*4,family*4,family*4+1,family*4+1}),"island "+island+" sells its own family's radios and speakers in the existing slots");
+        Check(RadioShopCatalog.BasePrice(0)==789&&RadioShopCatalog.BasePrice(5)==526&&RadioShopCatalog.BasePrice(10)==1579&&RadioShopCatalog.BasePrice(15)==2632,
+            "regional devices cost the same as the walnut device of the same role");
         var nativeName=typeof(RadioShopService).GetMethod("NativeKeeperName",BindingFlags.Static|BindingFlags.NonPublic);
         Check((bool)nativeName.Invoke(null,new object[]{"shopkeeper (12)"}),"serialized built-in NPC name accepted");
         Check(!(bool)nativeName.Invoke(null,new object[]{"shopkeeper (12)(Clone)"}),"another mod's cloned NPC name is not used as native template");
-        var findRegion=typeof(RadioShopService).GetMethod("FindRegionAt",BindingFlags.Static|BindingFlags.NonPublic);
-        var regionA=new GameObject("Emerald region A");var emeraldA=regionA.AddComponent<Region>();emeraldA.portRegion=PortRegion.emerald;
-        var regionB=new GameObject("Emerald region B");var emeraldB=regionB.AddComponent<Region>();emeraldB.portRegion=PortRegion.emerald;
-        UnityEngine.Physics.Nearby=new[]{regionA.AddComponent<Collider>()};
-        Check(ReferenceEquals(findRegion.Invoke(null,new object[]{new Vector3(),9}),emeraldA),"only a nearby matching region can supply currency");
-        UnityEngine.Physics.Nearby=new[]{regionA.GetComponent<Collider>(),regionB.AddComponent<Collider>()};
-        Check(findRegion.Invoke(null,new object[]{new Vector3(),9})==null,"ambiguous nearby same-currency regions cannot be chosen arbitrarily");
-        UnityEngine.Physics.Nearby=Array.Empty<Collider>();
         Lifecycle();
         Console.WriteLine(checks+" production native ownership, shop callback and restock checks passed. Native physics and buying UI remain live checks.");
     }
@@ -117,15 +109,22 @@ static partial class Program
                 template.GetComponent<SphereCollider>().enabled&&template.GetComponent<SphereCollider>().radius==2f,
                 "hidden owned keeper closes resale trigger and large child trigger without changing native source");
             Check(!ownNpc.GetComponent<Renderer>().enabled,"owned merchant remains hidden until stock can be attempted");
+            var regionField=typeof(Shopkeeper).GetField("parentRegion",BindingFlags.Instance|BindingFlags.NonPublic);var ownKeeper=ownArea.GetShopkeeper();
+            Check(ReferenceEquals(regionField.GetValue(ownKeeper),regionField.GetValue(templateKeeper))&&((Region)regionField.GetValue(ownKeeper)).portRegion==PortRegion.none,
+                "owned keeper starts in its native template keeper's region, including a no-port region");
+            var vendor=((System.Collections.IEnumerable)typeof(RadioShopService).GetField("vendors",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(service)).Cast<object>()
+                .Single(v=>ReferenceEquals(v.GetType().GetField("Area",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(v),ownArea));
+            bool Ready(string method)=>(bool)typeof(RadioShopService).GetMethod(method,BindingFlags.Instance|BindingFlags.NonPublic).Invoke(service,new[]{vendor});
             Time.unscaledTime=6;service.Tick();
             Check(!ownStand.Visible&&!ownNpc.GetComponent<Renderer>().enabled&&ownArea.itemsForSale.Count==0,
                 "save-readiness delay keeps the prebuilt shop hidden instead of revealing it in stages");
             Check(template.transform.parent==scenery.transform&&!template.Destroyed&&!template.activeInHierarchy,
                 "original night-closed native NPC remains untouched");
             Check(!(bool)Call("BeforeAreaEnter",area,ownNpc.GetComponent<Collider>()),"owned NPC cannot register with a nearby base-game shop area");
-            Check(ownArea.itemsForSale.Count==0,"invalid native port region keeps owned shop unstocked");
-            var nativeRegion=(Region)typeof(Shopkeeper).GetField("parentRegion",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ownArea.GetShopkeeper());
-            nativeRegion.portRegion=PortRegion.emerald;
+            regionField.SetValue(templateKeeper,null);regionField.SetValue(ownKeeper,null);
+            Check(!Ready("ReadyToStock"),"keeper without a region cannot stock");
+            var emerald=new GameObject("emerald region").AddComponent<Region>();emerald.portRegion=PortRegion.emerald;regionField.SetValue(templateKeeper,emerald);
+            Check(Ready("ReadyToStock")&&ReferenceEquals(regionField.GetValue(ownKeeper),emerald),"owned keeper follows a later change to its template keeper's region");
             ownNpc.GetComponentsInChildren<Collider>(true).Single(c=>c.transform!=ownNpc.transform).enabled=true;
             Sun.sun.localTime=12;world.StockBudget=6;
             world.ReadyToStageShop=true;Time.unscaledTime=12;service.Tick();Check(RadioShopStand.Created==1,"repeat scan deduplicates owned merchant");
@@ -140,6 +139,13 @@ static partial class Program
             world.StockBudget=-1;Sun.sun.localTime=12;world.ReadyForShop=true;Time.unscaledTime=18;service.Tick();
             Check(ownArea.itemsForSale.Count==7,"owned merchant receives all seven devices after native readiness; found "+ownArea.itemsForSale.Count+"; "+string.Join(" | ",warnings));
             Check(ownNpc.GetComponent<Renderer>().enabled,"complete seven-item display becomes visible together");
+            Check(ownArea.itemsForSale.Select(i=>i.GetComponent<RadioItemController>().State.Kind).OrderBy(k=>k).SequenceEqual(new[]{12,12,13,13,14,14,15}),
+                "Dragon Cliffs stall stocks the Emerald radios, speakers and woofer");
+            var gold=new GameObject("Gold Lions region").AddComponent<Region>();gold.portRegion=PortRegion.none;regionField.SetValue(templateKeeper,gold);
+            Check(Ready("PurchaseEnvironmentReady")&&ReferenceEquals(regionField.GetValue(ownKeeper),gold),"followed Gold Lions region opens purchases");
+            var dayLogs=DayLogs.instance.dayLogs;DayLogs.instance.dayLogs=dayLogs.Take(3).ToArray();
+            Check(!Ready("PurchaseEnvironmentReady"),"purchase readiness checks the followed region's currency index 3");
+            DayLogs.instance.dayLogs=dayLogs;regionField.SetValue(templateKeeper,emerald);Ready("ReadyToStock");
             var ownedStock=ownArea.itemsForSale[0];int recordsBeforeGate=world.Store.Records.Count();
             var ownedCollider=ownedStock.gameObject.AddComponent<Collider>();
             Check(!(bool)Call("BeforeAreaEnter",area,ownedCollider),"Radio stock cannot register with a nearby base-game shop area");
@@ -206,6 +212,8 @@ static partial class Program
             Check(ownedStock.sold&&ownedStock.GetComponent<RadioShopStock>().Purchased,"native sale owns ready stock");
             Check(world.Store.Records.Count()==recordsBeforeGate+1,"native registration adds one owned record");
             Check(warnings.Count==0,"normal setup, partial stock and restocking log nothing: "+string.Join(" | ",warnings));
+            UnityEngine.Object.Destroy(template);var triggered=new GameObject("trigger region").AddComponent<Region>();regionField.SetValue(ownKeeper,triggered);
+            Check(Ready("ReadyToStock")&&ReferenceEquals(regionField.GetValue(ownKeeper),triggered),"without its template the keeper keeps the native trigger's region");
             GameState.currentlyLoading=true;service.Tick();GameState.currentlyLoading=false;
             Check(GameObject.All.Where(g=>g.name=="test stand").All(g=>g.Destroyed),"world load cleans up unsold preview");
             Check(ownNpc.Destroyed,"world load cleans up detached owned merchant");

@@ -26,18 +26,6 @@ namespace UnityEngine
   public Vector3 InverseTransformPoint(Vector3 v){var p=Quaternion.Inverse(rotation)*(v-position);return new(p.x/lossyScale.x,p.y/lossyScale.y,p.z/lossyScale.z);}
  }
  public class GameObject:Object{public bool activeInHierarchy=true;}
- public struct Vector3
- {
-  public float x,y,z;public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}
-  public static Vector3 one=>new(1,1,1);public static Vector3 up=>new(0,1,0);public static Vector3 down=>new(0,-1,0);public static Vector3 forward=>new(0,0,1);
-  public float sqrMagnitude=>x*x+y*y+z*z;public float magnitude=>MathF.Sqrt(sqrMagnitude);public Vector3 normalized=>this*(1/magnitude);
-  public static Vector3 operator +(Vector3 a,Vector3 b)=>new(a.x+b.x,a.y+b.y,a.z+b.z);
-  public static Vector3 operator -(Vector3 a,Vector3 b)=>new(a.x-b.x,a.y-b.y,a.z-b.z);
-  public static Vector3 operator *(Vector3 a,float b)=>new(a.x*b,a.y*b,a.z*b);
-  public static Vector3 Scale(Vector3 a,Vector3 b)=>new(a.x*b.x,a.y*b.y,a.z*b.z);
-  public static Vector3 ProjectOnPlane(Vector3 vector,Vector3 normal)=>vector-normal*Dot(vector,normal);
-  public static float Dot(Vector3 a,Vector3 b)=>a.x*b.x+a.y*b.y+a.z*b.z;
- }
  public struct Quaternion
  {
   public NQ Value;public static Quaternion identity=>new(){Value=NQ.Identity};public static Quaternion Inverse(Quaternion q)=>new(){Value=NQ.Inverse(q.Value)};
@@ -51,7 +39,6 @@ namespace UnityEngine
  public class BoxCollider:Collider{public Vector3 center,size=Vector3.one;}
  public struct RaycastHit{public Collider collider;public Vector3 point,normal;}
  public enum QueryTriggerInteraction{Ignore,Collide}
- public static class Mathf{public const float Rad2Deg=180f/MathF.PI;public static float Abs(float x)=>MathF.Abs(x);public static float Atan2(float y,float x)=>MathF.Atan2(y,x);public static int FloorToInt(float x)=>(int)MathF.Floor(x);public static int Min(int x,int y)=>Math.Min(x,y);public static float Min(float x,float y)=>Math.Min(x,y);}
  public static class Physics
  {
   public static Collider Ground=new Transform().Add<Collider>();

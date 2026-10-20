@@ -9,6 +9,7 @@
     <PackageReference Include="NLayer" Version="1.16.0" />
     <Compile Include="../../src/Audio/*.cs" />
     <Compile Include="../../src/RadioState.cs" Link="RadioState.cs" />
+    <Compile Include="../../src/DeviceKind.cs" Link="DeviceKind.cs" />
     <Compile Include="AudioChecks.cs" />
     <Compile Include="UnityAudioDoubles.cs" />
     <Compile Include="FlacRoutingChecks.cs" />

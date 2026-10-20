@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace SailwindRadio
+namespace SailwindRadio.Audio
 {
     internal sealed class RadioSpeakerProfile
     {
@@ -16,7 +16,10 @@ namespace SailwindRadio
         internal static readonly RadioSpeakerProfile Normal = new RadioSpeakerProfile(.65f, 20f, 160f, 18000f);
         internal static readonly RadioSpeakerProfile TurboWoofer = new RadioSpeakerProfile(1f, 20f, 20f, 140f, true);
         internal static RadioSpeakerProfile ForKind(int kind)
-        { return kind == 1 ? Small : kind == 2 ? Normal : kind == 3 ? TurboWoofer : null; }
+        {
+            var role = DeviceKind.Role(kind);
+            return role == DeviceRole.SmallSpeaker ? Small : role == DeviceRole.Speaker ? Normal : role == DeviceRole.Woofer ? TurboWoofer : null;
+        }
     }
 
     /// <summary>One emitter and its own stream clip. It never decodes, and RadioPlayback owns the timeline.</summary>
@@ -44,7 +47,6 @@ namespace SailwindRadio
             UnityEngine.Object.DontDestroyOnLoad(Emitter);
             Source = Emitter.AddComponent<AudioSource>();
             Source.playOnAwake = false;
-            Source.loop = true;
             Source.spatialBlend = 1f;
             var curve = AnimationCurve.Constant(0f, 1f, 1f);
             curve.preWrapMode = WrapMode.ClampForever;

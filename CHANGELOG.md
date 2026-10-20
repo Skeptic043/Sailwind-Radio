@@ -1,5 +1,20 @@
 # Sailwind Radio
 
+## 1.3.0
+
+### New
+
+- Added 12 new device models, 4 per region: a radio, small speaker, large speaker and woofer, 1 each for Al'Ankh, Aestrin and Emerald.
+- Added mechanical title and artist displays to the regional radios. Al'Ankh uses character drums, Aestrin uses split flaps and Emerald uses a writing scroll.
+- Added original mechanism sounds for each regional display. Their volume can be adjusted with `MechanismVolume` in the config.
+- Added a Radio merchant at Chronos that sells the original walnut devices.
+- Regional devices use item IDs `43044` through `43055`.
+
+### Changed
+
+- Gold Rock City now sells the Al'Ankh set, Dragon Cliffs sells the Emerald set and Fort Aestrin sells the Aestrin set.
+- Reworked and simplified much of the mod's internal code so it is easier to read and maintain.
+
 ## 1.2.3
 
 ### Fixed

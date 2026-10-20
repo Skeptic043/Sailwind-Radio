@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 
-namespace SailwindRadio
+namespace SailwindRadio.Audio
 {
     // One Ogg page header. Body bytes stay in the reader buffer only until the next page read.
     internal struct OggPage

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using SailwindRadio.UI;
 using SailwindRadio.Physical;
 using UnityEngine;
@@ -56,10 +57,25 @@ internal static class Program
         Check(RadioDevice.Size(1).x==.14f&&RadioDevice.Size(1).y==.20f&&RadioDevice.Size(1).z==.12f,"satellite is compact surround size");
         Check(RadioDevice.Size(2).x==.367f&&RadioDevice.Size(2).y==.75f&&RadioDevice.Size(2).z==.4f,"normal speaker is narrower and taller");
         Check(RadioDevice.Size(3).x<1&&RadioDevice.Size(3).y<1&&RadioDevice.Size(3).z<1,"woofer fits within one metre cargo volume");
+        Check(RadioDevice.Name(0)=="Radio"&&RadioDevice.Name(1)=="Small Speaker"&&RadioDevice.Name(2)=="Speaker"&&RadioDevice.Name(3)=="Turbo Wolfer","walnut names are unchanged");
+        var templateNames=Enumerable.Range(0,16).Select(k=>RadioDevice.TemplateName(k,43040+k)).ToArray();
+        Check(Enumerable.Range(0,4).All(k=>templateNames[k]=="Sailwind Radio item "+(43040+k)),"walnut templates keep their released object names");
+        Check(Enumerable.Range(4,12).All(k=>templateNames[k]==RadioDevice.Name(k))&&templateNames[4]=="Al'Ankh Radio"&&templateNames[14]=="Emerald Speaker",
+            "regional templates are named after their item, so gear menus show the name alone");
+        Check(templateNames.Distinct().Count()==16,"no two device kinds share a template name");
+        Check(RadioDevice.Name(5)=="Al'Ankh Small Speaker"&&RadioDevice.Name(10)=="Aestrin Speaker"&&RadioDevice.Name(15)=="Emerald Woofer"&&RadioDevice.Name(12)=="Emerald Radio",
+            "regional names follow region and role");
+        var wallMin=new Vector3(-.08f,0,-.13f);var wallMax=new Vector3(.08f,.18f,0);
+        var wallCenter=RadioDevice.Center(SailwindRadio.DeviceRole.SmallSpeaker,wallMin,wallMax);
+        Check(MathF.Abs(wallCenter.z+.065f)<.00001f&&MathF.Abs(wallCenter.y-.09f)<.00001f,"regional small speaker box keeps its back on the wall plane");
+        var floorCenter=RadioDevice.Center(SailwindRadio.DeviceRole.Woofer,new Vector3(-.4f,0,-.4f),new Vector3(.4f,.9f,.4f));
+        Check(MathF.Abs(floorCenter.z)<.00001f&&MathF.Abs(floorCenter.y-.45f)<.00001f,"regional floor device box centres on its bounds");
+        var regionalSound=RadioDevice.SoundOrigin(wallMin,wallMax);
+        Check(regionalSound.x==0&&MathF.Abs(regionalSound.y-.099f)<.00001f&&regionalSound.z==-.13f,"regional sound leaves the front face at 55 percent of the cabinet height");
         var hookRoot=new Transform{position=new Vector3(0,1,0)};
         var radioBody=new Rigidbody();
         var hookedRadio=new ShipItem{transform=hookRoot,nailed=true,itemRigidbodyC=new ItemRigidbody{Body=radioBody}};
-        var hookController=new RadioItemController{transform=hookRoot,State=new SailwindRadio.RadioState{Kind=0}};
+        var hookController=new RadioItemController{transform=hookRoot,State=new SailwindRadio.RadioState{Kind=0},Height=RadioDevice.Size(0).y};
         var hangable=new HangableItem{transform=hookRoot};
         var hookCollider=new Collider();
         var hookBody=new ItemRigidbody();
@@ -83,6 +99,9 @@ internal static class Program
         hangable.SetHook(hookCollider);hookController.State.Kind=1;
         RadioNativeHooks.Release(hookedRadio);
         Check(hangable.IsHanging()&&hangable.Disconnects==1,"speaker hook behavior remains native-owned");
+        hookController.State.Kind=5;
+        RadioNativeHooks.Release(hookedRadio);
+        Check(hangable.IsHanging()&&hangable.Disconnects==1,"regional speaker hook behavior also remains native-owned");
         hookController.State.Kind=0;hangable.SetHook(null);hookRoot.position=new Vector3(0,2,0);
         RadioNativeHooks.PositionBelowHook(hangable);
         Check(hookRoot.position.y==2,"unhooked radio retains placement position");
@@ -128,6 +147,7 @@ internal static class Program
         visualState.Powered=false;Check(!DeviceControlVisuals.IsLit(visualState,"power",false)&&!DeviceControlVisuals.IsLit(visualState,"shuffle",false)&&!DeviceControlVisuals.IsLit(visualState,"next",true),"power off extinguishes all state and momentary lights");
         visualState.Kind=3;visualState.SpeakerEnabled=true;Check(DeviceControlVisuals.IsLit(visualState,"power",false),"speaker uses its independent enabled state");
         visualState.SpeakerEnabled=false;Check(!DeviceControlVisuals.IsLit(visualState,"power",false),"disabled speaker power light extinguishes");
+        visualState.Kind=15;visualState.SpeakerEnabled=true;Check(DeviceControlVisuals.IsLit(visualState,"power",false),"regional woofer lights from its own enabled state like walnut speakers");
         var nearSurface=new Collider{Closest=new(1.75f),transform=new Transform{position=new(2.05f)}};
         Check(RadioControlReach.Contains(new Transform(),nearSurface),"front control inside native reach stays open even when radio pivot is farther away");
         nearSurface.Closest=new(1.81f);Check(!RadioControlReach.Contains(new Transform(),nearSurface),"surface outside native reach closes menu");

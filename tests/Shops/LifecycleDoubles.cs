@@ -107,27 +107,14 @@ namespace UnityEngine
     public class SphereCollider:Collider { public float radius=2f; }
     public class BoxCollider:Collider { public Vector3 center,size; }
     public class Rigidbody:Component { public bool isKinematic,useGravity; }
-    public enum QueryTriggerInteraction { Collide }
     public class MissingComponentException:Exception { public MissingComponentException(string message):base(message){} }
     public class Camera:Component { public static Camera main; }
-    public struct Vector3
-    {
-        public float x,y,z;
-        public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}
-        public static Vector3 one=>new(1,1,1);public static Vector3 zero=>new(0,0,0);
-        public static Vector3 operator +(Vector3 a,Vector3 b)=>new(a.x+b.x,a.y+b.y,a.z+b.z);
-        public static float Distance(Vector3 a,Vector3 b)=>MathF.Sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y)+(a.z-b.z)*(a.z-b.z));
-    }
     public struct Quaternion { public static Quaternion identity=>new(); public static Quaternion Euler(float x,float y,float z)=>new();public static Quaternion operator *(Quaternion a,Quaternion b)=>new(); }
-    public static class Mathf { public static float Min(float a,float b)=>MathF.Min(a,b); }
     public static class Physics
     {
-        public static Collider[] Nearby=Array.Empty<Collider>();
         public static void SyncTransforms(){}
-        public static Collider[] OverlapSphere(Vector3 p,float radius,int mask,QueryTriggerInteraction query)=>Nearby;
     }
     public static class Random { public static int Next=10; public static Func<int> Source; public static int Range(int min,int max)=>Source!=null?Source():Next++; }
-    public static class Time { public static float unscaledTime,deltaTime; }
 }
 namespace HarmonyLib
 {
@@ -306,10 +293,6 @@ namespace SailwindRadio.Physical
 }
 namespace SailwindRadio.Shops
 {
-    internal static class RadioShopCatalog
-    {
-        internal static readonly int[] StockKinds={3,2,2,0,0,1,1};
-    }
     internal static class RadioShopPlacement
     {
         internal static bool Clear=true;

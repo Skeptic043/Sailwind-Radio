@@ -33,24 +33,25 @@ namespace SailwindRadio.Shops
                 // The game's market materials are texture atlases. Applying one
                 // directly to a primitive cube selects unrelated atlas regions,
                 // so keep these town-specific finishes owned by the display.
-                stand.wood = new Material(shader) { color = island == 9 ?
-                    new Color(.31f, .18f, .14f) : island == 15 ?
+                // Chronos shares Fort Aestrin's wood. Its native tent is the roof, so it builds no canopy.
+                stand.wood = new Material(shader) { color = island == RadioStalls.DragonCliffs ?
+                    new Color(.31f, .18f, .14f) : island == RadioStalls.FortAestrin || island == RadioStalls.Chronos ?
                     new Color(.37f, .29f, .23f) : new Color(.39f, .24f, .15f) };
                 stand.wood.SetFloat("_Glossiness", .16f);
-                if(island==9)
+                if (island == RadioStalls.DragonCliffs)
                 {
-                    stand.platformWood=new Material(shader) { color=new Color(.34f, .23f, .18f) };
-                    stand.platformWood.SetFloat("_Glossiness",.10f);
-                    stand.roofWood=new Material(shader) { color=new Color(.25f, .14f, .11f) };
-                    stand.roofWood.SetFloat("_Glossiness",.10f);
+                    stand.platformWood = new Material(shader) { color = new Color(.34f, .23f, .18f) };
+                    stand.platformWood.SetFloat("_Glossiness", .10f);
+                    stand.roofWood = new Material(shader) { color = new Color(.25f, .14f, .11f) };
+                    stand.roofWood.SetFloat("_Glossiness", .10f);
                 }
-                stand.canvas = new Material(shader) { color = island == 9 ?
+                stand.canvas = new Material(shader) { color = island == RadioStalls.DragonCliffs ?
                     new Color(.36f, .20f, .16f) : new Color(.42f, .21f, .15f) };
                 stand.canvas.SetFloat("_Glossiness", .05f);
                 // The neighboring Gold Rock empty stall is one native mesh for
                 // the counter, frame and cream canopy. Keep an independent
                 // Radio-owned copy so its source remains untouched.
-                var nativeGoldRockStall = island == 1 && stand.NativeGoldRockStall(scenery);
+                var nativeGoldRockStall = island == RadioStalls.GoldRock && stand.NativeGoldRockStall(scenery);
                 stand.UsesNativeGoldRockCounter = nativeGoldRockStall;
                 if (!nativeGoldRockStall)
                 {
@@ -68,33 +69,33 @@ namespace SailwindRadio.Shops
                     stand.Board("Rear brace", new Vector3(0, .37f, .45f), new Vector3(2.2f, .09f, .08f));
                     stand.Board("Front brace", new Vector3(0, .26f, -.45f), new Vector3(2.2f, .09f, .08f));
                 }
-                if (island == 9 && !stand.NativeDragonCliffsDeck(scenery))
+                if (island == RadioStalls.DragonCliffs && !stand.NativeDragonCliffsDeck(scenery))
                 {
                     // Plain planks stand in when the native deck mesh is not loaded.
                     for (int i = -5; i <= 7; i++)
-                        stand.Board("Dragon Cliffs platform plank", new Vector3(i * .33f, -.045f, .7f), new Vector3(.31f, .09f, 3.8f),stand.platformWood);
+                        stand.Board("Dragon Cliffs platform plank", new Vector3(i * .33f, -.045f, .7f), new Vector3(.31f, .09f, 3.8f), stand.platformWood);
                     for (int z = -1; z <= 1; z += 2)
-                        stand.Board("Platform cross beam", new Vector3(.33f, -.13f, .7f + z * 1.8f), new Vector3(4.28f, .15f, .1f),stand.platformWood);
+                        stand.Board("Platform cross beam", new Vector3(.33f, -.13f, .7f + z * 1.8f), new Vector3(4.28f, .15f, .1f), stand.platformWood);
                     for (int i = -5; i <= 7; i++)
-                        stand.Board("Rear Dragon Cliffs platform plank", new Vector3(i * .33f, -.045f, 4.9f), new Vector3(.31f, .09f, 3.8f),stand.platformWood);
+                        stand.Board("Rear Dragon Cliffs platform plank", new Vector3(i * .33f, -.045f, 4.9f), new Vector3(.31f, .09f, 3.8f), stand.platformWood);
                     for (int i = 4; i <= 16; i++)
-                        stand.Board("Left Dragon Cliffs platform plank", new Vector3(i * .33f, -.05f, .7f), new Vector3(.31f, .09f, 3.8f),stand.platformWood);
+                        stand.Board("Left Dragon Cliffs platform plank", new Vector3(i * .33f, -.05f, .7f), new Vector3(.31f, .09f, 3.8f), stand.platformWood);
                     for (int z = -1; z <= 1; z += 2)
-                        stand.Board("Left platform cross beam", new Vector3(3.2f, -.135f, .7f + z * 1.8f), new Vector3(4.2f, .15f, .1f),stand.platformWood);
+                        stand.Board("Left platform cross beam", new Vector3(3.2f, -.135f, .7f + z * 1.8f), new Vector3(4.2f, .15f, .1f), stand.platformWood);
                 }
                 const float dragonCliffsCoverSetback = .1875f;
-                var nativeDragonCliffsCover = island == 9 && stand.NativeDragonCliffsVisual(scenery, "east_market_roof", "east_market_roof", "Dragon Cliffs native canopy", new Vector3(0, 2.05f, dragonCliffsCoverSetback), .65f, false);
-                if ((island == 9 && !nativeDragonCliffsCover) || island == 15)
+                var nativeDragonCliffsCover = island == RadioStalls.DragonCliffs && stand.NativeDragonCliffsVisual(scenery, "east_market_roof", "east_market_roof", "Dragon Cliffs native canopy", new Vector3(0, 2.05f, dragonCliffsCoverSetback), .65f, false);
+                if ((island == RadioStalls.DragonCliffs && !nativeDragonCliffsCover) || island == RadioStalls.FortAestrin)
                 {
-                    var coverSetback = island == 9 ? dragonCliffsCoverSetback : 0f;
+                    var coverSetback = island == RadioStalls.DragonCliffs ? dragonCliffsCoverSetback : 0f;
                     for (int x = -1; x <= 1; x += 2)
                         for (int z = -1; z <= 1; z += 2)
                         {
-                            var height = island == 9 ? (z < 0 ? 2.36f : 2.66f) : 2.5f;
+                            var height = island == RadioStalls.DragonCliffs ? (z < 0 ? 2.36f : 2.66f) : 2.5f;
                             stand.Board("Canopy post", new Vector3(x * 1.34f, height / 2, .35f + z * 1.05f + coverSetback),
                                 new Vector3(.065f, height, .065f));
                         }
-                    if(island==9)
+                    if (island == RadioStalls.DragonCliffs)
                     {
                         // The neighboring stalls have a broad, slightly pitched
                         // reddish-brown cover rather than exposed roof planks.
@@ -158,26 +159,31 @@ namespace SailwindRadio.Shops
             // scale yields a 2.7 m counter with 1.3 m depth and a full canopy.
             copy.transform.localRotation = Quaternion.Euler(0, 181f, 0) * Quaternion.LookRotation(Vector3.up, Vector3.left);
             copy.transform.localScale = source.transform.lossyScale;
-            // The mesh's horizontal counter spans raw X [-1.06, .20]. After
-            // the half-scale and near-180-degree flip, a .24 m Z offset places its
-            // top from about -.29 to +.34 m in stand space. The canopy still
-            // reaches the keeper at +1.04 m.
+            // The mesh's table has three planks across raw X [-1.72, .90]. After the
+            // half-scale and near-180-degree flip, a .24 m Z offset puts them from
+            // about -.62 to +.69 m in stand space. The canopy still reaches the keeper at +1.04 m.
             copy.transform.localPosition = new Vector3(0, 1.045f, .24f);
             copy.AddComponent<MeshFilter>().sharedMesh = source.sharedMesh;
             var rendererCopy = copy.AddComponent<MeshRenderer>();
             rendererCopy.sharedMaterials = sourceRenderer.sharedMaterials;
             structureRenderers.Add(rendererCopy);
-            var support = new GameObject("Gold Rock stock support");
-            support.transform.SetParent(transform, false);
-            // The native tabletop rises toward the rear stock row. Keep the
-            // simple physics support close beneath it rather than letting
-            // gravity settle stock into the visible mesh.
-            support.transform.localPosition = new Vector3(0, .897f, .025f);
-            support.transform.localRotation = Quaternion.Euler(0, 1f, 0) * Quaternion.Euler(-4.3f, 0, 0);
-            var collider = support.AddComponent<BoxCollider>();
-            collider.size = new Vector3(2.7f, .06f, .65f);
-            structureColliders.Add(collider);
+            // One physics support just beneath each visible plank, so stock rests on its own
+            // plank instead of settling into the mesh. The middle plank rises toward the rear.
+            // All three follow the copy's one-degree yaw.
+            Support("Gold Rock front plank support", new Vector3(0, .86f, -.4625f), new Vector3(2.52f, .06f, .315f), 0f);
+            Support("Gold Rock middle plank support", new Vector3(0, .89f, .02f), new Vector3(2.7f, .06f, .65f), -2.6f);
+            Support("Gold Rock rear plank support", new Vector3(0, .9325f, .5175f), new Vector3(2.62f, .06f, .345f), 0f);
             return true;
+        }
+        private void Support(string name, Vector3 center, Vector3 size, float tilt)
+        {
+            var support = new GameObject(name);
+            support.transform.SetParent(transform, false);
+            support.transform.localPosition = center;
+            support.transform.localRotation = Quaternion.Euler(0, 1f, 0) * Quaternion.Euler(tilt, 0, 0);
+            var collider = support.AddComponent<BoxCollider>();
+            collider.size = size;
+            structureColliders.Add(collider);
         }
         private bool NativeDragonCliffsDeck(Transform scenery)
         {

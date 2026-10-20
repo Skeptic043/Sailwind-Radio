@@ -2,6 +2,15 @@ using UnityEngine;
 
 namespace SailwindRadio.Physical
 {
+    internal static class RadioControls
+    {
+        internal static bool IsOwnControl(GoPointerButton button) =>
+            button is RadioPowerButton || button is RadioActionButton || button is RadioVolumeKnob;
+        internal static RadioItemController RadioOf(GoPointerButton button) =>
+            button is RadioPowerButton power ? power.Radio : button is RadioActionButton action ? action.Radio :
+            button is RadioVolumeKnob knob ? knob.Radio : null;
+    }
+
     public sealed class RadioPowerButton : GoPointerButton
     {
         public RadioItemController Radio;

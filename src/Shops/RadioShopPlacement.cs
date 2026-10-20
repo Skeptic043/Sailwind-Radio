@@ -9,19 +9,14 @@ namespace SailwindRadio.Shops
             position = default;
             rotation = Quaternion.identity;
             reason = "not an authored capital scene";
-            if (!scenery || !RadioStandLayout.TryAnchor(scenery.parentIslandIndex, out var scenePosition, out float yaw)) return false;
-            Vector3 expected = scenery.transform.TransformPoint(scenePosition);
-            rotation = scenery.transform.rotation * Quaternion.Euler(0, yaw, 0);
+            if (!scenery || !RadioStalls.TryGet(scenery.parentIslandIndex, out var stall)) return false;
+            Vector3 expected = scenery.transform.TransformPoint(stall.SceneryAnchor);
+            rotation = scenery.transform.rotation * Quaternion.Euler(0, stall.Yaw, 0);
             // Ground and overlap problems are returned in reason without refusing the stand.
             bool supported = Ground(expected, out float height);
-            // Gold Rock and Fort Aestrin settle onto static support up to .30 m below the
-            // authored height. A prop above the anchor cannot lift them.
-            bool groundedCapital = (scenery.parentIslandIndex == 1 || scenery.parentIslandIndex == 15) && supported &&
-                height <= expected.y + .02f && height >= expected.y - .30f;
-            // Gold Rock's visible sand and the keeper's feet sit .10 m below the static
-            // dock support this ray finds.
-            float goldVisualOffset = scenery.parentIslandIndex == 1 ? -.10f : 0f;
-            position = new Vector3(expected.x, (groundedCapital ? height : expected.y + .02f) + goldVisualOffset, expected.z);
+            // A prop above the anchor cannot lift a stall that settles onto static support.
+            bool groundedCapital = stall.SettlesOnSupport && supported && height <= expected.y + .02f && height >= expected.y - .30f;
+            position = new Vector3(expected.x, (groundedCapital ? height : expected.y + .02f) + stall.GroundVisualOffset, expected.z);
             string diagnostics = supported ? "" : "no level static ground at the authored anchor";
             if (supported && !groundedCapital && Mathf.Abs(height - expected.y) > .15f)
                 diagnostics = Append(diagnostics, "nearby support height differs from authored height by " + (height - expected.y));
@@ -35,7 +30,7 @@ namespace SailwindRadio.Shops
                 }
             if (uneven) diagnostics = Append(diagnostics, "uneven or missing ground beneath the display");
             var envelopeHalf = RadioStandLayout.EnvelopeHalf;
-            if (scenery.parentIslandIndex == 1) envelopeHalf.x += .15f; // Gold Wolfer reaches farther from the counter.
+            if (stall.WideCounter) envelopeHalf.x += .15f; // Gold Wolfer reaches farther from the counter.
             string blocked = Blocker(position + rotation * RadioStandLayout.EnvelopeCenter, envelopeHalf, rotation);
             if (blocked != null) diagnostics = Append(diagnostics, "display footprint overlaps " + blocked);
             // Check the customer's approach in front, rather than a line through the native counter

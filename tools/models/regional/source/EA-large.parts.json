@@ -1,0 +1,2440 @@
+{
+ "name": "EA large — Emerald torii tower (low-poly)",
+ "pivot": [
+  0,
+  0,
+  1.206949999999999
+ ],
+ "parts": [
+  {
+   "id": "EA-large-foot-1",
+   "name": "Foot block 1",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    6,
+    3,
+    6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -12,
+    1.5,
+    10.5,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-foot-2",
+   "name": "Foot block 2",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    6,
+    3,
+    6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    12,
+    1.5,
+    10.5,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-foot-3",
+   "name": "Foot block 3",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    6,
+    3,
+    6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -12,
+    1.5,
+    -10.5,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-foot-4",
+   "name": "Foot block 4",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    6,
+    3,
+    6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    12,
+    1.5,
+    -10.5,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-base",
+   "name": "Plinth",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    30,
+    5,
+    28
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    5.5,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-emblem",
+   "name": "Mountain emblem",
+   "type": "extrude",
+   "role": "detail",
+   "parent": "EA-large-base",
+   "size": [
+    8,
+    2.6,
+    0.3
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    4.3,
+    14.15,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-volume-skirt",
+   "name": "Volume — skirt ring",
+   "type": "lathe",
+   "role": "control",
+   "parent": "EA-large-base",
+   "size": [
+    3.45,
+    3.45,
+    0.25
+   ],
+   "material": {
+    "name": "Hemp rope",
+    "color": "#a2814f",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    9.5,
+    5.5,
+    14.125,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "EA-large-volume-knob",
+   "name": "Volume — knob",
+   "type": "lathe",
+   "role": "control",
+   "parent": "EA-large-volume-skirt",
+   "size": [
+    2.76,
+    2.76,
+    1.932
+   ],
+   "material": {
+    "name": "Dry bamboo",
+    "color": "#c4aa68",
+    "roughness": 0.88,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    9.5,
+    5.5,
+    15.216,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.2696,
+     0
+    ],
+    [
+     1.2696,
+     1.0626
+    ],
+    [
+     1.38,
+     1.1978
+    ],
+    [
+     1.2696,
+     1.3331
+    ],
+    [
+     1.2696,
+     1.932
+    ],
+    [
+     0,
+     1.932
+    ]
+   ]
+  },
+  {
+   "id": "EA-large-volume-cap",
+   "name": "Volume — jade top",
+   "type": "lathe",
+   "role": "control",
+   "parent": "EA-large-volume-knob",
+   "size": [
+    2.1528,
+    2.1528,
+    0.1932
+   ],
+   "material": {
+    "name": "Jade",
+    "color": "#3f9a68",
+    "roughness": 0.32,
+    "metalness": 0.05
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    9.5,
+    5.5,
+    16.182,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "EA-large-volume-index",
+   "name": "Volume — copper index",
+   "type": "box",
+   "role": "control",
+   "parent": "EA-large-volume-knob",
+   "size": [
+    0.276,
+    0.9384,
+    0.2705
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    9.5,
+    6.2176,
+    16.27865,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-power-socket",
+   "name": "Power — socket",
+   "type": "lathe",
+   "role": "control",
+   "parent": "EA-large-base",
+   "size": [
+    3.9123,
+    3.9123,
+    0.25
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -9.5,
+    5.5,
+    14.125,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.9561499999999998,
+     0
+    ],
+    [
+     1.9561499999999998,
+     0.25
+    ],
+    [
+     0,
+     0.25
+    ]
+   ]
+  },
+  {
+   "id": "EA-large-power-button",
+   "name": "Power — button",
+   "type": "lathe",
+   "role": "control",
+   "parent": "EA-large-power-socket",
+   "size": [
+    2.898,
+    2.898,
+    1.0143
+   ],
+   "material": {
+    "name": "Jade",
+    "color": "#3f9a68",
+    "roughness": 0.32,
+    "metalness": 0.05
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -9.5,
+    5.5,
+    14.75715,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.449,
+     0
+    ],
+    [
+     1.449,
+     0.5579
+    ],
+    [
+     1.1592,
+     1.0143
+    ],
+    [
+     0,
+     1.0143
+    ]
+   ]
+  },
+  {
+   "id": "EA-large-body",
+   "name": "Tapered cabinet",
+   "type": "extrude",
+   "role": "body",
+   "parent": null,
+   "size": [
+    27,
+    62,
+    24
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    39,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-post-front-left",
+   "name": "Post front left",
+   "type": "box",
+   "role": "body",
+   "parent": "EA-large-body",
+   "size": [
+    3.6,
+    66,
+    3.6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    0.9991880085815281,
+    -0.04029048903748911,
+    0,
+    0,
+    0.04029048903748911,
+    0.9991880085815281,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -12.2,
+    41,
+    11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-rope-left-1",
+   "name": "Rope wrap left 1",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-large-post-front-left",
+   "size": [
+    4.6,
+    2.6,
+    4.6
+   ],
+   "material": {
+    "name": "Hemp rope",
+    "color": "#a2814f",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    0.9991880085815281,
+    -0.04029048903748911,
+    0,
+    0,
+    0.04029048903748911,
+    0.9991880085815281,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -12.64319537941238,
+    30.00893190560319,
+    11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-rope-left-2",
+   "name": "Rope wrap left 2",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-large-post-front-left",
+   "size": [
+    4.6,
+    2.6,
+    4.6
+   ],
+   "material": {
+    "name": "Hemp rope",
+    "color": "#a2814f",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    0.9991880085815281,
+    -0.04029048903748911,
+    0,
+    0,
+    0.04029048903748911,
+    0.9991880085815281,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -11.192737774062772,
+    65.9797002145382,
+    11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-plate-left",
+   "name": "Copper plate left",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-large-post-front-left",
+   "size": [
+    2.8,
+    5,
+    0.4
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0.9991880085815281,
+    -0.04029048903748911,
+    0,
+    0,
+    0.04029048903748911,
+    0.9991880085815281,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -13.287843204012205,
+    14.021923768298741,
+    13.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-post-front-right",
+   "name": "Post front right",
+   "type": "box",
+   "role": "body",
+   "parent": "EA-large-body",
+   "size": [
+    3.6,
+    66,
+    3.6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    0.9991880085815281,
+    0.04029048903748911,
+    0,
+    0,
+    -0.04029048903748911,
+    0.9991880085815281,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    12.2,
+    41,
+    11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-rope-right-1",
+   "name": "Rope wrap right 1",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-large-post-front-right",
+   "size": [
+    4.6,
+    2.6,
+    4.6
+   ],
+   "material": {
+    "name": "Hemp rope",
+    "color": "#a2814f",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    0.9991880085815281,
+    0.04029048903748911,
+    0,
+    0,
+    -0.04029048903748911,
+    0.9991880085815281,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    12.64319537941238,
+    30.00893190560319,
+    11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-rope-right-2",
+   "name": "Rope wrap right 2",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-large-post-front-right",
+   "size": [
+    4.6,
+    2.6,
+    4.6
+   ],
+   "material": {
+    "name": "Hemp rope",
+    "color": "#a2814f",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    0.9991880085815281,
+    0.04029048903748911,
+    0,
+    0,
+    -0.04029048903748911,
+    0.9991880085815281,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    11.192737774062772,
+    65.9797002145382,
+    11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-plate-right",
+   "name": "Copper plate right",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-large-post-front-right",
+   "size": [
+    2.8,
+    5,
+    0.4
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0.9991880085815281,
+    0.04029048903748911,
+    0,
+    0,
+    -0.04029048903748911,
+    0.9991880085815281,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    13.287843204012205,
+    14.021923768298741,
+    13.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-post-back-left",
+   "name": "Post back left",
+   "type": "box",
+   "role": "body",
+   "parent": "EA-large-body",
+   "size": [
+    3.6,
+    66,
+    3.6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    -0.9991880085815281,
+    0.04029048903748911,
+    0,
+    0,
+    0.04029048903748911,
+    0.9991880085815281,
+    0,
+    0,
+    0,
+    0,
+    -1,
+    0,
+    -12.2,
+    41,
+    -11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-post-back-right",
+   "name": "Post back right",
+   "type": "box",
+   "role": "body",
+   "parent": "EA-large-body",
+   "size": [
+    3.6,
+    66,
+    3.6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    -0.9991880085815281,
+    -0.04029048903748911,
+    0,
+    0,
+    -0.04029048903748911,
+    0.9991880085815281,
+    0,
+    0,
+    0,
+    0,
+    -1,
+    0,
+    12.2,
+    41,
+    -11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-nuki-front",
+   "name": "Tie beam front",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    34,
+    2.6,
+    3.4
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    72,
+    11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-kasagi-front",
+   "name": "Torii top beam front",
+   "type": "extrude",
+   "role": "body",
+   "parent": null,
+   "size": [
+    44.29,
+    5.547,
+    4.5
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    76.1735,
+    11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-kasagi-front-cap-left",
+   "name": "Torii top beam front copper cap left",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    2.666,
+    3.44,
+    4.9
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0.9781476007338057,
+    -0.20791169081775931,
+    0,
+    0,
+    0.20791169081775931,
+    0.9781476007338057,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -21.07,
+    77.356,
+    11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-kasagi-front-cap-right",
+   "name": "Torii top beam front copper cap right",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    2.666,
+    3.44,
+    4.9
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0.9781476007338057,
+    0.20791169081775931,
+    0,
+    0,
+    -0.20791169081775931,
+    0.9781476007338057,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    21.07,
+    77.356,
+    11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-nuki-cap-front-left",
+   "name": "Copper tie cap front left",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    1.4,
+    3,
+    3.8
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -17.3,
+    72,
+    11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-nuki-cap-front-right",
+   "name": "Copper tie cap front right",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    1.4,
+    3,
+    3.8
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    17.3,
+    72,
+    11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-nuki-back",
+   "name": "Tie beam back",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    34,
+    2.6,
+    3.4
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    72,
+    -11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-kasagi-back",
+   "name": "Torii top beam back",
+   "type": "extrude",
+   "role": "body",
+   "parent": null,
+   "size": [
+    44.29,
+    5.547,
+    4.5
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    76.1735,
+    -11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-kasagi-back-cap-left",
+   "name": "Torii top beam back copper cap left",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    2.666,
+    3.44,
+    4.9
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0.9781476007338057,
+    -0.20791169081775931,
+    0,
+    0,
+    0.20791169081775931,
+    0.9781476007338057,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -21.07,
+    77.356,
+    -11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-kasagi-back-cap-right",
+   "name": "Torii top beam back copper cap right",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    2.666,
+    3.44,
+    4.9
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0.9781476007338057,
+    0.20791169081775931,
+    0,
+    0,
+    -0.20791169081775931,
+    0.9781476007338057,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    21.07,
+    77.356,
+    -11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-nuki-cap-back-left",
+   "name": "Copper tie cap back left",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    1.4,
+    3,
+    3.8
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -17.3,
+    72,
+    -11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-nuki-cap-back-right",
+   "name": "Copper tie cap back right",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    1.4,
+    3,
+    3.8
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    17.3,
+    72,
+    -11.4,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-side-beam-left",
+   "name": "Side tie beam left",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    3,
+    2.6,
+    20
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -11.3,
+    72,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-side-beam-right",
+   "name": "Side tie beam right",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    3,
+    2.6,
+    20
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    11.3,
+    72,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-woofer-bezel",
+   "name": "Woofer — bezel ring",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "EA-large-body",
+   "size": [
+    21,
+    21,
+    2.2
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    24,
+    13.1,
+    1
+   ],
+   "profile": [
+    [
+     9.2,
+     0
+    ],
+    [
+     10.5,
+     0
+    ],
+    [
+     10.5,
+     1.8
+    ],
+    [
+     10.1,
+     2.2
+    ],
+    [
+     9.2,
+     2.2
+    ]
+   ]
+  },
+  {
+   "id": "EA-large-woofer-cone",
+   "name": "Woofer — cone",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "EA-large-woofer-bezel",
+   "size": [
+    16.6,
+    16.6,
+    1.96
+   ],
+   "material": {
+    "name": "Black paper cone",
+    "color": "#26292a",
+    "roughness": 0.9,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    24,
+    13.129999999999999,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.3
+    ],
+    [
+     2.905,
+     0.0818
+    ],
+    [
+     5.81,
+     0.7075
+    ],
+    [
+     8.3,
+     1.36
+    ],
+    [
+     8.3,
+     1.66
+    ],
+    [
+     5.81,
+     1.0075
+    ],
+    [
+     2.905,
+     0.3818
+    ],
+    [
+     0,
+     0
+    ]
+   ]
+  },
+  {
+   "id": "EA-large-woofer-surround",
+   "name": "Woofer — rubber surround",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "EA-large-woofer-bezel",
+   "size": [
+    18.4,
+    18.4,
+    1.8
+   ],
+   "material": {
+    "name": "Black rubber surround",
+    "color": "#1e2122",
+    "roughness": 0.9,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    24,
+    13.66,
+    1
+   ],
+   "profile": [
+    [
+     9.07942,
+     0.45
+    ],
+    [
+     8.3,
+     0.9
+    ],
+    [
+     7.52058,
+     0.45
+    ],
+    [
+     7.52058,
+     -0.45
+    ],
+    [
+     8.3,
+     -0.9
+    ],
+    [
+     9.07942,
+     -0.45
+    ]
+   ]
+  },
+  {
+   "id": "EA-large-woofer-cap",
+   "name": "Woofer — dust cap",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "EA-large-woofer-cone",
+   "size": [
+    6,
+    6,
+    3
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    24,
+    12.45,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.25,
+     -0.43301
+    ],
+    [
+     0.43301,
+     -0.25
+    ],
+    [
+     0.5,
+     0
+    ],
+    [
+     0.43301,
+     0.25
+    ],
+    [
+     0.25,
+     0.43301
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "EA-large-woofer-bolts",
+   "name": "Woofer — bezel bolts",
+   "type": "mesh",
+   "role": "detail",
+   "parent": "EA-large-woofer-bezel",
+   "size": [
+    19.9287,
+    19.8082,
+    0.405
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    24,
+    14.2025,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-mid-bezel",
+   "name": "Mid driver — bezel ring",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "EA-large-body",
+   "size": [
+    12.8,
+    12.8,
+    1.6
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    45,
+    12.8,
+    1
+   ],
+   "profile": [
+    [
+     5,
+     0
+    ],
+    [
+     6.4,
+     0
+    ],
+    [
+     6.4,
+     1.2
+    ],
+    [
+     6,
+     1.6
+    ],
+    [
+     5,
+     1.6
+    ]
+   ]
+  },
+  {
+   "id": "EA-large-mid-cone",
+   "name": "Mid driver — cone",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "EA-large-mid-bezel",
+   "size": [
+    8.2,
+    8.2,
+    1.12
+   ],
+   "material": {
+    "name": "Black paper cone",
+    "color": "#26292a",
+    "roughness": 0.9,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    45,
+    12.71,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.3
+    ],
+    [
+     1.435,
+     -0.1114
+    ],
+    [
+     2.87,
+     0.1977
+    ],
+    [
+     4.1,
+     0.52
+    ],
+    [
+     4.1,
+     0.82
+    ],
+    [
+     2.87,
+     0.4977
+    ],
+    [
+     1.435,
+     0.1886
+    ],
+    [
+     0,
+     0
+    ]
+   ]
+  },
+  {
+   "id": "EA-large-mid-surround",
+   "name": "Mid driver — rubber surround",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "EA-large-mid-bezel",
+   "size": [
+    10,
+    10,
+    1.8
+   ],
+   "material": {
+    "name": "Black rubber surround",
+    "color": "#1e2122",
+    "roughness": 0.9,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    45,
+    12.82,
+    1
+   ],
+   "profile": [
+    [
+     4.87942,
+     0.45
+    ],
+    [
+     4.1,
+     0.9
+    ],
+    [
+     3.32058,
+     0.45
+    ],
+    [
+     3.32058,
+     -0.45
+    ],
+    [
+     4.1,
+     -0.9
+    ],
+    [
+     4.87942,
+     -0.45
+    ]
+   ]
+  },
+  {
+   "id": "EA-large-mid-cap",
+   "name": "Mid driver — dust cap",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "EA-large-mid-cone",
+   "size": [
+    3.4,
+    3.4,
+    1.7
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    45,
+    12.450000000000001,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.35355,
+     -0.35355
+    ],
+    [
+     0.5,
+     0
+    ],
+    [
+     0.35355,
+     0.35355
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "EA-large-mid-bolts",
+   "name": "Mid driver — bezel bolts",
+   "type": "mesh",
+   "role": "detail",
+   "parent": "EA-large-mid-bezel",
+   "size": [
+    11.2322,
+    11.1384,
+    0.315
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    45,
+    13.557500000000001,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-horn-bezel",
+   "name": "Horn tweeter bezel",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "EA-large-body",
+   "size": [
+    11.2,
+    11.2,
+    2.6
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    58,
+    13.3,
+    1
+   ],
+   "profile": [
+    [
+     4.4,
+     0
+    ],
+    [
+     5.6,
+     0
+    ],
+    [
+     5.6,
+     2.2
+    ],
+    [
+     5.2,
+     2.6
+    ],
+    [
+     4.4,
+     2.6
+    ]
+   ]
+  },
+  {
+   "id": "EA-large-horn",
+   "name": "Horn throat",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "EA-large-horn-bezel",
+   "size": [
+    8.8,
+    8.8,
+    2.4
+   ],
+   "material": {
+    "name": "Black paper cone",
+    "color": "#26292a",
+    "roughness": 0.9,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    58,
+    13.350000000000001,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.3
+    ],
+    [
+     1.54,
+     0.183
+    ],
+    [
+     3.08,
+     0.9745
+    ],
+    [
+     4.4,
+     1.8
+    ],
+    [
+     4.4,
+     2.1
+    ],
+    [
+     3.08,
+     1.2745
+    ],
+    [
+     1.54,
+     0.483
+    ],
+    [
+     0,
+     0
+    ]
+   ]
+  },
+  {
+   "id": "EA-large-strap-low",
+   "name": "Copper strap",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-large-body",
+   "size": [
+    1.4,
+    3.2,
+    0.4
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    37.8,
+    12.2,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-strap-high",
+   "name": "Copper strap",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-large-body",
+   "size": [
+    1.4,
+    2,
+    0.4
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    52.2,
+    12.2,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-t-stem",
+   "name": "Copper T-bracket stem",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-large-body",
+   "size": [
+    1.4,
+    4,
+    0.4
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    65.6,
+    12.2,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-t-bar",
+   "name": "Copper T-bracket bar",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-large-body",
+   "size": [
+    8,
+    1.4,
+    0.4
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    67.6,
+    12.2,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-lattice-shadow-left",
+   "name": "Side lattice backing left",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    0.3,
+    46,
+    17
+   ],
+   "material": {
+    "name": "Shadow black",
+    "color": "#141616",
+    "roughness": 1,
+    "metalness": 0
+   },
+   "world": [
+    0.9991880085815281,
+    -0.04029048903748911,
+    0,
+    0,
+    0.04029048903748911,
+    0.9991880085815281,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -12.2903,
+    38,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-lattice-left",
+   "name": "Side lattice left",
+   "type": "mesh",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    16.6,
+    45.6,
+    0.6
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    6.118261982278932e-17,
+    -2.467080921792128e-18,
+    1,
+    0,
+    0.04029048903748911,
+    0.9991880085815281,
+    0,
+    0,
+    -0.9991880085815281,
+    0.04029048903748911,
+    6.123233995736766e-17,
+    0,
+    -12.7403,
+    38,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-lattice-shadow-right",
+   "name": "Side lattice backing right",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    0.3,
+    46,
+    17
+   ],
+   "material": {
+    "name": "Shadow black",
+    "color": "#141616",
+    "roughness": 1,
+    "metalness": 0
+   },
+   "world": [
+    0.9991880085815281,
+    0.04029048903748911,
+    0,
+    0,
+    -0.04029048903748911,
+    0.9991880085815281,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    12.2903,
+    38,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "EA-large-lattice-right",
+   "name": "Side lattice right",
+   "type": "mesh",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    16.6,
+    45.6,
+    0.6
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    6.118261982278932e-17,
+    2.467080921792128e-18,
+    -1,
+    0,
+    -0.04029048903748911,
+    0.9991880085815281,
+    0,
+    0,
+    0.9991880085815281,
+    0.04029048903748911,
+    6.123233995736766e-17,
+    0,
+    12.7403,
+    38,
+    0,
+    1
+   ]
+  }
+ ]
+}

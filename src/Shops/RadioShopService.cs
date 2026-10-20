@@ -24,17 +24,19 @@ namespace SailwindRadio.Shops
             internal Slot[] Slots;
             internal RadioShopStand Stand;
             internal GameObject OwnedNpc;
+            // The native keeper the merchant was cloned from. Our keeper follows its region and currency.
+            internal Shopkeeper Template;
             internal Collider[] MerchantTriggers;
             internal bool DisplayShown;
             internal bool InitialStockAttempted;
             internal float StageReadyAt = -1f;
             internal float NextStockAttempt;
-            internal readonly HashSet<string> ReportedReasons=new HashSet<string>();
+            internal readonly HashSet<string> ReportedReasons = new HashSet<string>();
         }
         private static RadioShopService active;
         private readonly RadioWorldService world;
         private readonly Action<string> warn;
-        private readonly Harmony harmony = new Harmony("Skeptic043.SailwindRadio.Shops");
+        private readonly Harmony harmony = new Harmony("local.sailwind.radio.shops");
         private readonly List<Vendor> vendors = new List<Vendor>();
         private SaveLoadManager session;
         private float nextScan;
@@ -50,17 +52,17 @@ namespace SailwindRadio.Shops
             active = this;
             try
             {
-                var enterBoat = typeof(ShipItem).GetMethod("EnterBoat", BindingFlags.Instance|BindingFlags.NonPublic, null, new[]{typeof(Collider)}, null);
-                var price = typeof(Shopkeeper).GetMethod("GetPrice", BindingFlags.Instance|BindingFlags.NonPublic, null, new[]{typeof(ShipItem)}, null);
+                var enterBoat = typeof(ShipItem).GetMethod("EnterBoat", BindingFlags.Instance | BindingFlags.NonPublic, null, new[] { typeof(Collider) }, null);
+                var price = typeof(Shopkeeper).GetMethod("GetPrice", BindingFlags.Instance | BindingFlags.NonPublic, null, new[] { typeof(ShipItem) }, null);
                 if (enterBoat == null || price == null || enterBoat.ReturnType != typeof(void) || price.ReturnType != typeof(int))
                     throw new MissingMethodException("Native shop purchase methods changed");
-                harmony.Patch(enterBoat, prefix: new HarmonyMethod(typeof(RadioShopService),nameof(BeforeEnterBoat)));
-                harmony.Patch(price, prefix: new HarmonyMethod(typeof(RadioShopService),nameof(BeforePrice)));
-                var areaEnter=typeof(ShopArea).GetMethod("OnTriggerEnter", BindingFlags.Instance|BindingFlags.NonPublic);
-                var keeperEnter=typeof(Shopkeeper).GetMethod("OnTriggerEnter", BindingFlags.Instance|BindingFlags.NonPublic);
-                if(areaEnter==null || keeperEnter==null) throw new MissingMethodException("Native shop trigger methods changed");
-                harmony.Patch(areaEnter, prefix: new HarmonyMethod(typeof(RadioShopService),nameof(BeforeAreaEnter)));
-                harmony.Patch(keeperEnter, prefix: new HarmonyMethod(typeof(RadioShopService),nameof(BeforeKeeperEnter)));
+                harmony.Patch(enterBoat, prefix: new HarmonyMethod(typeof(RadioShopService), nameof(BeforeEnterBoat)));
+                harmony.Patch(price, prefix: new HarmonyMethod(typeof(RadioShopService), nameof(BeforePrice)));
+                var areaEnter = typeof(ShopArea).GetMethod("OnTriggerEnter", BindingFlags.Instance | BindingFlags.NonPublic);
+                var keeperEnter = typeof(Shopkeeper).GetMethod("OnTriggerEnter", BindingFlags.Instance | BindingFlags.NonPublic);
+                if (areaEnter == null || keeperEnter == null) throw new MissingMethodException("Native shop trigger methods changed");
+                harmony.Patch(areaEnter, prefix: new HarmonyMethod(typeof(RadioShopService), nameof(BeforeAreaEnter)));
+                harmony.Patch(keeperEnter, prefix: new HarmonyMethod(typeof(RadioShopService), nameof(BeforeKeeperEnter)));
                 supported = true;
             }
             catch (Exception error)
@@ -83,7 +85,7 @@ namespace SailwindRadio.Shops
             // Build the hidden display as soon as the native scenery is present.
             // Save/economy readiness can follow several seconds later, especially
             // when loading a save while looking directly at the stall.
-            for(int i=vendors.Count-1;i>=0;i--)
+            for (int i = vendors.Count - 1; i >= 0; i--)
             {
                 if (!vendors[i].Scenery) { Clear(vendors[i]); vendors.RemoveAt(i); }
                 else
@@ -94,108 +96,110 @@ namespace SailwindRadio.Shops
                         Update(vendors[i]);
                 }
             }
-            if(Time.unscaledTime < nextScan) return;
-            foreach(var scenery in UnityEngine.Object.FindObjectsOfType<IslandSceneryScene>())
+            if (Time.unscaledTime < nextScan) return;
+            foreach (var scenery in UnityEngine.Object.FindObjectsOfType<IslandSceneryScene>())
             {
                 if (!RadioStandLayout.TryAnchor(scenery.parentIslandIndex, out var local, out _) ||
-                    !Camera.main || Vector3.Distance(Camera.main.transform.position,scenery.transform.TransformPoint(local))>100f) continue;
-                var existing=vendors.Find(v=>v.Scenery==scenery);
-                if(existing!=null)
+                    !Camera.main || Vector3.Distance(Camera.main.transform.position, scenery.transform.TransformPoint(local)) > 100f) continue;
+                var existing = vendors.Find(v => v.Scenery == scenery);
+                if (existing != null)
                 {
-                    if(!existing.Stand) TryDisplay(existing);
-                    else if(!existing.Area) TryMerchant(existing);
+                    if (!existing.Stand) TryDisplay(existing);
+                    else if (!existing.Area) TryMerchant(existing);
                     continue;
                 }
-                var vendor = new Vendor { Scenery=scenery, Slots=new Slot[RadioShopCatalog.StockKinds.Length] };
-                for(int i=0;i<vendor.Slots.Length;i++) vendor.Slots[i]=new Slot{Kind=RadioShopCatalog.StockKinds[i],Index=i};
+                var vendor = new Vendor { Scenery = scenery, Slots = new Slot[RadioShopCatalog.StockRoles.Length] };
+                for (int i = 0; i < vendor.Slots.Length; i++) vendor.Slots[i] = new Slot { Kind = RadioShopCatalog.StockKind(vendor.Scenery.parentIslandIndex, i), Index = i };
                 vendors.Add(vendor);
                 TryDisplay(vendor);
             }
             // Native scenery and merchant templates may stream in after the
             // loading flag clears. Retry briefly during that transition, then
             // return to the inexpensive steady-state scan interval.
-            bool incomplete=false;
-            foreach(var vendor in vendors)
-                if(!vendor.Stand || !vendor.Area) { incomplete=true; break; }
-            nextScan=Time.unscaledTime + (incomplete || Time.unscaledTime-sessionBeganAt < 10f ? .5f : 5f);
+            bool incomplete = false;
+            foreach (var vendor in vendors)
+                if (!vendor.Stand || !vendor.Area) { incomplete = true; break; }
+            nextScan = Time.unscaledTime + (incomplete || Time.unscaledTime - sessionBeganAt < 10f ? .5f : 5f);
         }
 
         private void Update(Vendor vendor)
         {
             // Some native NPC components initialize after activation. Keep the
             // broad child triggers closed if one is re-enabled later.
-            if(vendor.MerchantTriggers!=null)
-                foreach(var collider in vendor.MerchantTriggers)
-                    if(collider && collider.enabled) collider.enabled=false;
-            bool merchantReady=world.ReadyToStageShop && ReadyToStock(vendor);
+            if (vendor.MerchantTriggers != null)
+                foreach (var collider in vendor.MerchantTriggers)
+                    if (collider && collider.enabled) collider.enabled = false;
+            bool merchantReady = world.ReadyToStageShop && ReadyToStock(vendor);
             bool open = vendor.Area.GetShopkeeper().gameObject.activeInHierarchy &&
                 (vendor.Area.openAtNight || (Sun.sun && Sun.sun.localTime >= 7 && Sun.sun.localTime <= 18));
-            bool saleReady=open && vendor.DisplayShown && world.ReadyForShop && PurchaseEnvironmentReady(vendor);
-            bool attemptedStock=false;
-            foreach(var slot in vendor.Slots)
+            bool saleReady = SaleReady(vendor, open);
+            bool attemptedStock = false;
+            foreach (var slot in vendor.Slots)
             {
                 slot.Clock.Tick(Time.deltaTime);
-                if(slot.Clock.Occupied && (!slot.Stock || slot.Stock.Purchased || slot.Stock.GetComponent<ShipItem>().sold))
+                if (slot.Clock.Occupied && (!slot.Stock || slot.Stock.Purchased || slot.Stock.GetComponent<ShipItem>().sold))
                 {
                     slot.Clock.Removed();
-                    slot.Stock=null;
-                    if(slot.Anchor) UnityEngine.Object.Destroy(slot.Anchor);
-                    slot.Anchor=null;
+                    slot.Stock = null;
+                    if (slot.Anchor) UnityEngine.Object.Destroy(slot.Anchor);
+                    slot.Anchor = null;
                 }
-                if(slot.Stock)
+                if (slot.Stock)
                 {
                     ProtectStock(slot.Stock);
-                    slot.Stock.gameObject.SetActive(saleReady || (open && vendor.DisplayShown && KeepStockActive(slot.Stock)));
+                    slot.Stock.gameObject.SetActive(StockVisible(vendor, slot.Stock, open, saleReady));
                     continue;
                 }
-                if(!merchantReady || !slot.Clock.Ready || !Camera.main || Vector3.Distance(Camera.main.transform.position,vendor.Area.transform.position)>100f) continue;
+                if (!merchantReady || !slot.Clock.Ready || !Camera.main || Vector3.Distance(Camera.main.transform.position, vendor.Area.transform.position) > 100f) continue;
                 // Failed stock creation is retried separately from simulation-time restocking.
-                if(vendor.InitialStockAttempted && Time.unscaledTime < vendor.NextStockAttempt) continue;
-                attemptedStock=true;
-                TryStock(vendor,slot);
+                if (vendor.InitialStockAttempted && Time.unscaledTime < vendor.NextStockAttempt) continue;
+                attemptedStock = true;
+                TryStock(vendor, slot);
             }
-            if(attemptedStock)
+            if (attemptedStock)
             {
-                vendor.InitialStockAttempted=true;
-                vendor.NextStockAttempt=Time.unscaledTime+5f;
+                vendor.InitialStockAttempted = true;
+                vendor.NextStockAttempt = Time.unscaledTime + 5f;
             }
-            if(!vendor.DisplayShown && (merchantReady ||
-                (vendor.StageReadyAt >= 0f && Time.unscaledTime-vendor.StageReadyAt>=5f)))
+            if (!vendor.DisplayShown && (merchantReady ||
+                (vendor.StageReadyAt >= 0f && Time.unscaledTime - vendor.StageReadyAt >= 5f)))
             {
                 // Every initial slot is attempted in one update so the display appears as one
                 // group. A stall whose stock cannot be created still appears after the delay.
-                vendor.DisplayShown=true;
+                vendor.DisplayShown = true;
                 vendor.Stand.SetVisible(true);
-                SetNpcVisible(vendor.OwnedNpc,true);
-                var saleTrigger=vendor.OwnedNpc ? vendor.OwnedNpc.GetComponent<SphereCollider>() : null;
-                if(saleTrigger) saleTrigger.enabled=true;
-                foreach(var slot in vendor.Slots)
-                {
-                    if(!slot.Stock) continue;
-                    slot.Stock.gameObject.SetActive(open && (world.ReadyForShop && PurchaseEnvironmentReady(vendor) || KeepStockActive(slot.Stock)));
-                }
+                SetNpcVisible(vendor.OwnedNpc, true);
+                var saleTrigger = vendor.OwnedNpc ? vendor.OwnedNpc.GetComponent<SphereCollider>() : null;
+                if (saleTrigger) saleTrigger.enabled = true;
+                saleReady = SaleReady(vendor, open);
             }
-            else if(vendor.DisplayShown && open)
-                foreach(var slot in vendor.Slots)
-                    if(slot.Stock) slot.Stock.gameObject.SetActive(saleReady || KeepStockActive(slot.Stock));
+            else if (!vendor.DisplayShown || !open) return;
+            foreach (var slot in vendor.Slots)
+                if (slot.Stock) slot.Stock.gameObject.SetActive(StockVisible(vendor, slot.Stock, open, saleReady));
         }
+
+        private bool SaleReady(Vendor vendor, bool open) => open && vendor.DisplayShown && world.ReadyForShop && PurchaseEnvironmentReady(vendor);
+
+        // Stock shows while its sale is ready, or while an open shown stall still has it in a player's hands or returning.
+        private static bool StockVisible(Vendor vendor, RadioShopStock stock, bool open, bool saleReady) =>
+            saleReady || (open && vendor.DisplayShown && KeepStockActive(stock));
 
         private void TryDisplay(Vendor vendor)
         {
-            if(!RadioShopPlacement.TryStand(vendor.Scenery,out var position,out var rotation,out string reason))
-            { ReportSetupFailure(vendor,reason); return; }
+            if (!RadioShopPlacement.TryStand(vendor.Scenery, out var position, out var rotation, out string reason))
+            { ReportSetupFailure(vendor, reason); return; }
             try
             {
-                vendor.Stand=RadioShopStand.Create(vendor.Scenery.transform,position,rotation,vendor.Scenery.parentIslandIndex);
+                vendor.Stand = RadioShopStand.Create(vendor.Scenery.transform, position, rotation, vendor.Scenery.parentIslandIndex);
                 vendor.Stand.SetVisible(false);
                 Physics.SyncTransforms();
                 TryMerchant(vendor);
             }
-            catch(Exception error)
+            catch (Exception error)
             {
                 Clear(vendor);
-                for(int i=0;i<vendor.Slots.Length;i++) vendor.Slots[i]=new Slot{Kind=RadioShopCatalog.StockKinds[i],Index=i};
-                ReportSetupFailure(vendor,error.Message);
+                for (int i = 0; i < vendor.Slots.Length; i++) vendor.Slots[i] = new Slot { Kind = RadioShopCatalog.StockKind(vendor.Scenery.parentIslandIndex, i), Index = i };
+                ReportSetupFailure(vendor, error.Message);
             }
         }
 
@@ -204,289 +208,272 @@ namespace SailwindRadio.Shops
             try { CreateMerchant(vendor); }
             catch (Exception error)
             {
-                if(vendor.Area) UnityEngine.Object.Destroy(vendor.Area.gameObject);
-                if(vendor.OwnedNpc) UnityEngine.Object.Destroy(vendor.OwnedNpc);
-                vendor.Area=null;
-                vendor.OwnedNpc=null;
-                vendor.MerchantTriggers=null;
+                if (vendor.Area) UnityEngine.Object.Destroy(vendor.Area.gameObject);
+                if (vendor.OwnedNpc) UnityEngine.Object.Destroy(vendor.OwnedNpc);
+                vendor.Area = null;
+                vendor.OwnedNpc = null;
+                vendor.MerchantTriggers = null;
                 // Streaming can load the native keeper template after the scenery. The stall
                 // appears without a keeper once the item world has been ready for 10 s.
-                if(vendor.Stand && vendor.StageReadyAt >= 0f && Time.unscaledTime-vendor.StageReadyAt>=10f)
+                if (vendor.Stand && vendor.StageReadyAt >= 0f && Time.unscaledTime - vendor.StageReadyAt >= 10f)
                 {
-                    vendor.DisplayShown=true;
+                    vendor.DisplayShown = true;
                     vendor.Stand.SetVisible(true);
                     // A keeper still missing a minute after the world is ready is not just streaming.
-                    if(Time.unscaledTime-vendor.StageReadyAt>=60f)
-                        ReportSetupFailure(vendor,"its merchant is unavailable ("+error.Message+")");
+                    if (Time.unscaledTime - vendor.StageReadyAt >= 60f)
+                        ReportSetupFailure(vendor, "its merchant is unavailable (" + error.Message + ")");
                 }
             }
         }
 
         private static void CreateMerchant(Vendor vendor)
         {
-            GameObject areaObject=null;
-            GameObject visual=null;
+            GameObject areaObject = null;
+            GameObject visual = null;
             try
             {
-            var template=FindNativeMerchant(vendor.Scenery,vendor.Stand.transform.position);
-            if(!template) throw new MissingComponentException("native shopkeeper template is not loaded yet");
-            // Cloning gives the Radio merchant the game's NPC mesh, collider and shop
-            // behaviour. The source vendor stays in place. Our transform and stock are owned.
-            visual=UnityEngine.Object.Instantiate(template.gameObject,vendor.Scenery.transform);
-            visual.SetActive(false);
-            visual.name="Radio shopkeeper";
-            visual.transform.position=vendor.Stand.transform.TransformPoint(RadioStandLayout.MerchantOffset);
-            visual.transform.rotation=vendor.Stand.transform.rotation*Quaternion.Euler(0,180,0);
-            var keeper=visual.GetComponent<Shopkeeper>();
-            if(!keeper) throw new MissingComponentException("native shopkeeper clone lost Shopkeeper");
-            // The native keeper's root trigger owns the held-good resale popup.
-            // Its much larger Modular NPC child trigger reaches adjacent stalls.
-            // Retain a counter-sized root trigger and close the child triggers.
-            vendor.MerchantTriggers=ConfigureMerchantTriggers(visual,vendor.Scenery.parentIslandIndex);
-            var saleTrigger=visual.GetComponent<SphereCollider>();
-            if(saleTrigger) saleTrigger.enabled=vendor.DisplayShown;
-            var home=typeof(Shopkeeper).GetField("homePos",BindingFlags.Instance|BindingFlags.NonPublic);
-            if(home==null || home.FieldType!=typeof(Transform)) throw new MissingFieldException("Shopkeeper.homePos changed");
-            home.SetValue(keeper,visual.transform);
-            var regionField=typeof(Shopkeeper).GetField("parentRegion",BindingFlags.Instance|BindingFlags.NonPublic);
-            if(regionField==null || regionField.FieldType!=typeof(Region)) throw new MissingFieldException("Shopkeeper.parentRegion changed");
-            var region=regionField.GetValue(template) as Region;
-            if(!region || !CorrectRegion(region,vendor.Scenery.parentIslandIndex))
-                region=FindRegionAt(visual.transform.position,vendor.Scenery.parentIslandIndex);
-            if(region) regionField.SetValue(keeper,region);
-            areaObject=new GameObject("Radio merchant area");
-            // Keep the trigger inactive until its keeper and stock list are established.
-            // Native OnTriggerEnter reads itemsForSale without a null check, so the
-            // list and keeper must both exist before any collider can enter.
-            areaObject.SetActive(false);
-            areaObject.transform.SetParent(vendor.Stand.transform,false);
-            areaObject.transform.localPosition=Vector3.zero;
-            areaObject.transform.position=vendor.Stand.transform.position;
-            var areaBody=areaObject.AddComponent<Rigidbody>();
-            areaBody.isKinematic=true;
-            areaBody.useGravity=false;
-            var areaCollider=areaObject.AddComponent<BoxCollider>();
-            areaCollider.isTrigger=true;
-            areaCollider.center=new Vector3(0,1.15f,0);
-            areaCollider.size=new Vector3(2.65f,2.3f,1.5f);
-            var area=areaObject.AddComponent<ShopArea>();
-            var keeperField=typeof(ShopArea).GetField("keeper",BindingFlags.Instance|BindingFlags.NonPublic);
-            if(keeperField==null || keeperField.FieldType!=typeof(Shopkeeper)) throw new MissingFieldException("ShopArea.keeper changed");
-            keeperField.SetValue(area,keeper);
-            keeper.RegisterShop(area);
-            area.itemsForSale=new List<ShipItem>();
-            vendor.Area=area;
-            vendor.OwnedNpc=visual;
-            SetNpcVisible(visual,vendor.DisplayShown);
-            visual.SetActive(true);
-            areaObject.SetActive(true);
+                var template = FindNativeMerchant(vendor.Scenery, vendor.Stand.transform.position);
+                if (!template) throw new MissingComponentException("native shopkeeper template is not loaded yet");
+                // Cloning gives the Radio merchant the game's NPC mesh, collider and shop
+                // behaviour. The source vendor stays in place. Our transform and stock are owned.
+                visual = UnityEngine.Object.Instantiate(template.gameObject, vendor.Scenery.transform);
+                visual.SetActive(false);
+                visual.name = "Radio shopkeeper";
+                visual.transform.position = vendor.Stand.transform.TransformPoint(RadioStandLayout.MerchantOffset);
+                visual.transform.rotation = vendor.Stand.transform.rotation * Quaternion.Euler(0, 180, 0);
+                var keeper = visual.GetComponent<Shopkeeper>();
+                if (!keeper) throw new MissingComponentException("native shopkeeper clone lost Shopkeeper");
+                // The native keeper's root trigger owns the held-good resale popup.
+                // Its much larger Modular NPC child trigger reaches adjacent stalls.
+                // Retain a counter-sized root trigger and close the child triggers.
+                vendor.MerchantTriggers = ConfigureMerchantTriggers(visual, vendor.Scenery.parentIslandIndex);
+                var saleTrigger = visual.GetComponent<SphereCollider>();
+                if (saleTrigger) saleTrigger.enabled = vendor.DisplayShown;
+                var home = NativeShopContract.KeeperHome;
+                if (home == null || home.FieldType != typeof(Transform)) throw new MissingFieldException("Shopkeeper.homePos changed");
+                home.SetValue(keeper, visual.transform);
+                var regionField = NativeShopContract.KeeperRegion;
+                if (regionField == null || regionField.FieldType != typeof(Region)) throw new MissingFieldException("Shopkeeper.parentRegion changed");
+                // Start in the template's region, possibly none yet. ReadyToStock follows later changes.
+                regionField.SetValue(keeper, regionField.GetValue(template) as Region);
+                vendor.Template = template;
+                areaObject = new GameObject("Radio merchant area");
+                // Keep the trigger inactive until its keeper and stock list are established.
+                // Native OnTriggerEnter reads itemsForSale without a null check, so the
+                // list and keeper must both exist before any collider can enter.
+                areaObject.SetActive(false);
+                areaObject.transform.SetParent(vendor.Stand.transform, false);
+                areaObject.transform.localPosition = Vector3.zero;
+                areaObject.transform.position = vendor.Stand.transform.position;
+                var areaBody = areaObject.AddComponent<Rigidbody>();
+                areaBody.isKinematic = true;
+                areaBody.useGravity = false;
+                var areaCollider = areaObject.AddComponent<BoxCollider>();
+                areaCollider.isTrigger = true;
+                areaCollider.center = new Vector3(0, 1.15f, 0);
+                areaCollider.size = new Vector3(2.65f, 2.3f, 1.5f);
+                var area = areaObject.AddComponent<ShopArea>();
+                var keeperField = NativeShopContract.AreaKeeper;
+                if (keeperField == null || keeperField.FieldType != typeof(Shopkeeper)) throw new MissingFieldException("ShopArea.keeper changed");
+                keeperField.SetValue(area, keeper);
+                keeper.RegisterShop(area);
+                area.itemsForSale = new List<ShipItem>();
+                vendor.Area = area;
+                vendor.OwnedNpc = visual;
+                SetNpcVisible(visual, vendor.DisplayShown);
+                visual.SetActive(true);
+                areaObject.SetActive(true);
             }
             catch
             {
-                if(areaObject) UnityEngine.Object.Destroy(areaObject);
-                if(visual) UnityEngine.Object.Destroy(visual);
+                if (areaObject) UnityEngine.Object.Destroy(areaObject);
+                if (visual) UnityEngine.Object.Destroy(visual);
                 throw;
             }
         }
 
-        private static void SetNpcVisible(GameObject npc,bool visible)
+        private static void SetNpcVisible(GameObject npc, bool visible)
         {
-            if(!npc) return;
-            foreach(var renderer in npc.GetComponentsInChildren<Renderer>(true)) renderer.enabled=visible;
+            if (!npc) return;
+            foreach (var renderer in npc.GetComponentsInChildren<Renderer>(true)) renderer.enabled = visible;
         }
 
-        private static Collider[] ConfigureMerchantTriggers(GameObject npc,int islandIndex)
+        private static Collider[] ConfigureMerchantTriggers(GameObject npc, int islandIndex)
         {
-            var disabled=new List<Collider>();
-            bool rootSaleTrigger=false;
-            // Gold Rock's wider counter needs the native 2 m reach to accept
-            // held goods from its customer edge. Other stalls keep 1.75 m.
-            float saleRadius=islandIndex==1 ? 2f : 1.75f;
-            foreach(var collider in npc.GetComponentsInChildren<Collider>(true))
+            var disabled = new List<Collider>();
+            bool rootSaleTrigger = false;
+            float saleRadius = RadioStalls.TryGet(islandIndex, out var stall) ? stall.SaleRadius : RadioStalls.DefaultSaleRadius;
+            foreach (var collider in npc.GetComponentsInChildren<Collider>(true))
             {
-                if(!collider.isTrigger) continue;
-                if(collider.transform==npc.transform && collider is SphereCollider sphere && !rootSaleTrigger)
+                if (!collider.isTrigger) continue;
+                if (collider.transform == npc.transform && collider is SphereCollider sphere && !rootSaleTrigger)
                 {
-                    sphere.radius=Mathf.Min(sphere.radius,saleRadius);
-                    rootSaleTrigger=true;
+                    sphere.radius = Mathf.Min(sphere.radius, saleRadius);
+                    rootSaleTrigger = true;
                     continue;
                 }
-                collider.enabled=false;
+                collider.enabled = false;
                 disabled.Add(collider);
             }
-            if(!rootSaleTrigger)
+            if (!rootSaleTrigger)
                 throw new MissingComponentException("native shopkeeper root sale trigger contract changed");
             return disabled.ToArray();
         }
 
-        private static Shopkeeper FindNativeMerchant(IslandSceneryScene scenery,Vector3 standPosition)
+        private static Shopkeeper FindNativeMerchant(IslandSceneryScene scenery, Vector3 standPosition)
         {
-            Shopkeeper best=null;
-            float bestDistance=30f;
+            Shopkeeper best = null;
+            float bestDistance = 30f;
             // Native ShopArea can deactivate its keeper at night or while offscreen.
             // Search this scenery including inactive children, while retaining the
             // direct-child and built-in-name filters below.
-            foreach(var keeper in scenery.GetComponentsInChildren<Shopkeeper>(true))
-                if(keeper && keeper.transform.parent==scenery.transform &&
+            foreach (var keeper in scenery.GetComponentsInChildren<Shopkeeper>(true))
+                if (keeper && keeper.transform.parent == scenery.transform &&
                    NativeKeeperName(keeper.name) &&
                    keeper.GetComponent<Renderer>())
                 {
-                    float distance=Vector3.Distance(standPosition,keeper.transform.position);
-                    if(distance<bestDistance) { best=keeper; bestDistance=distance; }
+                    float distance = Vector3.Distance(standPosition, keeper.transform.position);
+                    if (distance < bestDistance) { best = keeper; bestDistance = distance; }
                 }
             return best;
         }
 
         private static bool NativeKeeperName(string name)
         {
-            if(string.Equals(name,"shopkeeper",StringComparison.OrdinalIgnoreCase)) return true;
-            const string prefix="shopkeeper (";
-            return name!=null && name.StartsWith(prefix,StringComparison.OrdinalIgnoreCase) &&
-                name.EndsWith(")",StringComparison.Ordinal) &&
-                int.TryParse(name.Substring(prefix.Length,name.Length-prefix.Length-1),out _);
+            if (string.Equals(name, "shopkeeper", StringComparison.OrdinalIgnoreCase)) return true;
+            const string prefix = "shopkeeper (";
+            return name != null && name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+                name.EndsWith(")", StringComparison.Ordinal) &&
+                int.TryParse(name.Substring(prefix.Length, name.Length - prefix.Length - 1), out _);
         }
 
-        private static bool CorrectRegion(Region region,int island)
+        private void ReportSetupFailure(Vendor vendor, string reason)
         {
-            if(!region) return false;
-            return island==1 ? region.portRegion==PortRegion.alankh :
-                island==9 ? region.portRegion==PortRegion.emerald :
-                island==15 && region.portRegion==PortRegion.medi;
-        }
-
-        private static Region FindRegionAt(Vector3 position,int island)
-        {
-            Region found=null;
-            foreach(var collider in Physics.OverlapSphere(position,.4f,~0,QueryTriggerInteraction.Collide))
-            {
-                var region=collider ? collider.GetComponentInParent<Region>() : null;
-                if(!CorrectRegion(region,island)) continue;
-                if(found && found!=region) return null;
-                found=region;
-            }
-            return found;
-        }
-
-        private void ReportSetupFailure(Vendor vendor,string reason)
-        {
-            if(vendor.ReportedReasons.Add(reason)) warn("Radio shop at "+vendor.Scenery.name+" could not be set up: "+reason);
+            if (vendor.ReportedReasons.Add(reason)) warn("Radio shop at " + vendor.Scenery.name + " could not be set up: " + reason);
         }
 
         private void TryStock(Vendor vendor, Slot slot)
         {
             if (!ReadyToStock(vendor)) return;
-            var position=vendor.Stand.transform.TransformPoint(RadioStandLayout.Slot(vendor.Scenery.parentIslandIndex,slot.Index,vendor.Stand.UsesNativeGoldRockCounter));
-            var rotation=vendor.Stand.transform.rotation * RadioStandLayout.SlotRotation(slot.Kind);
-            GameObject anchor=null;
-            RadioItemController controller=null;
+            var position = vendor.Stand.transform.TransformPoint(RadioStandLayout.Slot(vendor.Scenery.parentIslandIndex, slot.Index, vendor.Stand.UsesNativeGoldRockCounter));
+            var rotation = vendor.Stand.transform.rotation;
+            GameObject anchor = null;
+            RadioItemController controller = null;
             try
             {
-                anchor=new GameObject("Radio shop stock anchor");
+                anchor = new GameObject("Radio shop stock anchor");
                 anchor.SetActive(false);
-                anchor.transform.SetParent(vendor.Stand.transform,false);
-                anchor.transform.position=position;
-                anchor.transform.rotation=rotation;
-                Vector3 s=anchor.transform.parent.lossyScale;
-                anchor.transform.localScale=new Vector3(1/s.x,1/s.y,1/s.z);
-                var native=anchor.AddComponent<ShopItemSpawner>();
-                native.enabled=false;
-                native.priceMult=1;
-                var anchorRenderer=anchor.GetComponent<MeshRenderer>();
-                if(!anchorRenderer) throw new MissingComponentException("Native shop spawner renderer was not created");
-                anchorRenderer.enabled=false;
+                anchor.transform.SetParent(vendor.Stand.transform, false);
+                anchor.transform.position = position;
+                anchor.transform.rotation = rotation;
+                Vector3 s = anchor.transform.parent.lossyScale;
+                anchor.transform.localScale = new Vector3(1 / s.x, 1 / s.y, 1 / s.z);
+                var native = anchor.AddComponent<ShopItemSpawner>();
+                native.enabled = false;
+                native.priceMult = 1;
+                var anchorRenderer = anchor.GetComponent<MeshRenderer>();
+                if (!anchorRenderer) throw new MissingComponentException("Native shop spawner renderer was not created");
+                anchorRenderer.enabled = false;
                 anchor.SetActive(true);
-                controller=world.CreateShopStock(anchor.transform,position,rotation,slot.Kind);
-                if(!controller) { UnityEngine.Object.Destroy(anchor); return; }
-                var stock=controller.gameObject.AddComponent<RadioShopStock>();
-                stock.Service=this;
-                stock.Shop=vendor.Area;
-                stock.Controller=controller;
-                stock.Anchor=anchor.transform;
+                controller = world.CreateShopStock(anchor.transform, position, rotation, slot.Kind);
+                if (!controller) { UnityEngine.Object.Destroy(anchor); return; }
+                var stock = controller.gameObject.AddComponent<RadioShopStock>();
+                stock.Service = this;
+                stock.Shop = vendor.Area;
+                stock.Controller = controller;
+                stock.Anchor = anchor.transform;
                 controller.GetComponent<ShipItem>().AddToShop(vendor.Area);
                 controller.SetShopStock(true);
-                slot.Anchor=anchor;
-                slot.Stock=stock;
+                slot.Anchor = anchor;
+                slot.Stock = stock;
                 slot.Clock.Spawned();
                 stock.gameObject.SetActive(false);
                 Physics.SyncTransforms();
             }
-            catch(Exception error)
+            catch (Exception error)
             {
-                if(controller) { vendor.Area.itemsForSale.Remove(controller.GetComponent<ShipItem>()); UnityEngine.Object.Destroy(controller.gameObject); }
-                if(anchor) UnityEngine.Object.Destroy(anchor);
-                ReportSetupFailure(vendor,error.Message);
+                if (controller) { vendor.Area.itemsForSale.Remove(controller.GetComponent<ShipItem>()); UnityEngine.Object.Destroy(controller.gameObject); }
+                if (anchor) UnityEngine.Object.Destroy(anchor);
+                ReportSetupFailure(vendor, error.Message);
             }
         }
 
         private bool ReadyToStock(Vendor vendor)
         {
-            if(!supported || !vendor.Area) return false;
-            var keeper=vendor.Area.GetShopkeeper();
-            if(!keeper) return false;
-            var economy=typeof(Shopkeeper).GetField("economy",BindingFlags.Instance|BindingFlags.NonPublic);
-            var parentRegion=typeof(Shopkeeper).GetField("parentRegion",BindingFlags.Instance|BindingFlags.NonPublic);
-            var region=parentRegion?.GetValue(keeper) as Region;
-            if(!CorrectRegion(region,vendor.Scenery.parentIslandIndex))
+            if (!supported || !vendor.Area) return false;
+            var keeper = vendor.Area.GetShopkeeper();
+            if (!keeper) return false;
+            var region = KeeperRegion(vendor);
+            return region &&
+                NativeShopContract.KeeperEconomy?.GetValue(keeper) != null && NativeShopContract.KeeperReady(vendor.Area);
+        }
+
+        // Follow the native template keeper's region, including another mod's assignment. Without
+        // the template, native trigger entry alone assigns our keeper's region.
+        private static Region KeeperRegion(Vendor vendor)
+        {
+            var keeper = vendor.Area.GetShopkeeper();
+            var region = NativeShopContract.KeeperRegion?.GetValue(keeper) as Region;
+            if (vendor.Template && NativeShopContract.KeeperRegion?.GetValue(vendor.Template) is Region native && native && native != region)
             {
-                region=FindRegionAt(keeper.transform.position,vendor.Scenery.parentIslandIndex);
-                if(region) parentRegion?.SetValue(keeper,region);
+                NativeShopContract.KeeperRegion.SetValue(keeper, native);
+                region = native;
             }
-            return CorrectRegion(region,vendor.Scenery.parentIslandIndex) &&
-                economy?.GetValue(keeper)!=null && NativeShopContract.KeeperReady(vendor.Area);
+            return region;
         }
 
         private bool PurchaseEnvironmentReady(Vendor vendor)
         {
-            if(!ReadyToStock(vendor) || vendor.Area.itemsForSale==null) return false;
-            int currency=vendor.Scenery.parentIslandIndex==1 ? 0 : vendor.Scenery.parentIslandIndex==9 ? 1 : 2;
-            return currency>=0 && currency<3 && PlayerGold.currency!=null && PlayerGold.currency.Length>currency &&
-                PlayerReputation.retailDiscounts!=null && PlayerReputation.retailDiscounts.Length>currency &&
+            if (!ReadyToStock(vendor) || vendor.Area.itemsForSale == null) return false;
+            int currency = (int)KeeperRegion(vendor).portRegion;
+            return currency >= 0 && PlayerGold.currency != null && PlayerGold.currency.Length > currency &&
+                PlayerReputation.retailDiscounts != null && PlayerReputation.retailDiscounts.Length > currency &&
                 CurrencyMarket.instance && UISoundPlayer.instance && BuyItemUI.instance &&
-                DayLogs.instance && DayLogs.instance.dayLogs!=null && DayLogs.instance.dayLogs.Length>currency &&
-                DayLogs.instance.dayLogs[currency]!=null && MoneyNotification.instance;
+                DayLogs.instance && DayLogs.instance.dayLogs != null && DayLogs.instance.dayLogs.Length > currency &&
+                DayLogs.instance.dayLogs[currency] != null && MoneyNotification.instance;
         }
 
         private static bool BeforeAreaEnter(ShopArea __instance, Collider other)
         {
-            if(active==null) return true;
-            var otherKeeper=other ? other.GetComponentInParent<Shopkeeper>() : null;
-            var item=other ? other.GetComponentInParent<ShipItem>() : null;
-            var stock=item ? item.GetComponent<RadioShopStock>() : null;
-            bool unsoldRadioStock=stock && stock.Service==active && !(stock.Purchased && item.sold);
-            if(!active.Owns(__instance))
+            if (active == null) return true;
+            var otherKeeper = other ? other.GetComponentInParent<Shopkeeper>() : null;
+            var item = other ? other.GetComponentInParent<ShipItem>() : null;
+            var stock = item ? item.GetComponent<RadioShopStock>() : null;
+            bool unsoldRadioStock = stock && stock.Service == active && !(stock.Purchased && item.sold);
+            if (!active.Owns(__instance))
                 return !(otherKeeper && active.Owns(otherKeeper)) && !unsoldRadioStock;
-            if(otherKeeper) return otherKeeper==__instance.GetShopkeeper();
-            return !item || (stock && stock.Purchased && item.sold) || (unsoldRadioStock && stock.Shop==__instance);
+            if (otherKeeper) return otherKeeper == __instance.GetShopkeeper();
+            return !item || (stock && stock.Purchased && item.sold) || (unsoldRadioStock && stock.Shop == __instance);
         }
 
         private static bool BeforeKeeperEnter(Shopkeeper __instance, Collider other)
         {
-            if(active==null) return true;
-            var item=other ? other.GetComponentInParent<ShipItem>() : null;
-            var stock=item ? item.GetComponent<RadioShopStock>() : null;
-            bool unsoldRadioStock=stock && stock.Service==active && !(stock.Purchased && item.sold);
-            if(!active.Owns(__instance)) return !unsoldRadioStock;
-            if(!item) return true; // Keep native Region entry for local currency.
-            if(unsoldRadioStock) return stock.Shop && stock.Shop.GetShopkeeper()==__instance;
+            if (active == null) return true;
+            var item = other ? other.GetComponentInParent<ShipItem>() : null;
+            var stock = item ? item.GetComponent<RadioShopStock>() : null;
+            bool unsoldRadioStock = stock && stock.Service == active && !(stock.Purchased && item.sold);
+            if (!active.Owns(__instance)) return !unsoldRadioStock;
+            if (!item) return true; // Keep native Region entry for local currency.
+            if (unsoldRadioStock) return stock.Shop && stock.Shop.GetShopkeeper() == __instance;
             // Native Shopkeeper.OnTriggerEnter offers resale only for held, sold
             // goods. Keep this scoped to our small counter trigger and ready
             // economy so a neighboring merchant remains the active seller.
-            foreach(var vendor in active.vendors)
-                if(vendor.OwnedNpc && vendor.OwnedNpc.GetComponent<Shopkeeper>()==__instance)
+            foreach (var vendor in active.vendors)
+                if (vendor.OwnedNpc && vendor.OwnedNpc.GetComponent<Shopkeeper>() == __instance)
                     return item.sold && item.held && active.world.ReadyForShop && active.ReadyToStock(vendor) &&
-                        Camera.main && Vector3.Distance(Camera.main.transform.position,vendor.Stand.transform.position)<=3.25f;
+                        Camera.main && Vector3.Distance(Camera.main.transform.position, vendor.Stand.transform.position) <= 3.25f;
             return false;
         }
 
         private bool Owns(ShopArea area)
         {
-            foreach(var vendor in vendors) if(vendor.Area==area) return true;
+            foreach (var vendor in vendors) if (vendor.Area == area) return true;
             return false;
         }
 
         private bool Owns(Shopkeeper keeper)
         {
-            foreach(var vendor in vendors) if(vendor.OwnedNpc && vendor.OwnedNpc.GetComponent<Shopkeeper>()==keeper) return true;
+            foreach (var vendor in vendors) if (vendor.OwnedNpc && vendor.OwnedNpc.GetComponent<Shopkeeper>() == keeper) return true;
             return false;
         }
 
@@ -501,23 +488,23 @@ namespace SailwindRadio.Shops
 
         private static void ProtectStock(RadioShopStock stock)
         {
-            var item=stock.GetComponent<ShipItem>();
-            if(!item || item.sold || stock.Purchased || !stock.Anchor) return;
+            var item = stock.GetComponent<ShipItem>();
+            if (!item || item.sold || stock.Purchased || !stock.Anchor) return;
             // Native callers remove stock from the list before Sell. If ownership has not
             // changed, ordinary stock maintenance makes it available again.
             // AddToShop cannot do this because its existing native shop association is retained.
-            if(stock.Shop && stock.Shop.itemsForSale!=null && !stock.Shop.itemsForSale.Contains(item))
+            if (stock.Shop && stock.Shop.itemsForSale != null && !stock.Shop.itemsForSale.Contains(item))
                 stock.Shop.itemsForSale.Add(item);
             // Native pricing requires the direct ShopItemSpawner parent, including hover pricing
             // for stock. Preserve world position while repairing that contract.
-            if(item.transform.parent!=stock.Anchor) item.transform.SetParent(stock.Anchor,true);
-            if(item.held && Vector3.Distance(item.transform.position,stock.Anchor.position)>1.8f) item.ReturnToShopPos();
+            if (item.transform.parent != stock.Anchor) item.transform.SetParent(stock.Anchor, true);
+            if (item.held && Vector3.Distance(item.transform.position, stock.Anchor.position) > 1.8f) item.ReturnToShopPos();
         }
 
         private static void BeforePrice(ShipItem item)
         {
-            var stock=item ? item.GetComponent<RadioShopStock>() : null;
-            if(stock) ProtectStock(stock);
+            var stock = item ? item.GetComponent<RadioShopStock>() : null;
+            if (stock) ProtectStock(stock);
         }
 
         private static bool BeforeEnterBoat(ShipItem __instance)
@@ -528,35 +515,35 @@ namespace SailwindRadio.Shops
 
         private static void Clear(Vendor vendor)
         {
-            foreach(var slot in vendor.Slots)
+            foreach (var slot in vendor.Slots)
             {
-                if(slot.Stock && !slot.Stock.GetComponent<ShipItem>().sold)
+                if (slot.Stock && !slot.Stock.GetComponent<ShipItem>().sold)
                 {
-                    if(vendor.Area) vendor.Area.itemsForSale.Remove(slot.Stock.GetComponent<ShipItem>());
+                    if (vendor.Area) vendor.Area.itemsForSale.Remove(slot.Stock.GetComponent<ShipItem>());
                     UnityEngine.Object.Destroy(slot.Stock.gameObject);
                 }
-                if(slot.Anchor) UnityEngine.Object.Destroy(slot.Anchor);
+                if (slot.Anchor) UnityEngine.Object.Destroy(slot.Anchor);
             }
-            if(vendor.Stand) UnityEngine.Object.Destroy(vendor.Stand.gameObject);
-            if(vendor.Area) UnityEngine.Object.Destroy(vendor.Area.gameObject);
-            if(vendor.OwnedNpc) UnityEngine.Object.Destroy(vendor.OwnedNpc);
-            vendor.Stand=null;
-            vendor.Area=null;
-            vendor.OwnedNpc=null;
-            vendor.MerchantTriggers=null;
-            vendor.DisplayShown=false;
-            vendor.InitialStockAttempted=false;
-            vendor.StageReadyAt=-1f;
-            vendor.NextStockAttempt=0f;
+            if (vendor.Stand) UnityEngine.Object.Destroy(vendor.Stand.gameObject);
+            if (vendor.Area) UnityEngine.Object.Destroy(vendor.Area.gameObject);
+            if (vendor.OwnedNpc) UnityEngine.Object.Destroy(vendor.OwnedNpc);
+            vendor.Stand = null;
+            vendor.Area = null;
+            vendor.OwnedNpc = null;
+            vendor.MerchantTriggers = null;
+            vendor.DisplayShown = false;
+            vendor.InitialStockAttempted = false;
+            vendor.StageReadyAt = -1f;
+            vendor.NextStockAttempt = 0f;
         }
-        private void Clear() { foreach(var vendor in vendors) Clear(vendor); vendors.Clear(); nextScan=0; }
+        private void Clear() { foreach (var vendor in vendors) Clear(vendor); vendors.Clear(); nextScan = 0; }
         public void Dispose()
         {
-            if(disposed) return;
-            disposed=true;
+            if (disposed) return;
+            disposed = true;
             Clear();
             harmony.UnpatchSelf();
-            if(active==this) active=null;
+            if (active == this) active = null;
         }
     }
 }

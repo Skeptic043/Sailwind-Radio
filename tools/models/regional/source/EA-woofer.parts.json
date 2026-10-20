@@ -1,0 +1,2226 @@
+{
+ "name": "EA woofer — Emerald shrine cube (low-poly)",
+ "pivot": [
+  0,
+  0,
+  0.5250000000000004
+ ],
+ "parts": [
+  {
+   "id": "EA-woofer-body",
+   "name": "Cabinet",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    38,
+    34,
+    38
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    20,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-post-front-left",
+   "name": "Post front left",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    4.6,
+    40,
+    4.6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -19.7,
+    20,
+    19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-shoe-front-left",
+   "name": "Copper foot front left",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-woofer-post-front-left",
+   "size": [
+    5.4,
+    5.4,
+    4
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    -19.7,
+    2,
+    19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-plate-left-upper",
+   "name": "Corner plate left upper",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-woofer-post-front-left",
+   "size": [
+    5.4,
+    6,
+    0.5
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -19.7,
+    35.5,
+    22.25,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-plate-left-lower",
+   "name": "Corner plate left lower",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-woofer-post-front-left",
+   "size": [
+    5.4,
+    6,
+    0.5
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -19.7,
+    7,
+    22.25,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-post-front-right",
+   "name": "Post front right",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    4.6,
+    40,
+    4.6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    19.7,
+    20,
+    19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-shoe-front-right",
+   "name": "Copper foot front right",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-woofer-post-front-right",
+   "size": [
+    5.4,
+    5.4,
+    4
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    19.7,
+    2,
+    19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-plate-right-upper",
+   "name": "Corner plate right upper",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-woofer-post-front-right",
+   "size": [
+    5.4,
+    6,
+    0.5
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    19.7,
+    35.5,
+    22.25,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-plate-right-lower",
+   "name": "Corner plate right lower",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-woofer-post-front-right",
+   "size": [
+    5.4,
+    6,
+    0.5
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    19.7,
+    7,
+    22.25,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-post-back-left",
+   "name": "Post back left",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    4.6,
+    40,
+    4.6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -19.7,
+    20,
+    -19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-shoe-back-left",
+   "name": "Copper foot back left",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-woofer-post-back-left",
+   "size": [
+    5.4,
+    5.4,
+    4
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    -19.7,
+    2,
+    -19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-post-back-right",
+   "name": "Post back right",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    4.6,
+    40,
+    4.6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    19.7,
+    20,
+    -19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-shoe-back-right",
+   "name": "Copper foot back right",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-woofer-post-back-right",
+   "size": [
+    5.4,
+    5.4,
+    4
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    19.7,
+    2,
+    -19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-rail-top-front",
+   "name": "Rail top front",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    35,
+    3,
+    3
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    38.5,
+    19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-rail-top-back",
+   "name": "Rail top back",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    35,
+    3,
+    3
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    38.5,
+    -19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-rail-top-left",
+   "name": "Rail top left",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    3,
+    3,
+    35
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -19.7,
+    38.5,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-rail-top-right",
+   "name": "Rail top right",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    3,
+    3,
+    35
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    19.7,
+    38.5,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-rail-bottom-front",
+   "name": "Rail bottom front",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    35,
+    3,
+    3
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    4.5,
+    19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-rail-bottom-back",
+   "name": "Rail bottom back",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    35,
+    3,
+    3
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    4.5,
+    -19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-rail-bottom-left",
+   "name": "Rail bottom left",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    3,
+    3,
+    35
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -19.7,
+    4.5,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-rail-bottom-right",
+   "name": "Rail bottom right",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    3,
+    3,
+    35
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    19.7,
+    4.5,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-kasagi-front",
+   "name": "Torii beam front",
+   "type": "extrude",
+   "role": "body",
+   "parent": null,
+   "size": [
+    51.5,
+    6.45,
+    4.5
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    45.025,
+    19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-kasagi-front-cap-left",
+   "name": "Torii beam front copper cap left",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    3.1,
+    4,
+    4.9
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0.9781476007338057,
+    -0.20791169081775931,
+    0,
+    0,
+    0.20791169081775931,
+    0.9781476007338057,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -24.5,
+    46.4,
+    19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-kasagi-front-cap-right",
+   "name": "Torii beam front copper cap right",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    3.1,
+    4,
+    4.9
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0.9781476007338057,
+    0.20791169081775931,
+    0,
+    0,
+    -0.20791169081775931,
+    0.9781476007338057,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    24.5,
+    46.4,
+    19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-strut-rope-front-left",
+   "name": "Rope strut front left",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    3.4,
+    3.5281,
+    3.4
+   ],
+   "material": {
+    "name": "Hemp rope",
+    "color": "#a2814f",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -19.7,
+    41.7641,
+    19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-strut-front-left",
+   "name": "Strut front left",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    2.6,
+    2.1905,
+    2.6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -9,
+    41.0953,
+    19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-strut-rope-front-right",
+   "name": "Rope strut front right",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    3.4,
+    3.5281,
+    3.4
+   ],
+   "material": {
+    "name": "Hemp rope",
+    "color": "#a2814f",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    19.7,
+    41.7641,
+    19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-strut-front-right",
+   "name": "Strut front right",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    2.6,
+    2.1905,
+    2.6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    9,
+    41.0953,
+    19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-kasagi-back",
+   "name": "Torii beam back",
+   "type": "extrude",
+   "role": "body",
+   "parent": null,
+   "size": [
+    51.5,
+    6.45,
+    4.5
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    45.025,
+    -19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-kasagi-back-cap-left",
+   "name": "Torii beam back copper cap left",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    3.1,
+    4,
+    4.9
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0.9781476007338057,
+    -0.20791169081775931,
+    0,
+    0,
+    0.20791169081775931,
+    0.9781476007338057,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -24.5,
+    46.4,
+    -19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-kasagi-back-cap-right",
+   "name": "Torii beam back copper cap right",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    3.1,
+    4,
+    4.9
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0.9781476007338057,
+    0.20791169081775931,
+    0,
+    0,
+    -0.20791169081775931,
+    0.9781476007338057,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    24.5,
+    46.4,
+    -19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-strut-rope-back-left",
+   "name": "Rope strut back left",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    3.4,
+    3.5281,
+    3.4
+   ],
+   "material": {
+    "name": "Hemp rope",
+    "color": "#a2814f",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -19.7,
+    41.7641,
+    -19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-strut-back-left",
+   "name": "Strut back left",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    2.6,
+    2.1905,
+    2.6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -9,
+    41.0953,
+    -19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-strut-rope-back-right",
+   "name": "Rope strut back right",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    3.4,
+    3.5281,
+    3.4
+   ],
+   "material": {
+    "name": "Hemp rope",
+    "color": "#a2814f",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    19.7,
+    41.7641,
+    -19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-strut-back-right",
+   "name": "Strut back right",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    2.6,
+    2.1905,
+    2.6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    9,
+    41.0953,
+    -19.7,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-crest-plate",
+   "name": "Crest plate",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    7,
+    7,
+    1.2
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    40.5,
+    21.8,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-crest",
+   "name": "Tomoe crest",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "EA-woofer-crest-plate",
+   "size": [
+    4.6,
+    4.6,
+    0.5
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    40.5,
+    22.650000000000002,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "EA-woofer-baffle",
+   "name": "Front baffle",
+   "type": "box",
+   "role": "body",
+   "parent": "EA-woofer-body",
+   "size": [
+    34.8,
+    31,
+    1.5
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    21.5,
+    19.75,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-driver-bezel",
+   "name": "Woofer — bezel ring",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "EA-woofer-baffle",
+   "size": [
+    32.8,
+    32.8,
+    2.4
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    21.5,
+    21.7,
+    1
+   ],
+   "profile": [
+    [
+     13.9,
+     0
+    ],
+    [
+     16.4,
+     0
+    ],
+    [
+     16.4,
+     2
+    ],
+    [
+     16,
+     2.4
+    ],
+    [
+     13.9,
+     2.4
+    ]
+   ]
+  },
+  {
+   "id": "EA-woofer-driver-cone",
+   "name": "Woofer — cone",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "EA-woofer-driver-bezel",
+   "size": [
+    26,
+    26,
+    2.25
+   ],
+   "material": {
+    "name": "Black paper cone",
+    "color": "#26292a",
+    "roughness": 0.9,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    21.5,
+    21.775,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.3
+    ],
+    [
+     4.55,
+     0.1485
+    ],
+    [
+     9.1,
+     0.8835
+    ],
+    [
+     13,
+     1.65
+    ],
+    [
+     13,
+     1.95
+    ],
+    [
+     9.1,
+     1.1835
+    ],
+    [
+     4.55,
+     0.4485
+    ],
+    [
+     0,
+     0
+    ]
+   ]
+  },
+  {
+   "id": "EA-woofer-driver-surround",
+   "name": "Woofer — rubber surround",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "EA-woofer-driver-bezel",
+   "size": [
+    27.8,
+    27.8,
+    1.8
+   ],
+   "material": {
+    "name": "Black rubber surround",
+    "color": "#1e2122",
+    "roughness": 0.9,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    21.5,
+    22.45,
+    1
+   ],
+   "profile": [
+    [
+     13.77942,
+     0.45
+    ],
+    [
+     13,
+     0.9
+    ],
+    [
+     12.22058,
+     0.45
+    ],
+    [
+     12.22058,
+     -0.45
+    ],
+    [
+     13,
+     -0.9
+    ],
+    [
+     13.77942,
+     -0.45
+    ]
+   ]
+  },
+  {
+   "id": "EA-woofer-driver-cap",
+   "name": "Woofer — dust cap",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "EA-woofer-driver-cone",
+   "size": [
+    10,
+    10,
+    5
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    21.5,
+    20.95,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.25,
+     -0.43301
+    ],
+    [
+     0.43301,
+     -0.25
+    ],
+    [
+     0.5,
+     0
+    ],
+    [
+     0.43301,
+     0.25
+    ],
+    [
+     0.25,
+     0.43301
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "EA-woofer-driver-bolts",
+   "name": "Woofer — bezel bolts",
+   "type": "mesh",
+   "role": "detail",
+   "parent": "EA-woofer-driver-bezel",
+   "size": [
+    30.217,
+    31.5124,
+    0.63
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    21.5,
+    23.015,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-bass-skirt",
+   "name": "Bass — skirt ring",
+   "type": "lathe",
+   "role": "control",
+   "parent": "EA-woofer-baffle",
+   "size": [
+    3.45,
+    3.45,
+    0.25
+   ],
+   "material": {
+    "name": "Hemp rope",
+    "color": "#a2814f",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    14.8,
+    9.2,
+    20.625,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "EA-woofer-bass-knob",
+   "name": "Bass — knob",
+   "type": "lathe",
+   "role": "control",
+   "parent": "EA-woofer-bass-skirt",
+   "size": [
+    2.76,
+    2.76,
+    1.932
+   ],
+   "material": {
+    "name": "Dry bamboo",
+    "color": "#c4aa68",
+    "roughness": 0.88,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    14.8,
+    9.2,
+    21.716,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.2696,
+     0
+    ],
+    [
+     1.2696,
+     1.0626
+    ],
+    [
+     1.38,
+     1.1978
+    ],
+    [
+     1.2696,
+     1.3331
+    ],
+    [
+     1.2696,
+     1.932
+    ],
+    [
+     0,
+     1.932
+    ]
+   ]
+  },
+  {
+   "id": "EA-woofer-bass-cap",
+   "name": "Bass — jade top",
+   "type": "lathe",
+   "role": "control",
+   "parent": "EA-woofer-bass-knob",
+   "size": [
+    2.1528,
+    2.1528,
+    0.1932
+   ],
+   "material": {
+    "name": "Jade",
+    "color": "#3f9a68",
+    "roughness": 0.32,
+    "metalness": 0.05
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    14.8,
+    9.2,
+    22.682000000000002,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "EA-woofer-bass-index",
+   "name": "Bass — copper index",
+   "type": "box",
+   "role": "control",
+   "parent": "EA-woofer-bass-knob",
+   "size": [
+    0.276,
+    0.9384,
+    0.2705
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    14.8,
+    9.9176,
+    22.778650000000003,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-power-socket",
+   "name": "Power — socket",
+   "type": "lathe",
+   "role": "control",
+   "parent": "EA-woofer-baffle",
+   "size": [
+    3.9123,
+    3.9123,
+    0.25
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -14.8,
+    9.2,
+    20.625,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.9561499999999998,
+     0
+    ],
+    [
+     1.9561499999999998,
+     0.25
+    ],
+    [
+     0,
+     0.25
+    ]
+   ]
+  },
+  {
+   "id": "EA-woofer-power-button",
+   "name": "Power — button",
+   "type": "lathe",
+   "role": "control",
+   "parent": "EA-woofer-power-socket",
+   "size": [
+    2.898,
+    2.898,
+    1.0143
+   ],
+   "material": {
+    "name": "Jade",
+    "color": "#3f9a68",
+    "roughness": 0.32,
+    "metalness": 0.05
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -14.8,
+    9.2,
+    21.25715,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.449,
+     0
+    ],
+    [
+     1.449,
+     0.5579
+    ],
+    [
+     1.1592,
+     1.0143
+    ],
+    [
+     0,
+     1.0143
+    ]
+   ]
+  },
+  {
+   "id": "EA-woofer-lattice-backing-left",
+   "name": "Side lattice backing left",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-woofer-body",
+   "size": [
+    32,
+    16,
+    0.2
+   ],
+   "material": {
+    "name": "Shadow black",
+    "color": "#141616",
+    "roughness": 1,
+    "metalness": 0
+   },
+   "world": [
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    0,
+    -19.1,
+    27.5,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-lattice-left",
+   "name": "Side lattice left",
+   "type": "mesh",
+   "role": "detail",
+   "parent": "EA-woofer-body",
+   "size": [
+    31.6,
+    15.6,
+    0.5
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    0,
+    -19.45,
+    27.5,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-waves-left",
+   "name": "Wave relief left",
+   "type": "extrude",
+   "role": "detail",
+   "parent": "EA-woofer-body",
+   "size": [
+    32,
+    7.9328,
+    1
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    0,
+    -19.5,
+    8.5,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-lattice-backing-right",
+   "name": "Side lattice backing right",
+   "type": "box",
+   "role": "detail",
+   "parent": "EA-woofer-body",
+   "size": [
+    32,
+    16,
+    0.2
+   ],
+   "material": {
+    "name": "Shadow black",
+    "color": "#141616",
+    "roughness": 1,
+    "metalness": 0
+   },
+   "world": [
+    0,
+    0,
+    -1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    19.1,
+    27.5,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-lattice-right",
+   "name": "Side lattice right",
+   "type": "mesh",
+   "role": "detail",
+   "parent": "EA-woofer-body",
+   "size": [
+    31.6,
+    15.6,
+    0.5
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    0,
+    0,
+    -1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    19.45,
+    27.5,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "EA-woofer-waves-right",
+   "name": "Wave relief right",
+   "type": "extrude",
+   "role": "detail",
+   "parent": "EA-woofer-body",
+   "size": [
+    32,
+    7.9328,
+    1
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0,
+    0,
+    -1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    19.5,
+    8.5,
+    0,
+    1
+   ]
+  }
+ ]
+}

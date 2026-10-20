@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 
-namespace SailwindRadio
+namespace SailwindRadio.Audio
 {
     // Keeps every pinned NLayer 1.16 quirk behind exact seeks, so shared engines never see them.
     internal sealed class Mp3PcmDecoder : IPcmDecoder

@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 
-namespace SailwindRadio
+namespace SailwindRadio.Audio
 {
     // Worker-side limits and file access shared by the decoders and the stream engine. Nothing here
     // touches Unity objects or the playback class.

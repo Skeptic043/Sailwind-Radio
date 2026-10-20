@@ -4,7 +4,9 @@ using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
 using SailwindRadio.Acoustics;
+using SailwindRadio.Audio;
 using SailwindRadio.Library;
+using SailwindRadio.Models;
 using SailwindRadio.Physical;
 using SailwindRadio.Playback;
 using SailwindRadio.Shops;
@@ -18,7 +20,7 @@ namespace SailwindRadio
     public sealed class Plugin : BaseUnityPlugin
     {
         public const string Id = "local.sailwind.radio";
-        public const string Version = "1.2.3";
+        public const string Version = "1.3.0";
         private static Plugin instance;
         private Harmony harmony;
         private RadioWorldService world;
@@ -26,6 +28,8 @@ namespace SailwindRadio
         private RadioShopService shops;
         private ConfigEntry<string> musicFolders;
         private ConfigEntry<bool> continueWhileSleeping;
+        private ConfigEntry<float> mechanismVolume;
+        private ConfigEntry<bool> logDisplayTiming;
         private LibraryScanner library;
         private RadioMenus menus;
         private RadioPlaybackSet<RadioItemController> radios;
@@ -44,23 +48,12 @@ namespace SailwindRadio
                     "Music folders separated by |. Each folder is one collection including all its subfolders. Example: D:\\Music | E:\\Sailing Music");
                 continueWhileSleeping = Config.Bind("Audio", "ContinueWhileSleeping", false,
                     "Keep music playing while the player sleeps. Loading still suspends playback.");
-                // BepInEx 5 preserves unbound values as orphaned entries. Consume each
-                // retired key before removing it so existing config files lose the lines.
-                var oldSpawn = Config.Bind("Development", "SpawnRadio", "", "Retired developer spawn shortcut.");
-                Config.Remove(oldSpawn.Definition);
-                var oldSpawnRevision = Config.Bind("Internal", "SpawnDefaultRevision", 0, "Retired spawn shortcut migration marker.");
-                Config.Remove(oldSpawnRevision.Definition);
-                var oldMusicFile = Config.Bind("Music", "MusicFile", "", "Retired single-file music setting.");
-                bool legacyMusicOnly = !string.IsNullOrWhiteSpace(oldMusicFile.Value) && string.IsNullOrWhiteSpace(musicFolders.Value);
-                Config.Remove(oldMusicFile.Definition);
-                var oldStormEnabled = Config.Bind("Audio", "StormInterferenceEnabled", true, "Retired interference setting.");
-                Config.Remove(oldStormEnabled.Definition);
-                var oldStormStrength = Config.Bind("Audio", "StormInterferenceStrength", .35f, "Retired interference setting.");
-                Config.Remove(oldStormStrength.Definition);
-                var oldContinueWhilePaused = Config.Bind("Audio", "ContinueWhilePaused", false, "Retired pause setting.");
-                Config.Remove(oldContinueWhilePaused.Definition);
-                Config.Save();
-                if (legacyMusicOnly) Warn("MusicFile has been retired. Set MusicFolders to a folder containing your music.");
+                mechanismVolume = Config.Bind("Display", "MechanismVolume", .2f, new ConfigDescription(
+                    "Volume of the regional radio display mechanisms, from silent at 0 to full at 1. Game volume also applies.",
+                    new AcceptableValueRange<float>(0f, 1f)));
+                logDisplayTiming = Config.Bind("Development", "LogDisplayTiming", false,
+                    "Log regional display timing, mesh updates and allocations every 10 seconds for performance checks.");
+                RemoveRetiredSettings();
                 harmony = new Harmony(Id);
                 MediaFoundationSupport.Detect();
                 LibraryPaths.MediaFoundationFormats = MediaFoundationSupport.Enabled;
@@ -68,10 +61,11 @@ namespace SailwindRadio
                 acoustics = new RadioAcousticsService();
                 library = new LibraryScanner();
                 radios = new RadioPlaybackSet<RadioItemController>(
-                    (item, state) => new RadioPlayback(this, state, Warn) { RepeatTrack = false }, AttachEngine,
+                    (item, state) => new RadioPlayback(this, state, Warn), AttachEngine,
                     item => { if (item && item.State.Powered) item.TogglePower(); }, Warn);
                 menus = new RadioMenus();
-                world = new RadioWorldService(harmony, Warn);
+                DisplayTiming.Configure(() => logDisplayTiming.Value, message => Logger.LogInfo(message));
+                world = new RadioWorldService(harmony, Warn, new DisplaySoundBank(() => mechanismVolume.Value, Warn));
                 world.BeforeSave += CapturePositions;
                 world.ActionRequested += HandleAction;
                 shops = new RadioShopService(world, Warn);
@@ -94,6 +88,30 @@ namespace SailwindRadio
                 Shutdown();
                 enabled = false;
             }
+        }
+
+        private void RemoveRetiredSettings()
+        {
+            // BepInEx 5 preserves unbound values as orphaned entries. Consume each
+            // retired key before removing it so existing config files lose the lines.
+            var oldSpawn = Config.Bind("Development", "SpawnRadio", "", "Retired developer spawn shortcut.");
+            Config.Remove(oldSpawn.Definition);
+            var oldSpawnRevision = Config.Bind("Internal", "SpawnDefaultRevision", 0, "Retired spawn shortcut migration marker.");
+            Config.Remove(oldSpawnRevision.Definition);
+            var oldMusicFile = Config.Bind("Music", "MusicFile", "", "Retired single-file music setting.");
+            bool legacyMusicOnly = !string.IsNullOrWhiteSpace(oldMusicFile.Value) && string.IsNullOrWhiteSpace(musicFolders.Value);
+            Config.Remove(oldMusicFile.Definition);
+            var oldStormEnabled = Config.Bind("Audio", "StormInterferenceEnabled", true, "Retired interference setting.");
+            Config.Remove(oldStormEnabled.Definition);
+            var oldStormStrength = Config.Bind("Audio", "StormInterferenceStrength", .35f, "Retired interference setting.");
+            Config.Remove(oldStormStrength.Definition);
+            var oldContinueWhilePaused = Config.Bind("Audio", "ContinueWhilePaused", false, "Retired pause setting.");
+            Config.Remove(oldContinueWhilePaused.Definition);
+            // Regional displays no longer page long text.
+            var oldPageHold = Config.Bind("Display", "PageHoldSeconds", 4f, "Retired page hold setting.");
+            Config.Remove(oldPageHold.Definition);
+            Config.Save();
+            if (legacyMusicOnly) Warn("MusicFile has been retired. Set MusicFolders to a folder containing your music.");
         }
 
         private void InstallSuspendBoundary(Type type, string name)
@@ -160,7 +178,7 @@ namespace SailwindRadio
             for (int index = 0; index < items.Count; index++)
             {
                 var item = items[index];
-                if (!item || item.State.Kind != 0) continue;
+                if (!item || item.State.Role != DeviceRole.Radio) continue;
                 seen.Add(item);
                 radios.Add(item, item.State);
             }
@@ -210,20 +228,7 @@ namespace SailwindRadio
             engine.SetCarried(carried);
             engine.BeginEndpoints();
             if (item.InstanceId == world.ActiveRadioId && item.State.Powered)
-            {
-                var sourceVessel = item.Vessel;
-                foreach (var speaker in world.Items)
-                {
-                    if (!speaker || speaker.State.Kind == 0 || !speaker.State.SpeakerEnabled) continue;
-                    var speakerVessel = speaker.Vessel;
-                    bool speakerCarried = speaker.UsesPlayerPosition;
-                    Vector3 speakerDevicePosition = speaker.VisualAudioPosition;
-                    if (!DeviceVessels.CanConnect(sourceVessel, speakerVessel, devicePosition, speakerDevicePosition)) continue;
-                    Vector3 speakerPosition = speakerCarried && acoustics.ListenerKnown ? acoustics.ListenerPosition : speaker.SoundPosition;
-                    engine.SetEndpoint(speaker.InstanceId, speakerPosition, speakerCarried, speaker.State.Kind,
-                        speaker.State.Kind == 3 ? 1f : speaker.State.Volume, speaker.State.Bass, acoustics.ObstructionAt(speakerPosition, speakerCarried));
-                }
-            }
+                ConnectSpeakers(item, engine, devicePosition);
             engine.EndEndpoints();
             engine.Tick(position, suspended);
             if (!suspended && item.State.Powered && !item.State.Paused)
@@ -238,9 +243,25 @@ namespace SailwindRadio
             item.SetTrackInfo(info.Title, info.Artist, info.Album);
         }
 
+        private void ConnectSpeakers(RadioItemController item, RadioPlayback engine, Vector3 devicePosition)
+        {
+            var sourceVessel = item.Vessel;
+            foreach (var speaker in world.Items)
+            {
+                if (!speaker || speaker.State.Role == DeviceRole.Radio || !speaker.State.SpeakerEnabled) continue;
+                var speakerVessel = speaker.Vessel;
+                bool speakerCarried = speaker.UsesPlayerPosition;
+                Vector3 speakerDevicePosition = speaker.VisualAudioPosition;
+                if (!DeviceVessels.CanConnect(sourceVessel, speakerVessel, devicePosition, speakerDevicePosition)) continue;
+                Vector3 speakerPosition = speakerCarried && acoustics.ListenerKnown ? acoustics.ListenerPosition : speaker.SoundPosition;
+                engine.SetEndpoint(speaker.InstanceId, speakerPosition, speakerCarried, speaker.State.Kind,
+                    speaker.State.Role == DeviceRole.Woofer ? 1f : speaker.State.Volume, speaker.State.Bass, acoustics.ObstructionAt(speakerPosition, speakerCarried));
+            }
+        }
+
         private void HandleAction(RadioItemController item, RadioAction action)
         {
-            if (!ready || !item || item.State.Kind != 0) return;
+            if (!ready || !item || item.State.Role != DeviceRole.Radio) return;
             if (action == RadioAction.Power)
             {
                 if (item.State.Powered) library.RequestScan(musicFolders.Value);

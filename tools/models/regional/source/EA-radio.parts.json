@@ -1,0 +1,2622 @@
+{
+ "name": "Emerald 07 — front corner buttons (low-poly)",
+ "pivot": [
+  0,
+  0.05000000000000138,
+  0.6839500000000003
+ ],
+ "parts": [
+  {
+   "id": "Emerald-01-Scroll-Cabinet-housing",
+   "name": "Hollow wood cabinet",
+   "type": "mesh",
+   "role": "body",
+   "parent": null,
+   "size": [
+    30,
+    32,
+    13
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    17.6,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-front-mask",
+   "name": "Front fascia — real openings",
+   "type": "mesh",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    27.8,
+    29.8,
+    0.38
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    17.6,
+    6.5,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-scroll-frame",
+   "name": "Scroll Frame frame",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    23,
+    9.7,
+    0.4
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    23.400000000000002,
+    6.2,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-scroll-belt",
+   "name": "Reusable wax-cloth endless loop — front and return runs",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Emerald-01-Scroll-Cabinet-scroll-frame",
+   "size": [
+    22.2,
+    8.585,
+    2.185
+   ],
+   "material": {
+    "name": "Wax-coated cloth writing belt",
+    "color": "#d5c69e",
+    "roughness": 0.83,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    23.400000000000002,
+    6.1,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-scroll-roller-0",
+   "name": "Feed roller 1",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Emerald-01-Scroll-Cabinet-scroll-frame",
+   "size": [
+    2,
+    2,
+    23.4
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    0,
+    0,
+    -1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    20.200000000000003,
+    6.1000000000000005,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-scroll-end-0-0",
+   "name": "Exposed roller end cap",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-scroll-roller-0",
+   "size": [
+    2.25,
+    2.25,
+    0.38
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0,
+    0,
+    -1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    -11.725,
+    20.200000000000003,
+    6.1000000000000005,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-scroll-end-0-1",
+   "name": "Exposed roller end cap",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-scroll-roller-0",
+   "size": [
+    2.25,
+    2.25,
+    0.38
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0,
+    0,
+    -1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    11.725,
+    20.200000000000003,
+    6.1000000000000005,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-scroll-roller-1",
+   "name": "Feed roller 2",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Emerald-01-Scroll-Cabinet-scroll-frame",
+   "size": [
+    2,
+    2,
+    23.4
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    0,
+    0,
+    -1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    26.6,
+    6.1000000000000005,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-scroll-end-1-0",
+   "name": "Exposed roller end cap",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-scroll-roller-1",
+   "size": [
+    2.25,
+    2.25,
+    0.38
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0,
+    0,
+    -1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    -11.725,
+    26.6,
+    6.1000000000000005,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-scroll-end-1-1",
+   "name": "Exposed roller end cap",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-scroll-roller-1",
+   "size": [
+    2.25,
+    2.25,
+    0.38
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0,
+    0,
+    -1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    11.725,
+    26.6,
+    6.1000000000000005,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-scroll-eraser",
+   "name": "Return-path smoothing bar",
+   "type": "box",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-scroll-frame",
+   "size": [
+    22.3,
+    1.2,
+    0.7
+   ],
+   "material": {
+    "name": "Return-path smoothing pad",
+    "color": "#514937",
+    "roughness": 0.98,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    22.248,
+    4.800000000000001,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-scroll-writer-rail",
+   "name": "Horizontal marking-carriage guide",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-scroll-frame",
+   "size": [
+    0.19,
+    0.19,
+    22.45
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0,
+    0,
+    -1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    26.05,
+    7.69,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-scroll-carriage",
+   "name": "Movable stylus carriage",
+   "type": "box",
+   "role": "control",
+   "parent": "Emerald-01-Scroll-Cabinet-scroll-frame",
+   "size": [
+    0.8,
+    0.72,
+    0.55
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -10.5,
+    26.05,
+    7.63,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-scroll-title",
+   "name": "title — static lettering",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Emerald-01-Scroll-Cabinet-scroll-frame",
+   "size": [
+    4.314745,
+    1.078,
+    0.065
+   ],
+   "material": {
+    "name": "Dark lettering",
+    "color": "#202621",
+    "roughness": 0.91,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    24.500000000000004,
+    7.3125,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-scroll-artist",
+   "name": "Artist — static lettering",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Emerald-01-Scroll-Cabinet-scroll-frame",
+   "size": [
+    5.346645,
+    1.10399,
+    0.065
+   ],
+   "material": {
+    "name": "Dark lettering",
+    "color": "#202621",
+    "roughness": 0.91,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    21.8,
+    7.3125,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-integrated-cloth",
+   "name": "Integrated speaker cloth",
+   "type": "mesh",
+   "role": "speaker",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    18.5,
+    8.8,
+    0.18
+   ],
+   "material": {
+    "name": "Dark speaker cloth",
+    "color": "#221d1c",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    11.8,
+    6.55,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-integrated-grille",
+   "name": "Speaker grille — lattice",
+   "type": "mesh",
+   "role": "speaker",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    18.5,
+    8.8,
+    0.4
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    11.8,
+    6.8,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-integrated-rim",
+   "name": "Speaker opening surround",
+   "type": "mesh",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    19.1,
+    9.4,
+    0.45
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    11.8,
+    6.7299999999999995,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-tuning-escutcheon",
+   "name": "Master vol — base ring",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    3.192,
+    3.192,
+    0.25
+   ],
+   "material": {
+    "name": "Hemp rope",
+    "color": "#a2814f",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -11.4,
+    4.400000000000002,
+    6.6,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-tuning",
+   "name": "Master vol — rotary control",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    2.688,
+    2.688,
+    2.016
+   ],
+   "material": {
+    "name": "Dry bamboo",
+    "color": "#c4aa68",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -11.4,
+    4.400000000000002,
+    7.718,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.2365,
+     0
+    ],
+    [
+     1.2365,
+     1.1088
+    ],
+    [
+     1.344,
+     1.2499
+    ],
+    [
+     1.2365,
+     1.391
+    ],
+    [
+     1.2365,
+     2.016
+    ],
+    [
+     0,
+     2.016
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-tuning-index",
+   "name": "Tuning index mark",
+   "type": "box",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-tuning",
+   "size": [
+    0.2688,
+    0.9139,
+    0.2822
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -11.4,
+    5.098900000000002,
+    8.8268,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-volume-escutcheon",
+   "name": "Local vol — base ring",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    2.7132,
+    2.7132,
+    0.25
+   ],
+   "material": {
+    "name": "Hemp rope",
+    "color": "#a2814f",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    11.4,
+    4.400000000000002,
+    6.6,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-volume",
+   "name": "Local vol — rotary control",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    2.2848,
+    2.2848,
+    1.7136
+   ],
+   "material": {
+    "name": "Dry bamboo",
+    "color": "#c4aa68",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    11.4,
+    4.400000000000002,
+    7.5668,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.051,
+     0
+    ],
+    [
+     1.051,
+     0.9425
+    ],
+    [
+     1.1424,
+     1.0624
+    ],
+    [
+     1.051,
+     1.1824
+    ],
+    [
+     1.051,
+     1.7136
+    ],
+    [
+     0,
+     1.7136
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-volume-index",
+   "name": "Volume index mark",
+   "type": "box",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-volume",
+   "size": [
+    0.2285,
+    0.7768,
+    0.2399
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    11.4,
+    4.994000000000002,
+    8.50925,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-corner-post-0",
+   "name": "Exposed timber corner post",
+   "type": "box",
+   "role": "body",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    1.5,
+    33.3,
+    2.3
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -14,
+    17.950000000000003,
+    5.8500000000000005,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-corner-post-1",
+   "name": "Exposed timber corner post",
+   "type": "box",
+   "role": "body",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    1.5,
+    33.3,
+    2.3
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    14,
+    17.950000000000003,
+    5.8500000000000005,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-base",
+   "name": "Base and feet",
+   "type": "mesh",
+   "role": "body",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    32,
+    1.6,
+    15.2
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0.8500000000000014,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-power-socket",
+   "name": "Power — socket",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    3,
+    3,
+    0.28
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    10.8,
+    30.8,
+    6.694999999999999,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.40625,
+     0
+    ],
+    [
+     1.40625,
+     0.28
+    ],
+    [
+     0,
+     0.28
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-power-button",
+   "name": "Power — button",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    2.16,
+    2.16,
+    0.7
+   ],
+   "material": {
+    "name": "Jade",
+    "color": "#3f9a68",
+    "roughness": 0.32,
+    "metalness": 0.05
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    10.8,
+    30.8,
+    7.09,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.0125,
+     0
+    ],
+    [
+     1.0125,
+     0.385
+    ],
+    [
+     0.81,
+     0.7
+    ],
+    [
+     0,
+     0.7
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-power-mark",
+   "name": "Source symbol — top mark",
+   "type": "extrude",
+   "role": "detail",
+   "parent": "Emerald-02-source-button",
+   "size": [
+    0.8533,
+    0.6667,
+    0.07
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -10.8,
+    30.9867,
+    7.505,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-power-underline",
+   "name": "Source — underline",
+   "type": "box",
+   "role": "detail",
+   "parent": "Emerald-02-source-button",
+   "size": [
+    1.1067,
+    0.1333,
+    0.08
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -10.8,
+    30.36,
+    7.529999999999999,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-prev-seat",
+   "name": "Previous track — bezel",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    3.15,
+    3.15,
+    0.23
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -5.4,
+    4.400000000000002,
+    6.67,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.575,
+     0
+    ],
+    [
+     1.575,
+     0.23
+    ],
+    [
+     0,
+     0.23
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-prev-button",
+   "name": "Previous track — button",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    2.475,
+    2.475,
+    0.62
+   ],
+   "material": {
+    "name": "Jade",
+    "color": "#3f9a68",
+    "roughness": 0.32,
+    "metalness": 0.05
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -5.4,
+    4.400000000000002,
+    7.05,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.2375,
+     0
+    ],
+    [
+     1.2375,
+     0.341
+    ],
+    [
+     0.99,
+     0.62
+    ],
+    [
+     0,
+     0.62
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-prev-arrow",
+   "name": "Previous track — arrow",
+   "type": "extrude",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-prev-button",
+   "size": [
+    1.0875,
+    0.9125,
+    0.085
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -5.4,
+    4.400000000000002,
+    7.4375,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-next-seat",
+   "name": "Next track — bezel",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    3.15,
+    3.15,
+    0.23
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    1.8,
+    4.400000000000002,
+    6.67,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.575,
+     0
+    ],
+    [
+     1.575,
+     0.23
+    ],
+    [
+     0,
+     0.23
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-next-button",
+   "name": "Next track — button",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    2.475,
+    2.475,
+    0.62
+   ],
+   "material": {
+    "name": "Jade",
+    "color": "#3f9a68",
+    "roughness": 0.32,
+    "metalness": 0.05
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    1.8,
+    4.400000000000002,
+    7.05,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.2375,
+     0
+    ],
+    [
+     1.2375,
+     0.341
+    ],
+    [
+     0.99,
+     0.62
+    ],
+    [
+     0,
+     0.62
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-next-arrow",
+   "name": "Next track — arrow",
+   "type": "extrude",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-next-button",
+   "size": [
+    1.0875,
+    0.9125,
+    0.085
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    1.8,
+    4.400000000000002,
+    7.4375,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-02-source-button-socket",
+   "name": "Source — socket",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    3,
+    3,
+    0.28
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -10.8,
+    30.8,
+    6.694999999999999,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.40625,
+     0
+    ],
+    [
+     1.40625,
+     0.28
+    ],
+    [
+     0,
+     0.28
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-02-source-button",
+   "name": "Source — push button",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    2.16,
+    2.16,
+    0.7
+   ],
+   "material": {
+    "name": "Jade",
+    "color": "#3f9a68",
+    "roughness": 0.32,
+    "metalness": 0.05
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -10.8,
+    30.8,
+    7.09,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.0125,
+     0
+    ],
+    [
+     1.0125,
+     0.385
+    ],
+    [
+     0.81,
+     0.7
+    ],
+    [
+     0,
+     0.7
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-02-power-symbol-ring",
+   "name": "Power symbol — ring",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-power-button",
+   "size": [
+    0.9072,
+    0.9072,
+    0.122472
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    10.8,
+    30.8,
+    7.481236,
+    1
+   ],
+   "profile": [
+    [
+     0.4454,
+     0.03062
+    ],
+    [
+     0.39236,
+     0.06124
+    ],
+    [
+     0.33933,
+     0.03062
+    ],
+    [
+     0.33933,
+     -0.03062
+    ],
+    [
+     0.39236,
+     -0.06124
+    ],
+    [
+     0.4454,
+     -0.03062
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-02-power-symbol-bar",
+   "name": "Power symbol — bar",
+   "type": "box",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-power-button",
+   "size": [
+    0.1452,
+    0.5443,
+    0.1
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    10.8,
+    31.0902,
+    7.47,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-03-pause-seat",
+   "name": "Pause — bezel",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    3.15,
+    3.15,
+    0.23
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -1.8,
+    4.400000000000002,
+    6.67,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.575,
+     0
+    ],
+    [
+     1.575,
+     0.23
+    ],
+    [
+     0,
+     0.23
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-03-pause-button",
+   "name": "Pause — button",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    2.475,
+    2.475,
+    0.62
+   ],
+   "material": {
+    "name": "Jade",
+    "color": "#3f9a68",
+    "roughness": 0.32,
+    "metalness": 0.05
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -1.8,
+    4.400000000000002,
+    7.05,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.2375,
+     0
+    ],
+    [
+     1.2375,
+     0.341
+    ],
+    [
+     0.99,
+     0.62
+    ],
+    [
+     0,
+     0.62
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-03-pause-bar-left",
+   "name": "Pause mark — left bar",
+   "type": "box",
+   "role": "detail",
+   "parent": "Emerald-03-pause-button",
+   "size": [
+    0.2228,
+    0.8415,
+    0.09
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -2.0228,
+    4.400000000000002,
+    7.435,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-03-pause-bar-right",
+   "name": "Pause mark — right bar",
+   "type": "box",
+   "role": "detail",
+   "parent": "Emerald-03-pause-button",
+   "size": [
+    0.2228,
+    0.8415,
+    0.09
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -1.5772,
+    4.400000000000002,
+    7.435,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-04-shuffle-seat",
+   "name": "Shuffle — bezel",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    3.15,
+    3.15,
+    0.23
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    5.4,
+    4.400000000000002,
+    6.67,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.575,
+     0
+    ],
+    [
+     1.575,
+     0.23
+    ],
+    [
+     0,
+     0.23
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-04-shuffle-button",
+   "name": "Shuffle — button",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    2.475,
+    2.475,
+    0.62
+   ],
+   "material": {
+    "name": "Jade",
+    "color": "#3f9a68",
+    "roughness": 0.32,
+    "metalness": 0.05
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    5.4,
+    4.400000000000002,
+    7.05,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.2375,
+     0
+    ],
+    [
+     1.2375,
+     0.341
+    ],
+    [
+     0.99,
+     0.62
+    ],
+    [
+     0,
+     0.62
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-04-shuffle-arrow-upper",
+   "name": "Shuffle mark — upper arrow",
+   "type": "extrude",
+   "role": "detail",
+   "parent": "Emerald-04-shuffle-button",
+   "size": [
+    0.6525,
+    0.5475,
+    0.085
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    5.4,
+    4.725000000000002,
+    7.4375,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-04-shuffle-arrow-lower",
+   "name": "Shuffle mark — lower arrow",
+   "type": "extrude",
+   "role": "detail",
+   "parent": "Emerald-04-shuffle-button",
+   "size": [
+    0.6525,
+    0.5475,
+    0.085
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    5.4,
+    4.075000000000002,
+    7.4375,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-05-speaker-frame",
+   "name": "Speaker frame",
+   "type": "mesh",
+   "role": "body",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    20.7,
+    11,
+    0.7
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    11.8,
+    7.2299999999999995,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-05-speaker-frame-corners",
+   "name": "Speaker frame — copper corner plates",
+   "type": "mesh",
+   "role": "body",
+   "parent": "Emerald-05-speaker-frame",
+   "size": [
+    21,
+    11.3,
+    0.3
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    11.8,
+    7.7299999999999995,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-tuning-style",
+   "name": "Knob jade top",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-tuning",
+   "size": [
+    2.0966,
+    2.0966,
+    0.2016
+   ],
+   "material": {
+    "name": "Jade",
+    "color": "#3f9a68",
+    "roughness": 0.32,
+    "metalness": 0.05
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -11.4,
+    4.400000000000002,
+    8.725999999999999,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-01-Scroll-Cabinet-volume-style",
+   "name": "Knob jade top",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Emerald-01-Scroll-Cabinet-volume",
+   "size": [
+    1.7821,
+    1.7821,
+    0.1714
+   ],
+   "material": {
+    "name": "Jade",
+    "color": "#3f9a68",
+    "roughness": 0.32,
+    "metalness": 0.05
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    11.4,
+    4.400000000000002,
+    8.4236,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Emerald-06-crown-strut-left",
+   "name": "Crown strut left",
+   "type": "box",
+   "role": "body",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    1.8,
+    2.2,
+    1.6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -8,
+    34.400000000000006,
+    -1,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-06-crown-strut-right",
+   "name": "Crown strut right",
+   "type": "box",
+   "role": "body",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    1.8,
+    2.2,
+    1.6
+   ],
+   "material": {
+    "name": "Dark red-brown joinery",
+    "color": "#3f2524",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    8,
+    34.400000000000006,
+    -1,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-06-crown-beam",
+   "name": "Crown beam",
+   "type": "extrude",
+   "role": "body",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    26.78,
+    3.354,
+    2.6
+   ],
+   "material": {
+    "name": "Emerald red-brown wood",
+    "color": "#5a3432",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    36.3356,
+    -1.0000000000000009,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-06-crown-cap-left",
+   "name": "Crown copper cap left",
+   "type": "box",
+   "role": "body",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    1.612,
+    2.08,
+    3
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0.9781476007338057,
+    -0.20791169081775931,
+    0,
+    0,
+    0.20791169081775931,
+    0.9781476007338057,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -12.74,
+    37.0506,
+    -1,
+    1
+   ]
+  },
+  {
+   "id": "Emerald-06-crown-cap-right",
+   "name": "Crown copper cap right",
+   "type": "box",
+   "role": "body",
+   "parent": "Emerald-01-Scroll-Cabinet-housing",
+   "size": [
+    1.612,
+    2.08,
+    3
+   ],
+   "material": {
+    "name": "Aged copper",
+    "color": "#a8613f",
+    "roughness": 0.45,
+    "metalness": 0.8
+   },
+   "world": [
+    0.9781476007338057,
+    0.20791169081775931,
+    0,
+    0,
+    -0.20791169081775931,
+    0.9781476007338057,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    12.74,
+    37.0506,
+    -1,
+    1
+   ]
+  }
+ ]
+}

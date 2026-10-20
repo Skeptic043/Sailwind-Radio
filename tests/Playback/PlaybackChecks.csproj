@@ -15,6 +15,7 @@
     <Compile Include="../../src/Audio/*.cs" Link="Audio/%(Filename)%(Extension)" />
     <Compile Include="../../src/Library/*.cs" Link="Library/%(Filename)%(Extension)" />
     <Compile Include="../../src/RadioState.cs" Link="RadioState.cs" />
+    <Compile Include="../../src/DeviceKind.cs" Link="DeviceKind.cs" />
     <Compile Include="../Audio/UnityAudioDoubles.cs" Link="UnityAudioDoubles.cs" />
   </ItemGroup>
 </Project>

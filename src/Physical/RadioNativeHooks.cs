@@ -12,11 +12,21 @@ namespace SailwindRadio.Physical
         private static bool IsRadio(Component item)
         {
             var controller = item ? item.GetComponent<RadioItemController>() : null;
-            return controller && controller.State != null && controller.State.Kind == 0;
+            return controller && controller.State != null && controller.State.Role == DeviceRole.Radio;
+        }
+
+        // The Aestrin radio has no handle to hang by.
+        internal static bool CanHang(int kind) => DeviceKind.IsValid(kind) &&
+            DeviceKind.Role(kind) == DeviceRole.Radio && DeviceKind.Family(kind) != DeviceKind.Aestrin;
+
+        private static bool IsHookEligible(Component item)
+        {
+            var controller = item ? item.GetComponent<RadioItemController>() : null;
+            return controller && controller.State != null && CanHang(controller.State.Kind);
         }
 
         internal static bool AllowsHookTarget(Component item, Component target) =>
-            IsRadio(item) && item.GetComponent<HangableItem>() && target && target.GetComponent<ShipItemLampHook>();
+            IsHookEligible(item) && item.GetComponent<HangableItem>() && target && target.GetComponent<ShipItemLampHook>();
 
         private static bool HasLiveJoint(HangableItem hangable, ShipItem item)
         {
@@ -35,13 +45,13 @@ namespace SailwindRadio.Physical
 
         internal static void RejectPhantomHook(HangableItem hangable)
         {
-            if (hangable && IsRadio(hangable))
+            if (hangable && IsHookEligible(hangable))
                 HasLiveJoint(hangable, hangable.GetComponent<ShipItem>());
         }
 
         internal static bool Release(ShipItem item)
         {
-            if (!IsRadio(item)) return false;
+            if (!IsHookEligible(item)) return false;
             var hangable = item.GetComponent<HangableItem>();
             if (HasLiveJoint(hangable, item))
             {
@@ -56,7 +66,7 @@ namespace SailwindRadio.Physical
 
         internal static void EnterInventory(ShipItem item)
         {
-            if (!IsRadio(item) || !item.GetComponent<HangableItem>()) return;
+            if (!IsHookEligible(item) || !item.GetComponent<HangableItem>()) return;
             // ExitBoat may already have disconnected an unheld item during native
             // OnEnterInventory. Inventory ownership must clear the stale restriction.
             if (!Release(item)) item.ToggleDisallowDisembarking(false);
@@ -71,10 +81,10 @@ namespace SailwindRadio.Physical
 
         internal static void PositionBelowHook(HangableItem hangable)
         {
-            if (!hangable || !IsRadio(hangable) || !HasLiveJoint(hangable, hangable.GetComponent<ShipItem>())) return;
+            if (!hangable || !IsHookEligible(hangable) || !HasLiveJoint(hangable, hangable.GetComponent<ShipItem>())) return;
             // Native HangableItem.LateUpdate places the item's base at the hook. Move the
             // radio's base below it so the top edge becomes the attachment point.
-            hangable.transform.position -= Vector3.up * RadioDevice.Size(0).y;
+            hangable.transform.position -= Vector3.up * hangable.GetComponent<RadioItemController>().Height;
         }
 
         internal static bool AllowHouseTrigger(ShipItem item, Collider other) =>

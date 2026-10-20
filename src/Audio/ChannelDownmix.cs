@@ -1,6 +1,6 @@
 using System;
 
-namespace SailwindRadio
+namespace SailwindRadio.Audio
 {
     // Speaker positions in WAVE channel mask bit order, so a mask bit index is its speaker.
     internal enum Speaker

@@ -6,18 +6,21 @@ namespace SailwindRadio.Physical
     {
         Volume, Master, Local, Bass
     }
+    internal static class RadioKnobLevels
+    {
+        internal static float KnobLevel(this RadioState state, RadioKnobMode mode) =>
+            mode == RadioKnobMode.Bass ? state.Bass : mode == RadioKnobMode.Local ? state.LocalVolume : state.Volume;
+        internal static void SetKnobLevel(this RadioState state, RadioKnobMode mode, float level)
+        {
+            if (mode == RadioKnobMode.Bass) state.Bass = level;
+            else if (mode == RadioKnobMode.Local) state.LocalVolume = level;
+            else state.Volume = level;
+        }
+    }
     public sealed class RadioVolumeKnob : GoPointerButton
     {
         public RadioItemController Radio;
         public RadioKnobMode Mode;
-        public bool AdjustBass
-        {
-            get => Mode == RadioKnobMode.Bass; set
-            {
-                if (value)
-                    Mode = RadioKnobMode.Bass;
-            }
-        }
         private UnityEngine.Object capturedCharacter;
         private UnityEngine.Object capturedController;
         private UnityEngine.Object capturedCrosshair;
@@ -25,7 +28,7 @@ namespace SailwindRadio.Physical
         private bool initialControllerEnabled;
         private bool initialCrosshairActive;
 
-        private bool CanInteract => Radio && Radio.IsPlacedForControls && Application.isFocused && GameState.playing &&
+        private bool CanInteract => Radio && Radio.IsPlacedForControls && Radio.EnsureOwned() && Application.isFocused && GameState.playing &&
             !GameState.currentlyLoading && GameState.loadingScenes == 0 && !GameState.sleeping && !GameState.inBed && !GameState.inCursorMenu &&
             Time.timeScale > 0 && !BoatCamera.on;
 
@@ -33,7 +36,7 @@ namespace SailwindRadio.Physical
         {
             var collider = GetComponent<Collider>();
             return pointer && collider && Vector3.Distance(pointer.transform.position,
-                collider.ClosestPoint(pointer.transform.position)) <= 1.8f;
+                collider.ClosestPoint(pointer.transform.position)) <= RadioControlReach.Distance;
         }
 
         public override void OnActivate(GoPointer activatingPointer)
@@ -59,15 +62,8 @@ namespace SailwindRadio.Physical
             if (!Radio)
                 return;
             if (stickyClickedBy && CanInteract)
-            {
-                if (Mode == RadioKnobMode.Bass)
-                    Radio.State.Bass = Mathf.Clamp01(Radio.State.Bass + GameInput.GetScrollAxis() * .25f);
-                else if (Mode == RadioKnobMode.Local)
-                    Radio.State.LocalVolume = Mathf.Clamp01(Radio.State.LocalVolume + GameInput.GetScrollAxis() * .25f);
-                else
-                    Radio.State.Volume = Mathf.Clamp01(Radio.State.Volume + GameInput.GetScrollAxis() * .25f);
-            }
-            float level = Mode == RadioKnobMode.Bass ? Radio.State.Bass : Mode == RadioKnobMode.Local ? Radio.State.LocalVolume : Radio.State.Volume;
+                Radio.State.SetKnobLevel(Mode, Mathf.Clamp01(Radio.State.KnobLevel(Mode) + GameInput.GetScrollAxis() * .25f));
+            float level = Radio.State.KnobLevel(Mode);
             lookText = Mode.ToString() + " " + Mathf.RoundToInt(level * 100) + "%";
         }
 

@@ -10,8 +10,12 @@ Copyright (c) 2018 Mark Heath, Andrew Ward & Contributors. The full MIT notice i
 
 The FLAC and Ogg Vorbis decoders are original code written for this project from the published specifications (IETF RFC 9639 and the Xiph.Org Vorbis I specification). [stb_vorbis](https://github.com/nothings/stb) 1.22 by Sean Barrett, available as public domain or under the MIT License, was consulted for the structure of the Vorbis decoder. M4A and AAC files are decoded by Windows Media Foundation, part of Windows, and nothing from it is included.
 
-## External references and content
+## Original project content
 
-Sailwind Radio's MIT License covers the mod's source, documentation and original Blender models and mesh data under `assets/`. The models were created for this project and contain no extracted game geometry. Blender is an external authoring tool and is not bundled.
+Sailwind Radio's source code, documentation, original audio, shaders and walnut device models are covered by the project's MIT License.
+
+The twelve Al'Ankh, Aestrin and Emerald device models are Copyright (c) 2026 skeptic043 and licensed under Creative Commons Attribution-NonCommercial 4.0 International. This includes their source GLBs and parts data, the regional model records in `assets/runtime/devices.json`, and copies of that model data embedded in compiled packages. The exact file and model-kind scope is recorded in [ASSET_LICENSES.md](ASSET_LICENSES.md), and the full license text is retained in [licenses/CC-BY-NC-4.0.txt](licenses/CC-BY-NC-4.0.txt).
+
+All device models were created for this project and contain no extracted game geometry. Blender is an external authoring tool and is not bundled.
 
 Sailwind, Unity, BepInEx, Harmony and music supplied by the player retain their own rights and terms. Game and loader assemblies are external build references and are not included in the source or release packages.

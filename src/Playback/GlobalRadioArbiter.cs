@@ -23,14 +23,14 @@ namespace SailwindRadio.Playback
             // Legacy saves may contain several powered radios. Resolve once over the entire document,
             // before any native prefab is restored, rather than letting streaming order choose a winner.
             foreach (var pair in states)
-                if (pair.Value.Kind == 0 && pair.Key != ActiveId && pair.Value.Powered) TurnOff(pair.Value);
+                if (pair.Value.Role == DeviceRole.Radio && pair.Key != ActiveId && pair.Value.Powered) TurnOff(pair.Value);
         }
 
         internal RadioState Register(int id, RadioState candidate)
         {
             if (states.TryGetValue(id, out var existing)) return existing;
             // A newly discovered object is not an explicit power-on request.
-            if (candidate.Kind == 0 && candidate.Powered) TurnOff(candidate);
+            if (candidate.Role == DeviceRole.Radio && candidate.Powered) TurnOff(candidate);
             states.Add(id, candidate);
             return candidate;
         }
@@ -45,7 +45,7 @@ namespace SailwindRadio.Playback
 
         internal void Toggle(int id, Action<int> captureAndStop)
         {
-            if (!states.TryGetValue(id, out var selected) || selected.Kind != 0) return;
+            if (!states.TryGetValue(id, out var selected) || selected.Role != DeviceRole.Radio) return;
             if (selected.Powered)
             {
                 captureAndStop(id);
@@ -75,7 +75,7 @@ namespace SailwindRadio.Playback
             }
         }
 
-        private static bool WantsPlayback(RadioState state) => state.Kind == 0 && state.Powered;
+        private static bool WantsPlayback(RadioState state) => state.Role == DeviceRole.Radio && state.Powered;
         private static void TurnOff(RadioState state) { state.Powered = false; state.Paused = true; }
     }
 }

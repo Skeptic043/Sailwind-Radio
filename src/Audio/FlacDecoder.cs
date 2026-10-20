@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 
-namespace SailwindRadio
+namespace SailwindRadio.Audio
 {
     // Managed FLAC decoder written from RFC 9639. It decodes one frame at a time into reusable
     // per-channel buffers and converts to float on Read, so memory stays bounded by the block size.

@@ -7,8 +7,13 @@
     <Compile Include="..\..\..\src\Models\DeviceModel.cs" Link="DeviceModel.cs" />
     <Compile Include="..\..\..\src\Models\DotMatrixFont.cs" Link="DotMatrixFont.cs" />
     <Compile Include="..\..\..\src\Models\MetadataMarquee.cs" Link="MetadataMarquee.cs" />
+    <Compile Include="..\..\..\src\Models\TrackDisplayText.cs" Link="TrackDisplayText.cs" />
+    <Compile Include="..\..\..\src\Models\DisplayMechanics.cs" Link="DisplayMechanics.cs" />
+    <Compile Include="..\..\..\src\Models\DisplayVoices.cs" Link="DisplayVoices.cs" />
+    <Compile Include="..\..\..\src\Models\GlyphMesh.cs" Link="GlyphMesh.cs" />
     <Compile Include="..\..\..\src\Physical\DeviceControlVisuals.cs" Link="DeviceControlVisuals.cs" />
     <Compile Include="..\..\..\src\RadioState.cs" Link="RadioState.cs" />
+    <Compile Include="..\..\..\src\DeviceKind.cs" Link="DeviceKind.cs" />
     <EmbeddedResource Include="..\..\..\assets\runtime\devices.json" LogicalName="SailwindRadio.Models.devices.json" />
     <Reference Include="UnityEngine" HintPath="$(GameDir)\Sailwind_Data\Managed\UnityEngine.dll" />
     <Reference Include="UnityEngine.CoreModule" HintPath="$(GameDir)\Sailwind_Data\Managed\UnityEngine.CoreModule.dll" />

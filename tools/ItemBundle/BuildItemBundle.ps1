@@ -10,6 +10,11 @@ if (-not (Test-Path -LiteralPath $UnityEditor -PathType Leaf)) { throw "Unity 20
 New-Item -ItemType Directory -Path $radioEditor,$radioSettings -Force | Out-Null
 Set-Content -LiteralPath (Join-Path $radioSettings 'ProjectVersion.txt') -Value 'm_EditorVersion: 2019.1.10f1' -Encoding ASCII
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'BuildRadioItems.cs') -Destination (Join-Path $radioEditor 'BuildRadioItems.cs') -Force
+$radioItems = Join-Path $radioProject 'Assets\RadioItems'
+New-Item -ItemType Directory -Path $radioItems -Force | Out-Null
+foreach ($radioShader in @('WorldText.shader')) {
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot $radioShader) -Destination (Join-Path $radioItems $radioShader) -Force
+}
 $radioLog = Join-Path $radioProject 'bundle-build.log'
 $radioArgs = '-batchmode -nographics -quit -projectPath "' + $radioProject +
     '" -executeMethod BuildRadioItems.Build -logFile "' + $radioLog + '"'
@@ -17,5 +22,9 @@ $radioBuild = Start-Process -FilePath $UnityEditor -ArgumentList $radioArgs -Pas
 if ($radioBuild.ExitCode -ne 0) { throw "Unity AssetBundle build failed with exit code $($radioBuild.ExitCode). See $radioLog" }
 $radioBuilt = Join-Path $radioProject 'Build\radio-items.assets'
 if (-not (Test-Path -LiteralPath $radioBuilt -PathType Leaf)) { throw "Missing AssetBundle: $radioBuilt" }
-Copy-Item -LiteralPath $radioBuilt -Destination (Join-Path $radioRoot 'assets\runtime\radio-items.assets') -Force
-Get-FileHash -LiteralPath (Join-Path $radioRoot 'assets\runtime\radio-items.assets') -Algorithm SHA256 | Select-Object Path,Hash
+$radioRuntime = Join-Path $radioRoot 'assets\runtime\radio-items.assets'
+Copy-Item -LiteralPath $radioBuilt -Destination $radioRuntime -Force
+# Copy-Item keeps the editor's write time, which can predate the last plugin compile. MSBuild would then
+# treat the plugin as current and keep embedding the previous bundle, so the copy is stamped now.
+(Get-Item -LiteralPath $radioRuntime).LastWriteTime = Get-Date
+Get-FileHash -LiteralPath $radioRuntime -Algorithm SHA256 | Select-Object Path,Hash

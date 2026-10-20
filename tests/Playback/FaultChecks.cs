@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using SailwindRadio;
+using SailwindRadio.Audio;
 using SailwindRadio.Library;
 using SailwindRadio.Persistence;
 using SailwindRadio.Playback;
@@ -44,8 +45,7 @@ internal static partial class Program
             Set = new RadioPlaybackSet<Radio>((radio, state) =>
             {
                 if (CreateFailures > 0) { CreateFailures--; throw new InvalidOperationException("Injected player creation failure"); }
-                var engine = new RadioPlayback(new MonoBehaviour(), state, EngineWarnings.Add)
-                { RepeatTrack = false };
+                var engine = new RadioPlayback(new MonoBehaviour(), state, EngineWarnings.Add);
                 engine.SetAcoustics(new Vector3(), true, 0);
                 Sources[engine] = AudioSource.Last;
                 return engine;

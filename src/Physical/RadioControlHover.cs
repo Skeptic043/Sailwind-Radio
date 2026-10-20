@@ -15,7 +15,7 @@ namespace SailwindRadio.Physical
         {
             // Native LookUI's generic branch labels an unfamiliar child control "pick up".
             // Only our three exact control types are affected. The native item body keeps normal pickup UI.
-            if (!(button is RadioPowerButton) && !(button is RadioActionButton) && !(button is RadioVolumeKnob))
+            if (!RadioControls.IsOwnControl(button))
                 return;
             if (Controls?.GetValue(ui) is TextMesh controls)
                 controls.text = "";

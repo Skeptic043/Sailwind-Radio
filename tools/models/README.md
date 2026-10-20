@@ -27,6 +27,14 @@ This command regenerates the named JSON, editable `.blend`, family preview and v
 - Export checks enforce triangle ceilings of 3,000 for the radio, 1,000 for the satellite, 1,800 for the speaker and 2,000 for the woofer.
 - Radio dimensions are 0.60 × 0.38 × 0.20 m. Satellite dimensions are 0.14 × 0.20 × 0.12 m. The regular speaker is 0.367 × 0.75 × 0.40 m. The woofer is 0.90 × 0.90 × 0.75 m. Front controls project beyond cabinet depth.
 
+## Document format
+
+`devices.json` version 1 holds exactly the walnut kinds 0 to 3. Version 2 still requires those four and may add any of the regional kinds 4 to 15, where kind is family × 4 + role. Families are walnut, Al'Ankh, Aestrin and Emerald. Roles are radio, small speaker, speaker and woofer. The regional models come from `tools/models/regional/`. Version 2 allows up to 64 materials and 64 parts per model.
+
+Version 2 adds three optional fields. A model's `bounds` holds `min` and `max` in metres and is required for regional kinds, whose height and sound origin derive from it. A model's `contact` box uses the same form and is also required for regional kinds. It becomes the pickup and physics box, sits behind every control so the pointer reaches them, and ends on the wall plane for small speakers. A knob or indicator part's `axis` is a unit vector in model space pointing out of the face the knob sits on, and the runtime turns the knob about it. Walnut models carry neither field and keep their original constants. A non-body part name may repeat across materials when every piece shares the pivot and axis. Lit icons and the screen cannot repeat.
+
+The walnut models, generators and import tooling are covered by the MIT License. Regional model kinds 4 through 15, their GLB and parts sources, and their derived mesh records are licensed under CC BY-NC 4.0. See `ASSET_LICENSES.md` for the exact scope.
+
 `model-report.json` records generator and runtime asset hashes. `reopen-verification.json` validates the freshly reopened authoring file, control groups and exported arrays. `tests/Devices/Models/ModelChecks.csproj` exercises the production JSON reader, mesh limits, control allocation and wall-plane geometry.
 
 The tool invocation and metre-based authoring conventions were inspected in `Skeptic043/sailing-game` revision `fc9099b98c6f4c5fe3f2fe1c324113b0a5b71034`, specifically `tools/blender/README.md`, `Rebuild-Smoke.ps1` and `crate_smoke.py`. The device generator is new Radio code.

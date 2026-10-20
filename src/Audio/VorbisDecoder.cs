@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 
-namespace SailwindRadio
+namespace SailwindRadio.Audio
 {
     // Streaming Ogg Vorbis decoder. OggReader supplies packets of the first Vorbis logical stream and
     // VorbisCodec synthesises them. This layer owns stream positions: it applies the Vorbis beginning and

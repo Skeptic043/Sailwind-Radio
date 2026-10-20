@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using HarmonyLib;
+using SailwindRadio.Models;
 using SailwindRadio.Persistence;
 using SailwindRadio.Playback;
 using SailwindRadio.Shops;
@@ -16,18 +17,22 @@ namespace SailwindRadio.Physical
         private static RadioWorldService active;
         private readonly Harmony harmony;
         private readonly Action<string> warn;
+        internal DisplaySoundBank DisplaySounds { get; }
         private readonly RadioSaveStore store = new RadioSaveStore();
         private readonly GlobalRadioArbiter arbiter = new GlobalRadioArbiter();
         private readonly List<RadioItemController> items = new List<RadioItemController>();
-        private readonly GameObject[] templates = new GameObject[4];
+        private readonly GameObject[] templates = new GameObject[DeviceKind.Count];
+        // Kinds registered in the current directory. Integrity, length, lookup and cleanup all follow it.
+        private int[] registeredKinds = Array.Empty<int>();
         private AssetBundle templateBundle;
+        private Shader worldText;
+        private bool worldTextAttempted;
         private bool bundleAttempted;
         private bool buildingTemplates;
         private readonly HashSet<SaveablePrefab> loadingPrefabs = new HashSet<SaveablePrefab>();
         private readonly HashSet<SaveablePrefab> pendingRestores = new HashSet<SaveablePrefab>();
         private readonly RestoreDeferrals deferrals = new RestoreDeferrals();
         private PrefabsDirectory templateDirectory;
-        private readonly List<KeyValuePair<MethodInfo, MethodInfo>> patches = new List<KeyValuePair<MethodInfo, MethodInfo>>();
         private static readonly FieldInfo BusyField = AccessTools.Field(typeof(SaveLoadManager), "busy");
         private SaveLoadManager manager;
         private bool loading;
@@ -82,244 +87,20 @@ namespace SailwindRadio.Physical
             }
         }
 
-        public RadioWorldService(Harmony harmony, Action<string> warn)
+        internal RadioWorldService(Harmony harmony, Action<string> warn, DisplaySoundBank displaySounds)
         {
             if (active != null)
                 throw new InvalidOperationException("Radio world service already exists");
             this.harmony = harmony;
             this.warn = warn ?? (_ => { });
+            DisplaySounds = displaySounds;
             active = this;
             try
             {
-                Patch(typeof(SaveLoadManager), "SaveModData", nameof(SavePrefix), true);
-                Patch(typeof(SaveLoadManager), "LoadGame", nameof(LoadPrefix), true);
-                Patch(typeof(SaveLoadManager), "LoadModData", nameof(LoadPostfix), false);
-                Patch(typeof(SaveablePrefab), "Load", nameof(PrefabLoadPrefix), true);
-                Patch(typeof(SaveablePrefab), "Load", nameof(PrefabPostfix), false);
-                Patch(typeof(SaveablePrefab), "PrepareSaveData", nameof(CapturePrefix), true);
-                PatchDirectory();
-                TryPatchControlHover();
-                TryPatchHeldItemControlTarget();
-                TryPatchHammerNail();
-                TryPatchNativeHooks();
-                TryPatchHouseTriggers();
-                TryPatchInventoryControls();
+                InstallPatches();
                 EnsureTemplates();
             }
             catch { Dispose(); throw; }
-        }
-
-        private void Patch(Type type, string name, string callback, bool prefix)
-        {
-            MethodInfo target = AccessTools.Method(type, name);
-            MethodInfo patch = AccessTools.Method(typeof(RadioWorldService), callback);
-            if (target == null || patch == null || BusyField == null)
-                throw new MissingMethodException("Native radio save compatibility check failed");
-            harmony.Patch(target, prefix ? new HarmonyMethod(patch) : null, prefix ? null : new HarmonyMethod(patch));
-            patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
-        }
-
-        private void PatchDirectory()
-        {
-            var start = AccessTools.DeclaredMethod(typeof(PrefabsDirectory), "Start");
-            if (start == null) throw new MissingMethodException("Native item directory lifecycle changed");
-            var directoryPatch = AccessTools.Method(typeof(RadioWorldService), nameof(DirectoryPrefix));
-            harmony.Patch(start, prefix: new HarmonyMethod(directoryPatch) { priority = Priority.First });
-            patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(start, directoryPatch));
-        }
-
-        private static void DirectoryPrefix(PrefabsDirectory __instance) => Guard(() => active.EnsureTemplates(__instance));
-
-        private void TryPatchControlHover()
-        {
-            try
-            {
-                var target = typeof(LookUI).GetMethod("ShowLookText", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                    null, new[] { typeof(GoPointerButton) }, null);
-                if (target == null || target.ReturnType != typeof(void) || !RadioControlHover.Compatible)
-                    throw new MissingMethodException("Native control hint layout changed");
-                var patch = AccessTools.Method(typeof(RadioWorldService), nameof(ControlHoverPostfix));
-                harmony.Patch(target, postfix: new HarmonyMethod(patch));
-                patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
-            }
-            catch (Exception error) { warn("Radio control hint cleanup unavailable. Native hints remain visible. " + error.Message); }
-        }
-
-        private void TryPatchHeldItemControlTarget()
-        {
-            try
-            {
-                var lateUpdate = typeof(GoPointer).GetMethod("LateUpdate", BindingFlags.Instance | BindingFlags.NonPublic,
-                    null, Type.EmptyTypes, null);
-                var pointedAt = typeof(GoPointer).GetField("pointedAtButton", BindingFlags.Instance | BindingFlags.NonPublic);
-                var lookDistance = typeof(GoPointer).GetField("currentLookDistance", BindingFlags.Instance | BindingFlags.NonPublic);
-                if (lateUpdate == null || lateUpdate.ReturnType != typeof(void) ||
-                    pointedAt?.FieldType != typeof(GoPointerButton) || lookDistance?.FieldType != typeof(float))
-                    throw new MissingMethodException("Native pointer target layout changed");
-                var patch = AccessTools.Method(typeof(RadioWorldService), nameof(HeldItemControlClearPrefix));
-                harmony.Patch(lateUpdate, prefix: new HarmonyMethod(patch));
-                patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(lateUpdate, patch));
-            }
-            catch (Exception error) { warn("Radio held-item pointer cleanup unavailable. " + error.Message); }
-
-            try
-            {
-                var raycast = typeof(GoPointer).GetMethod("DoRaycast", BindingFlags.Instance | BindingFlags.NonPublic,
-                    null, Type.EmptyTypes, null);
-                var pointedAt = typeof(GoPointer).GetField("pointedAtButton", BindingFlags.Instance | BindingFlags.NonPublic);
-                var lookDistance = typeof(GoPointer).GetField("currentLookDistance", BindingFlags.Instance | BindingFlags.NonPublic);
-                var hit = typeof(GoPointer).GetField("hit", BindingFlags.Instance | BindingFlags.NonPublic);
-                if (raycast == null || raycast.ReturnType != typeof(void) ||
-                    pointedAt?.FieldType != typeof(GoPointerButton) || lookDistance?.FieldType != typeof(float) ||
-                    hit?.FieldType != typeof(RaycastHit))
-                    throw new MissingMethodException("Native pointer raycast layout changed");
-                var patch = AccessTools.Method(typeof(RadioWorldService), nameof(ControlRaycastPostfix));
-                var orderedPatch = new HarmonyMethod(patch) { after = new[] { "com.dizzy.sailwind.fixes" } };
-                harmony.Patch(raycast, postfix: orderedPatch);
-                patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(raycast, patch));
-            }
-            catch (Exception error) { warn("Radio pointer target correction unavailable. " + error.Message); }
-        }
-
-        private void TryPatchHammerNail()
-        {
-            try
-            {
-                var target = typeof(ShipItemHammer).GetMethod("CanNail", BindingFlags.Public | BindingFlags.Static,
-                    null, new[] { typeof(ShipItem) }, null);
-                if (target == null || target.ReturnType != typeof(bool))
-                    throw new MissingMethodException("Native hammer item check changed");
-                var patch = AccessTools.Method(typeof(RadioWorldService), nameof(HammerCanNailPostfix));
-                harmony.Patch(target, postfix: new HarmonyMethod(patch));
-                patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
-            }
-            catch (Exception error) { warn("Radio hammer locking unavailable. " + error.Message); }
-        }
-
-        private static void HammerCanNailPostfix(ShipItem item, ref bool __result)
-        {
-            if (__result || !item || !item.sold || active == null || active.disposed)
-                return;
-            var radio = item.GetComponent<RadioItemController>();
-            if (radio && radio.State != null && radio.State.Kind == 0 && active.items.Contains(radio))
-                __result = true;
-        }
-
-        private void TryPatchNativeHooks()
-        {
-            int first = patches.Count;
-            try
-            {
-                if (!RadioNativeHooks.Compatible)
-                    throw new MissingFieldException("Native HangableItem.currentHook contract changed");
-                var target = typeof(ShipItem).GetMethod("AllowOnItemClick", BindingFlags.Instance | BindingFlags.Public,
-                    null, new[] { typeof(GoPointerButton) }, null);
-                if (target == null || target.ReturnType != typeof(bool))
-                    throw new MissingMethodException("Native hook target check changed");
-                var patch = AccessTools.Method(typeof(RadioWorldService), nameof(HookTargetPostfix));
-                harmony.Patch(target, postfix: new HarmonyMethod(patch));
-                patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
-                PatchNativeHook(typeof(ShipItem), "OnPickup", Type.EmptyTypes, nameof(HookReleasePostfix), false);
-                PatchNativeHook(typeof(ShipItem), "OnEnterInventory", Type.EmptyTypes, nameof(HookInventoryPostfix), false);
-                PatchNativeHook(typeof(HangableItem), "LateUpdate", Type.EmptyTypes, nameof(HookPositionPrefix), true);
-                PatchNativeHook(typeof(HangableItem), "LateUpdate", Type.EmptyTypes, nameof(HookPositionPostfix), false);
-                HookCompatible = true;
-            }
-            catch (Exception error)
-            {
-                for (int i = patches.Count - 1; i >= first; i--)
-                {
-                    harmony.Unpatch(patches[i].Key, patches[i].Value);
-                    patches.RemoveAt(i);
-                }
-                HookCompatible = false;
-                warn("Radio hook placement unavailable on this game version. " + error.Message);
-            }
-        }
-
-        private void TryPatchHouseTriggers()
-        {
-            int first = patches.Count;
-            try
-            {
-                PatchNativeHook(typeof(ShipItem), "OnTriggerEnter", new[] { typeof(Collider) }, nameof(HouseTriggerPrefix), true);
-                PatchNativeHook(typeof(ShipItem), "OnTriggerExit", new[] { typeof(Collider) }, nameof(HouseTriggerPrefix), true);
-            }
-            catch (Exception error)
-            {
-                for (int i = patches.Count - 1; i >= first; i--)
-                {
-                    harmony.Unpatch(patches[i].Key, patches[i].Value);
-                    patches.RemoveAt(i);
-                }
-                warn("Radio house-trigger cleanup unavailable. " + error.Message);
-            }
-        }
-
-        private void TryPatchInventoryControls()
-        {
-            int first = patches.Count;
-            try
-            {
-                PatchNativeHook(typeof(ItemRigidbody), "EnterInventorySlot", new[] { typeof(Transform) }, nameof(InventoryEnterPostfix), false);
-                PatchNativeHook(typeof(ItemRigidbody), "ExitInventorySlot", Type.EmptyTypes, nameof(InventoryExitPostfix), false);
-            }
-            catch (Exception error)
-            {
-                for (int i = patches.Count - 1; i >= first; i--)
-                {
-                    harmony.Unpatch(patches[i].Key, patches[i].Value);
-                    patches.RemoveAt(i);
-                }
-                warn("Radio inventory control cleanup unavailable. Slotted devices may join boats. " + error.Message);
-            }
-        }
-
-        private void PatchNativeHook(Type type, string name, Type[] arguments, string callback, bool prefix)
-        {
-            var target = type.GetMethod(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                null, arguments, null);
-            var patch = AccessTools.Method(typeof(RadioWorldService), callback);
-            if (target == null || target.ReturnType != typeof(void) || patch == null)
-                throw new MissingMethodException("Native radio hook contract changed: " + type.Name + "." + name);
-            harmony.Patch(target, prefix ? new HarmonyMethod(patch) : null, prefix ? null : new HarmonyMethod(patch));
-            patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
-        }
-
-        private static void HookTargetPostfix(ShipItem __instance, GoPointerButton lookedAtButton, ref bool __result)
-        {
-            if (__result || active == null || active.disposed || !HookCompatible || !__instance || !__instance.sold)
-                return;
-            // A HangableItem handles attachment, but plain ShipItem does not grant the
-            // pointer permission to click hooks. Match ShipItemHangable's target rule.
-            // Native hook click handling still owns occupied-hook rejection and attachment.
-            if (RadioNativeHooks.AllowsHookTarget(__instance, lookedAtButton)) __result = true;
-        }
-
-        private static void HookReleasePostfix(ShipItem __instance) => Guard(() => { RadioNativeHooks.Release(__instance); });
-        private static void HookInventoryPostfix(ShipItem __instance) => Guard(() => RadioNativeHooks.EnterInventory(__instance));
-        private static void InventoryEnterPostfix(ItemRigidbody __instance) => Guard(() => RadioNativeHooks.InventorySlotChanged(__instance, true));
-        private static void InventoryExitPostfix(ItemRigidbody __instance) => Guard(() => RadioNativeHooks.InventorySlotChanged(__instance, false));
-        private static void HookPositionPrefix(HangableItem __instance) => Guard(() => RadioNativeHooks.RejectPhantomHook(__instance));
-        private static void HookPositionPostfix(HangableItem __instance) => Guard(() => RadioNativeHooks.PositionBelowHook(__instance));
-        private static bool HouseTriggerPrefix(ShipItem __instance, Collider other)
-        {
-            if (active == null || active.disposed) return true;
-            try
-            {
-                if (RadioNativeHooks.AllowHouseTrigger(__instance, other)) return true;
-                if (!active.malformedHouseReported)
-                {
-                    active.malformedHouseReported = true;
-                    active.warn("Radio ignored a House trigger without a native SaveableObject");
-                }
-                return false;
-            }
-            catch (Exception error)
-            {
-                active.warn("Radio house-trigger compatibility check failed: " + error.Message);
-                return true;
-            }
         }
 
         public void Tick()
@@ -368,10 +149,11 @@ namespace SailwindRadio.Physical
             }
         }
 
-        private static bool TryGetDonor(out GameObject donor, PrefabsDirectory directory = null)
+        // The native item that walnut devices from before Radio 1.2.0 were saved as, needed to migrate them.
+        private static bool TryGetDonor(out GameObject donor)
         {
             donor = null;
-            if (!directory) directory = PrefabsDirectory.instance;
+            var directory = PrefabsDirectory.instance;
             if (!directory || directory.directory == null || directory.directory.Length <= RadioSaveStore.DonorIndex)
                 return false;
             donor = directory.directory[RadioSaveStore.DonorIndex];
@@ -384,14 +166,14 @@ namespace SailwindRadio.Physical
                 donor.GetComponent<MeshFilter>() && donor.GetComponent<Renderer>() && !donor.GetComponent<Good>();
         }
 
-        internal static string TemplateName(int kind) => "Sailwind Radio item " + RadioSaveStore.ItemIndex(kind);
+        internal static string TemplateName(int kind) => RadioDevice.TemplateName(kind, RadioSaveStore.ItemIndex(kind));
         internal static bool IsTemplateInstanceName(string name, int kind) =>
             name == TemplateName(kind) || name == TemplateName(kind) + "(Clone)";
 
         private bool TryGetTemplate(int kind, out GameObject template)
         {
             template = null;
-            if (kind < 0 || kind > 3 || !EnsureTemplates()) return false;
+            if (!EnsureTemplates() || Array.IndexOf(registeredKinds, kind) < 0) return false;
             template = templates[kind];
             return template;
         }
@@ -400,37 +182,41 @@ namespace SailwindRadio.Physical
         {
             if (!directory) directory = PrefabsDirectory.instance;
             if (disposed || !directory || directory.directory == null) return false;
-            if (templateDirectory == directory && templates[0] && directory.directory.Length > RadioSaveStore.ItemIndex(3))
+            if (templateDirectory == directory && templates[0] && directory.directory.Length >= RadioSaveStore.DirectoryLength(registeredKinds))
             {
                 bool intact = true;
-                for (int kind = 0; kind < 4; kind++)
+                for (int i = 0; i < registeredKinds.Length; i++)
+                {
+                    int kind = registeredKinds[i];
                     intact &= directory.directory[RadioSaveStore.ItemIndex(kind)] == templates[kind] &&
                         directory.shipItems != null && directory.shipItems.Length > RadioSaveStore.ItemIndex(kind) &&
                         directory.shipItems[RadioSaveStore.ItemIndex(kind)] == templates[kind].GetComponent<ShipItem>();
+                }
                 if (intact) return true;
                 ReportTemplateProblem("Radio item directory entries were replaced after registration");
                 return false;
             }
-            if (!RadioSaveStore.CanClaimItemSlots(index =>
+            var skipped = new List<string>();
+            var kinds = RadioSaveStore.ClaimItemKinds(DeviceModel.Kinds, index =>
                 (directory.directory.Length > index && directory.directory[index]) ||
-                (directory.shipItems != null && directory.shipItems.Length > index && directory.shipItems[index]), out int collision))
+                (directory.shipItems != null && directory.shipItems.Length > index && directory.shipItems[index]),
+                (family, slot) => skipped.Add("Radio item ID " + slot + " is occupied. " + RadioDevice.Region(family) + " devices were not registered"),
+                out int collision);
+            if (kinds == null)
             {
                 ReportTemplateProblem("Radio item ID " + collision + " is occupied. Radio templates were not registered");
                 return false;
             }
-            var created = new GameObject[4];
+            var created = new GameObject[DeviceKind.Count];
             buildingTemplates = true;
             try
             {
-                bool assetBacked = TryLoadTemplateBundle();
-                GameObject donor = null;
-                if (!assetBacked && !TryGetDonor(out donor, directory)) return false;
-                for (int kind = 0; kind < 4; kind++)
+                if (!TryLoadTemplateBundle()) return false;
+                // The bundle may hold prefabs for kinds without a model or skipped kinds. Those stay unregistered.
+                foreach (int kind in kinds)
                 {
-                    var template = assetBacked ? templateBundle.LoadAsset<GameObject>("assets/radioitems/radioitem" +
-                        RadioSaveStore.ItemIndex(kind) + ".prefab") :
-                        UnityEngine.Object.Instantiate(donor, new Vector3(0f, -100000f, 0f), Quaternion.identity);
-                    if (!template || (assetBacked && template.scene.IsValid()))
+                    var template = templateBundle.LoadAsset<GameObject>("assets/radioitems/radioitem" + RadioSaveStore.ItemIndex(kind) + ".prefab");
+                    if (!template || template.scene.IsValid())
                         throw new InvalidDataException("Radio item asset is missing or scene-backed: " + kind);
                     created[kind] = template;
                     template.name = TemplateName(kind);
@@ -447,40 +233,25 @@ namespace SailwindRadio.Physical
                     item.inventoryScale = 1f;
                     item.floaterHeight = 1.6f;
                     (template.GetComponent<RadioTemplateMarker>() ?? template.AddComponent<RadioTemplateMarker>()).Configure(kind);
-                    if (!assetBacked)
-                    {
-                        template.SetActive(true);
-                        // The fallback scene clone has already run ShipItem.Awake. Strip its
-                        // generated physics and LOD so subsequent clones build exactly one set.
-                        foreach (var lod in template.GetComponents<LODGroup>()) UnityEngine.Object.DestroyImmediate(lod);
-                        if (item.itemRigidbodyC) UnityEngine.Object.DestroyImmediate(item.itemRigidbodyC.gameObject);
-                        item.itemRigidbodyC = null;
-                        AccessTools.Field(typeof(ShipItem), "itemRigidbody")?.SetValue(item, null);
-                        item.enabled = false;
-                        prefab.enabled = false;
-                    }
                 }
-                int length = RadioSaveStore.ItemIndex(3) + 1;
+                int length = RadioSaveStore.DirectoryLength(kinds);
                 var newDirectory = new GameObject[Math.Max(directory.directory.Length, length)];
                 Array.Copy(directory.directory, newDirectory, directory.directory.Length);
                 var newShipItems = new ShipItem[Math.Max(directory.shipItems?.Length ?? 0, length)];
                 if (directory.shipItems != null) Array.Copy(directory.shipItems, newShipItems, directory.shipItems.Length);
-                for (int kind = 0; kind < 4; kind++)
+                foreach (int kind in kinds)
                 {
                     int index = RadioSaveStore.ItemIndex(kind);
                     newDirectory[index] = created[kind];
                     newShipItems[index] = created[kind].GetComponent<ShipItem>();
-                    templates[kind] = created[kind];
                 }
+                Array.Copy(created, templates, templates.Length);
+                registeredKinds = kinds;
                 directory.directory = newDirectory;
                 directory.shipItems = newShipItems;
                 templateDirectory = directory;
+                foreach (string message in skipped) warn(message);
                 return true;
-            }
-            catch
-            {
-                foreach (var template in created) if (template && template.scene.IsValid()) UnityEngine.Object.Destroy(template);
-                throw;
             }
             finally { buildingTemplates = false; }
         }
@@ -498,18 +269,13 @@ namespace SailwindRadio.Physical
             if (templateBundle) return true;
             if (bundleAttempted) return false;
             bundleAttempted = true;
+            // The bundle is embedded at build time, so a missing resource means a broken build.
             using (var source = typeof(RadioWorldService).Assembly.GetManifestResourceStream("SailwindRadio.Physical.radio-items.assets"))
+            using (var bytes = new MemoryStream())
             {
-                if (source == null)
-                {
-                    warn("Radio item assets are unavailable. Scene templates remain available for direct item spawning");
-                    return false;
-                }
-                using (var bytes = new MemoryStream())
-                {
-                    source.CopyTo(bytes);
-                    templateBundle = AssetBundle.LoadFromMemory(bytes.ToArray());
-                }
+                if (source == null) throw new InvalidDataException("Radio item assets are missing from the plugin");
+                source.CopyTo(bytes);
+                templateBundle = AssetBundle.LoadFromMemory(bytes.ToArray());
             }
             if (!templateBundle) throw new InvalidDataException("Radio item AssetBundle could not be loaded");
             return true;
@@ -530,11 +296,11 @@ namespace SailwindRadio.Physical
             int kind = marker.Kind;
             var item = marker.GetComponent<ShipItem>();
             var prefab = marker.GetComponent<SaveablePrefab>();
-            if (!item || !prefab || prefab.prefabIndex != RadioSaveStore.ItemIndex(kind)) return;
+            if (!item || !prefab || !IsRegisteredClone(prefab, kind)) return;
             item.enabled = true;
             prefab.enabled = true;
             var controller = marker.gameObject.AddComponent<RadioItemController>();
-            controller.Initialize(this, new RadioState { Kind = kind, Volume = kind == 0 ? .5f : .75f, TrackPath = "" });
+            controller.Initialize(this, RadioState.NewDevice(kind));
             pendingBindings.Add(controller);
         }
 
@@ -546,13 +312,11 @@ namespace SailwindRadio.Physical
             if (existing)
             {
                 var existingMarker = saveable.GetComponent<RadioTemplateMarker>();
-                bool registered = existingMarker && existingMarker.Kind == state.Kind &&
-                    saveable.prefabIndex == RadioSaveStore.ItemIndex(state.Kind) &&
-                    IsTemplateInstanceName(saveable.gameObject.name, state.Kind);
+                bool registered = IsRegisteredClone(saveable, state.Kind);
                 // A live donor migrated earlier in this load has no template marker. It
                 // is already under our management and retains the donor object name.
                 bool migratedDonor = !existingMarker && items.Contains(existing) && existing.State != null &&
-                    existing.State.Kind == state.Kind && saveable.gameObject.name == DonorName + "(Clone)" &&
+                    existing.State.Kind == state.Kind && IsDonorClone(saveable) &&
                     (saveable.prefabIndex == RadioSaveStore.DonorIndex ||
                      saveable.prefabIndex == RadioSaveStore.ItemIndex(state.Kind));
                 if (!registered && !migratedDonor) return false;
@@ -562,14 +326,10 @@ namespace SailwindRadio.Physical
                 return true;
             }
             var item = saveable.GetComponent<ShipItem>();
-            bool nativeTemplate = saveable.GetComponent<RadioTemplateMarker>() is RadioTemplateMarker marker &&
-                marker.Kind == state.Kind && IsTemplateInstanceName(saveable.gameObject.name, state.Kind);
-            bool nativeLegacy = saveable.prefabIndex == RadioSaveStore.DonorIndex &&
-                saveable.gameObject.name == DonorName + "(Clone)" && TryGetDonor(out _);
-            bool retaggedLegacy = migratedLegacy && saveable.gameObject.name == DonorName + "(Clone)";
-            if (!item || item.GetType() != typeof(ShipItem) || !item.sold || saveable.GetType() != typeof(SaveablePrefab) ||
-                !(nativeLegacy || (saveable.prefabIndex == RadioSaveStore.ItemIndex(state.Kind) && (nativeTemplate || retaggedLegacy))) ||
-                !saveable.GetComponent<BoxCollider>())
+            bool nativeTemplate = IsRegisteredClone(saveable, state.Kind);
+            bool nativeLegacy = saveable.prefabIndex == RadioSaveStore.DonorIndex && IsDonorClone(saveable) && TryGetDonor(out _);
+            bool retaggedLegacy = migratedLegacy && IsDonorClone(saveable) && saveable.prefabIndex == RadioSaveStore.ItemIndex(state.Kind);
+            if (!IsPlainNativeItem(saveable, item) || !item.sold || !(nativeLegacy || nativeTemplate || retaggedLegacy))
             {
                 warn("A saved radio did not match its expected native item and was left unchanged");
                 return false;
@@ -591,14 +351,53 @@ namespace SailwindRadio.Physical
         }
 
         internal void Report(string message) => warn(message);
+        // Depth-tested display text that colours Alpha8 font atlases. It ships in the item bundle,
+        // so it is available once templates are built. Null after a reported failure.
+        internal Shader WorldTextShader
+        {
+            get
+            {
+                if (!worldTextAttempted && templateBundle)
+                {
+                    worldTextAttempted = true;
+                    worldText = templateBundle.LoadAsset<Shader>("assets/radioitems/worldtext.shader");
+                    if (!worldText || !worldText.isSupported)
+                    {
+                        worldText = null;
+                        warn("Radio world text shader unavailable. Display text uses Sprites/Default instead");
+                    }
+                }
+                return worldText;
+            }
+        }
+
+        // The one ownership and readiness guard for every device action.
+        private bool CanAct(RadioItemController item) => EnsureOwned(item) && !disposed && !loading && store.Writable &&
+            items.Contains(item) && manager == SaveLoadManager.instance;
 
         internal void TogglePower(RadioItemController item)
         {
-            if (!EnsureOwned(item) || disposed || loading || !store.Writable || !items.Contains(item) || manager != SaveLoadManager.instance)
-                return;
+            if (CanAct(item))
+                SwitchPower(item);
+        }
+
+        // Returns whether a physical control's action was accepted.
+        internal bool RequestAction(RadioItemController item, RadioAction action)
+        {
+            if (!CanAct(item) || !item.IsPlacedForControls)
+                return false;
+            if (action == RadioAction.Power)
+                SwitchPower(item);
+            else if (item.State.Role == DeviceRole.Radio)
+                ActionRequested?.Invoke(item, action);
+            return true;
+        }
+
+        private void SwitchPower(RadioItemController item)
+        {
             try
             {
-                if (item.State.Kind != 0)
+                if (item.State.Role != DeviceRole.Radio)
                 {
                     item.State.SpeakerEnabled = !item.State.SpeakerEnabled;
                     WriteCanonical(item.InstanceId);
@@ -609,21 +408,6 @@ namespace SailwindRadio.Physical
                 ActionRequested?.Invoke(item, RadioAction.Power);
             }
             catch (Exception ex) { warn("Could not switch the active radio: " + ex.Message); }
-        }
-
-        internal void RequestAction(RadioItemController item, RadioAction action)
-        {
-            if (!EnsureOwned(item) || disposed || loading || !store.Writable || !items.Contains(item) ||
-                manager != SaveLoadManager.instance || !item.IsPlacedForControls)
-                return;
-            if (action == RadioAction.Power)
-            {
-                TogglePower(item);
-                return;
-            }
-            if (item.State.Kind != 0)
-                return;
-            ActionRequested?.Invoke(item, action);
         }
 
         private void CaptureAndStop(int id)
@@ -729,8 +513,7 @@ namespace SailwindRadio.Physical
                 if (!prefab || prefab.prefabIndex != RadioSaveStore.DonorIndex || !owners.TryGetValue(prefab.instanceId, out int count) || count != 1 ||
                     !store.TryGet(prefab.instanceId, RadioSaveStore.DonorIndex, out var record)) continue;
                 var item = prefab.GetComponent<ShipItem>();
-                if (!item || !item.sold || prefab.GetType() != typeof(SaveablePrefab) || item.GetType() != typeof(ShipItem) ||
-                    prefab.gameObject.name != DonorName + "(Clone)" || !prefab.GetComponent<BoxCollider>()) continue;
+                if (!IsPlainNativeItem(prefab, item) || !item.sold || !IsDonorClone(prefab)) continue;
                 if (!TryGetTemplate(record.Kind, out _) || !store.MigrateLegacy(prefab.instanceId, record.Kind)) continue;
                 try
                 {
@@ -770,13 +553,12 @@ namespace SailwindRadio.Physical
             if (!missingRadioData || !store.Writable || prefab.instanceId <= 0 || !nativeItem || !nativeItem.sold)
                 return;
             var marker = prefab.GetComponent<RadioTemplateMarker>();
-            if (!marker || marker.Kind < 0 || marker.Kind > 3 || prefab.prefabIndex != RadioSaveStore.ItemIndex(marker.Kind) ||
-                !IsTemplateInstanceName(prefab.gameObject.name, marker.Kind) ||
-                prefab.GetType() != typeof(SaveablePrefab) ||
+            // Only the exact SaveablePrefab is required before adoption. Convert then applies the full native item rule.
+            if (!marker || !IsRegisteredClone(prefab, marker.Kind) || prefab.GetType() != typeof(SaveablePrefab) ||
                 !manager.GetCurrentPrefabs().Contains(prefab)) return;
             if (!UniqueNativeOwner(prefab)) return;
             pendingRestores.Remove(prefab);
-            var state = new RadioState { Kind = marker.Kind, Volume = marker.Kind == 0 ? .5f : .75f, TrackPath = "" };
+            var state = RadioState.NewDevice(marker.Kind);
             if (store.TryAdoptMissing(prefab.instanceId, prefab.prefabIndex, state, missingRadioData))
                 Convert(prefab, state);
         }
@@ -796,33 +578,6 @@ namespace SailwindRadio.Physical
             return false;
         }
 
-        // Exceptions must never interrupt the game's save/load call or suppress its original body.
-        private static void SavePrefix() => Guard(() => active.Save());
-        private static void LoadPrefix(SaveLoadManager __instance) => Guard(() => active.BeginLoad(__instance));
-        private static void LoadPostfix() => Guard(() => active.ReadNativeData());
-        private static void PrefabLoadPrefix(SaveablePrefab __instance) => Guard(() =>
-        {
-            active.loadingPrefabs.Add(__instance);
-            var controller = __instance.GetComponent<RadioItemController>();
-            if (controller) active.pendingBindings.Remove(controller);
-        });
-        private static void PrefabPostfix(SaveablePrefab __instance) => Guard(() => { active.loadingPrefabs.Remove(__instance); active.Restore(__instance); });
-        private static void CapturePrefix(SaveablePrefab __instance) => Guard(() => active.Capture(__instance));
-        private static void ControlHoverPostfix(LookUI __instance, GoPointerButton button) => Guard(() => RadioControlHover.ClearPickupHint(__instance, button));
-        private static void HeldItemControlClearPrefix(GoPointer __instance,
-            ref GoPointerButton ___pointedAtButton, ref float ___currentLookDistance)
-        {
-            if (active == null || active.disposed) return;
-            try { RadioHeldItemTarget.Clear(__instance, ref ___pointedAtButton, ref ___currentLookDistance); }
-            catch (Exception ex) { active.warn("Radio held-item pointer cleanup failed: " + ex.Message); }
-        }
-        private static void ControlRaycastPostfix(GoPointer __instance, RaycastHit ___hit,
-            ref GoPointerButton ___pointedAtButton, ref float ___currentLookDistance)
-        {
-            if (active == null || active.disposed) return;
-            try { RadioHeldItemTarget.Restore(__instance, ___hit, ref ___pointedAtButton, ref ___currentLookDistance); }
-            catch (Exception ex) { active.warn("Radio pointer target correction failed: " + ex.Message); }
-        }
         private void Capture(SaveablePrefab prefab)
         {
             var item = prefab.GetComponent<RadioItemController>();
@@ -836,16 +591,6 @@ namespace SailwindRadio.Physical
         {
             if (arbiter.TryGet(id, out var state) && store.TryGetAny(id, out var record))
                 store.Put(RadioRecord.Capture(id, record.PrefabIndex, state));
-        }
-        private static void Guard(Action action)
-        {
-            if (active == null || active.disposed)
-                return;
-            try
-            {
-                action();
-            }
-            catch (Exception ex) { active.warn("Radio native integration failed: " + ex.Message); }
         }
 
         public void Dispose()
@@ -865,14 +610,13 @@ namespace SailwindRadio.Physical
                 harmony.Unpatch(pair.Key, pair.Value);
             patches.Clear();
             if (templateDirectory)
-                for (int kind = 0; kind < 4; kind++)
+                foreach (int kind in registeredKinds)
                 {
                     int index = RadioSaveStore.ItemIndex(kind);
                     if (templates[kind] && templateDirectory.directory != null && templateDirectory.directory.Length > index &&
                         templateDirectory.directory[index] == templates[kind]) templateDirectory.directory[index] = null;
                     if (templates[kind] && templateDirectory.shipItems != null && templateDirectory.shipItems.Length > index &&
                         templateDirectory.shipItems[index] == templates[kind].GetComponent<ShipItem>()) templateDirectory.shipItems[index] = null;
-                    if (templates[kind] && templates[kind].scene.IsValid()) UnityEngine.Object.Destroy(templates[kind]);
                 }
             if (templateBundle) templateBundle.Unload(false);
             if (active == this)

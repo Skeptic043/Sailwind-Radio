@@ -1,0 +1,1426 @@
+{
+ "name": "Aestrin woofer — iron-banded crate (low-poly)",
+ "pivot": [
+  0,
+  0,
+  1.3825000000000003
+ ],
+ "parts": [
+  {
+   "id": "Aestrin-woofer-body",
+   "name": "Oak crate",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    38,
+    42,
+    38
+   ],
+   "material": {
+    "name": "Weathered dark oak",
+    "color": "#4e382b",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    24,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-edge-front-left",
+   "name": "Iron edge front left",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    3,
+    42.4,
+    3
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -17.8,
+    24,
+    17.7,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-edge-front-right",
+   "name": "Iron edge front right",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    3,
+    42.4,
+    3
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    17.8,
+    24,
+    17.7,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-edge-front-top",
+   "name": "Iron edge front top",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    38.4,
+    3,
+    3
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    43.8,
+    17.7,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-edge-front-bottom",
+   "name": "Iron edge front bottom",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    38.4,
+    3,
+    3
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    4.199999999999999,
+    17.7,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-edge-back-left",
+   "name": "Iron edge back left",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    3,
+    42.4,
+    3
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    -1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    -1,
+    0,
+    17.8,
+    24,
+    -17.7,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-edge-back-right",
+   "name": "Iron edge back right",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    3,
+    42.4,
+    3
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    -1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    -1,
+    0,
+    -17.8,
+    24,
+    -17.7,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-edge-back-top",
+   "name": "Iron edge back top",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    38.4,
+    3,
+    3
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    -1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    43.8,
+    -17.7,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-edge-back-bottom",
+   "name": "Iron edge back bottom",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    38.4,
+    3,
+    3
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    -1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    4.199999999999999,
+    -17.7,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-edge-left-top",
+   "name": "Iron edge left top",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    32,
+    3,
+    3
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    0,
+    -17.7,
+    43.8,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-edge-left-bottom",
+   "name": "Iron edge left bottom",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    32,
+    3,
+    3
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    0,
+    -17.7,
+    4.199999999999999,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-strap-left-upper",
+   "name": "Side strap left upper",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    32,
+    2.4,
+    0.6
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    0,
+    -19.3,
+    34,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-strap-left-lower",
+   "name": "Side strap left lower",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    32,
+    2.4,
+    0.6
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    0,
+    -19.3,
+    12,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-edge-right-top",
+   "name": "Iron edge right top",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    32,
+    3,
+    3
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    0,
+    0,
+    -1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    17.7,
+    43.8,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-edge-right-bottom",
+   "name": "Iron edge right bottom",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    32,
+    3,
+    3
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    0,
+    0,
+    -1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    17.7,
+    4.199999999999999,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-strap-right-upper",
+   "name": "Side strap right upper",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    32,
+    2.4,
+    0.6
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    0,
+    0,
+    -1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    19.3,
+    34,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-strap-right-lower",
+   "name": "Side strap right lower",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    32,
+    2.4,
+    0.6
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    0,
+    0,
+    -1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    19.3,
+    12,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-driver-bezel",
+   "name": "Woofer — bezel ring",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    29.6,
+    29.6,
+    2.4
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    25.8,
+    20.2,
+    1
+   ],
+   "profile": [
+    [
+     12.6,
+     0
+    ],
+    [
+     14.8,
+     0
+    ],
+    [
+     14.8,
+     2
+    ],
+    [
+     14.4,
+     2.4
+    ],
+    [
+     12.6,
+     2.4
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-driver-cone",
+   "name": "Woofer — cone",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "Aestrin-woofer-driver-bezel",
+   "size": [
+    23.4,
+    23.4,
+    2.25
+   ],
+   "material": {
+    "name": "Black paper cone",
+    "color": "#26292a",
+    "roughness": 0.9,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    25.8,
+    20.275,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.3
+    ],
+    [
+     4.095,
+     0.1485
+    ],
+    [
+     8.19,
+     0.8835
+    ],
+    [
+     11.7,
+     1.65
+    ],
+    [
+     11.7,
+     1.95
+    ],
+    [
+     8.19,
+     1.1835
+    ],
+    [
+     4.095,
+     0.4485
+    ],
+    [
+     0,
+     0
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-driver-surround",
+   "name": "Woofer — rubber surround",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "Aestrin-woofer-driver-bezel",
+   "size": [
+    25.2,
+    25.2,
+    1.8
+   ],
+   "material": {
+    "name": "Black rubber surround",
+    "color": "#1e2122",
+    "roughness": 0.9,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    25.8,
+    20.95,
+    1
+   ],
+   "profile": [
+    [
+     12.47942,
+     0.45
+    ],
+    [
+     11.7,
+     0.9
+    ],
+    [
+     10.92058,
+     0.45
+    ],
+    [
+     10.92058,
+     -0.45
+    ],
+    [
+     11.7,
+     -0.9
+    ],
+    [
+     12.47942,
+     -0.45
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-driver-cap",
+   "name": "Woofer — dust cap",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "Aestrin-woofer-driver-cone",
+   "size": [
+    9,
+    9,
+    4.5
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    25.8,
+    19.45,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.25,
+     -0.43301
+    ],
+    [
+     0.43301,
+     -0.25
+    ],
+    [
+     0.5,
+     0
+    ],
+    [
+     0.43301,
+     0.25
+    ],
+    [
+     0.25,
+     0.43301
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-driver-bolts",
+   "name": "Woofer — bezel bolts",
+   "type": "mesh",
+   "role": "detail",
+   "parent": "Aestrin-woofer-driver-bezel",
+   "size": [
+    27.0143,
+    26.7865,
+    0.765
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    25.8,
+    21.5825,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-port",
+   "name": "Bass port opening",
+   "type": "box",
+   "role": "speaker",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    30,
+    3.6,
+    0.2
+   ],
+   "material": {
+    "name": "Shadow black",
+    "color": "#141616",
+    "roughness": 1,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    7.800000000000001,
+    19.1,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-port-rail",
+   "name": "Port top rail",
+   "type": "box",
+   "role": "body",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    32,
+    1.6,
+    1.8
+   ],
+   "material": {
+    "name": "Weathered dark oak",
+    "color": "#4e382b",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    9.8,
+    19.9,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-port-divider",
+   "name": "Port divider strap",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    3,
+    4.2,
+    1
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    7.800000000000001,
+    19.5,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-foot-1",
+   "name": "Iron-shod foot 1",
+   "type": "box",
+   "role": "body",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    7,
+    7,
+    3
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    -15.5,
+    1.5,
+    15.5,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-foot-2",
+   "name": "Iron-shod foot 2",
+   "type": "box",
+   "role": "body",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    7,
+    7,
+    3
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    15.5,
+    1.5,
+    15.5,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-foot-3",
+   "name": "Iron-shod foot 3",
+   "type": "box",
+   "role": "body",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    7,
+    7,
+    3
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    -15.5,
+    1.5,
+    -15.5,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-foot-4",
+   "name": "Iron-shod foot 4",
+   "type": "box",
+   "role": "body",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    7,
+    7,
+    3
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -1,
+    0,
+    0,
+    15.5,
+    1.5,
+    -15.5,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-bass-skirt",
+   "name": "Bass — skirt ring",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    3.45,
+    3.45,
+    0.25
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    14.2,
+    14,
+    19.125,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-bass-knob",
+   "name": "Bass — knob",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-woofer-bass-skirt",
+   "size": [
+    2.76,
+    2.76,
+    1.518
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    14.2,
+    14,
+    20.009,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.38,
+     0
+    ],
+    [
+     1.38,
+     1.2144
+    ],
+    [
+     1.242,
+     1.518
+    ],
+    [
+     0,
+     1.518
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-bass-index",
+   "name": "Bass — pointer bar",
+   "type": "box",
+   "role": "control",
+   "parent": "Aestrin-woofer-bass-knob",
+   "size": [
+    0.552,
+    2.0424,
+    0.4554
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    14.2,
+    14.3312,
+    20.919800000000002,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-power-socket",
+   "name": "Power — socket",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-woofer-body",
+   "size": [
+    3.9123,
+    3.9123,
+    0.25
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -14.2,
+    14,
+    19.125,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-woofer-power-button",
+   "name": "Power — button",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-woofer-power-socket",
+   "size": [
+    2.898,
+    2.898,
+    1.0143
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -14.2,
+    14,
+    19.75715,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.449,
+     0
+    ],
+    [
+     1.449,
+     0.6086
+    ],
+    [
+     1.2461,
+     1.0143
+    ],
+    [
+     0,
+     1.0143
+    ]
+   ]
+  }
+ ]
+}

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 
-namespace SailwindRadio
+namespace SailwindRadio.Audio
 {
     // Formats decoded in-source. Adding one is a line here plus the player-facing extension lists.
     internal static class PcmDecoders

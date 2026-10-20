@@ -3,7 +3,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 
-namespace SailwindRadio
+namespace SailwindRadio.Audio
 {
     // RIFF/WAVE integer and float PCM. Larger layouts downmix to stereo with fixed gains.
     internal sealed class WavPcmDecoder : IPcmDecoder
@@ -27,15 +27,20 @@ namespace SailwindRadio
         public long Frames { get; private set; }
         public long Position { get; private set; }
 
-        internal static IPcmDecoder Open(string path, CancellationToken token) { return new WavPcmDecoder(path, token); }
+        internal static IPcmDecoder Open(string path, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            return new WavPcmDecoder(new AudioFiles.CancellableFileStream(path, token), token);
+        }
+        // Embedded display sounds. The decoder owns and disposes the stream.
+        internal static IPcmDecoder Open(Stream stream) { return new WavPcmDecoder(stream, CancellationToken.None); }
 
-        private WavPcmDecoder(string path, CancellationToken token)
+        private WavPcmDecoder(Stream stream, CancellationToken token)
         {
             this.token = token;
-            token.ThrowIfCancellationRequested();
             try
             {
-                input = new AudioFiles.CancellableFileStream(path, token);
+                input = stream;
                 var header = new byte[12];
                 if (!AudioFiles.ReadFully(input, header, 12)) throw new IOException("WAV header is truncated");
                 string riff = Encoding.ASCII.GetString(header, 0, 4);

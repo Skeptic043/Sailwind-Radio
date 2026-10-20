@@ -88,9 +88,8 @@ public sealed class RadioUnityEditorProbe : MonoBehaviour
         {
             if (extension == ".m4a" && !Check(MediaFoundationSupport.Enabled, "Media Foundation decision enables M4A in the editor")) continue;
             yield return LongTrackPhase(Path.Combine(root, "short-tone" + extension), 3, "short streamed " + extension.Substring(1).ToUpperInvariant(),
-                15 * 44100, false, true, extension == ".mp3" ? 44100 / 5 : 0);
+                15 * 44100, true, extension == ".mp3" ? 44100 / 5 : 0);
         }
-        yield return LoopPhase(Path.Combine(root, "loop-tone.wav"));
         yield return TinyPhase(Path.Combine(root, "tiny-tone.wav"));
         yield return LongTrackPhase(Path.Combine(root, "long-tone.wav"), 500, "streamed long WAV", 780 * 44100);
         // OGG streams like every other format. The removed Unity loader refused 27 minutes.
@@ -280,12 +279,12 @@ public sealed class RadioUnityEditorProbe : MonoBehaviour
     }
 
     // MP3 frames add encoder delay and padding, so its length may exceed the source by a fraction of a second.
-    private IEnumerator LongTrackPhase(string path, double saved, string label, int expectedSamples, bool repeat = true, bool budget = false,
+    private IEnumerator LongTrackPhase(string path, double saved, string label, int expectedSamples, bool budget = false,
         int sampleTolerance = 0)
     {
         if (!File.Exists(path)) { Check(false, label + " fixture missing: " + path); yield break; }
         state = new RadioState { TrackPath = path, Powered = true, Volume = 1, PositionSeconds = saved };
-        playback = new RadioPlayback(this, state, message => report += "WARNING: " + message + Environment.NewLine) { RepeatTrack = repeat };
+        playback = new RadioPlayback(this, state, message => report += "WARNING: " + message + Environment.NewLine);
         playback.SetAcoustics(Vector3.zero, true, 0);
         maxTickMs = 0;
         float loadStarted = Time.realtimeSinceStartup;
@@ -337,53 +336,13 @@ public sealed class RadioUnityEditorProbe : MonoBehaviour
         yield return null;
     }
 
-    // A one second track repeating many times, held whole in its ring. The timeline wraps with it.
-    private IEnumerator LoopPhase(string path)
-    {
-        const int rate = 44100;
-        WriteStereoTone(path, rate, rate);
-        state = new RadioState { TrackPath = path, Powered = true, Volume = 1, PositionSeconds = .5 };
-        playback = new RadioPlayback(this, state, message => report += "WARNING: " + message + Environment.NewLine) { RepeatTrack = true };
-        playback.SetAcoustics(Vector3.zero, true, 0);
-        maxTickMs = 0;
-        float started = Time.realtimeSinceStartup;
-        while (playback.Status != "Playing" && !playback.LoadFailed && Time.realtimeSinceStartup < started + 20) yield return null;
-        if (!Check(playback.Status == "Playing", "repeating 1 s WAV reaches Playing in " + (Time.realtimeSinceStartup - started).ToString("F2") + "s"))
-        { playback.Dispose(); playback = null; yield break; }
-        var source = (AudioSource)typeof(RadioPlayback).GetField("source", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(playback);
-        yield return new WaitForSecondsRealtime(0.5f);
-        playback.CapturePosition();
-        double previous = state.PositionSeconds, unwrapped = 0, maxDrift = 0;
-        int repairs = playback.DriftRepairs;
-        float began = Time.realtimeSinceStartup;
-        for (int i = 0; i < 24; i++)
-        {
-            yield return new WaitForSecondsRealtime(0.25f);
-            playback.CapturePosition();
-            double position = state.PositionSeconds;
-            unwrapped += ((position - previous) % 1.0 + 1.0) % 1.0;
-            previous = position;
-            double native = source.timeSamples / (double)rate, difference = Math.Abs(native - position);
-            maxDrift = Math.Max(maxDrift, Math.Min(difference, 1.0 - difference));
-        }
-        double real = Time.realtimeSinceStartup - began;
-        Check(Math.Abs(unwrapped - real) < 0.25 && maxDrift < 0.1 && source.isPlaying,
-            "repeating 1 s WAV loops at real time: real=" + real.ToString("F3") + " timeline=" + unwrapped.ToString("F3") +
-            " maxNativeDrift=" + maxDrift.ToString("F4") + " playing=" + source.isPlaying);
-        Check(playback.DriftRepairs - repairs <= 1, "repeating 1 s WAV drift repairs during 6 s=" + (playback.DriftRepairs - repairs));
-        Check(maxTickMs < 5, "repeating 1 s WAV max main-thread Tick=" + maxTickMs.ToString("F2") + "ms");
-        playback.Dispose();
-        playback = null;
-        yield return null;
-    }
-
     // Three sample frames, far shorter than one audio callback.
     private IEnumerator TinyPhase(string path)
     {
         WriteStereoTone(path, 44100, 3);
         string warning = "";
         state = new RadioState { TrackPath = path, Powered = true, Volume = 1 };
-        playback = new RadioPlayback(this, state, message => warning += message) { RepeatTrack = false };
+        playback = new RadioPlayback(this, state, message => warning += message);
         playback.SetAcoustics(Vector3.zero, true, 0);
         bool played = false;
         float started = Time.realtimeSinceStartup;
@@ -452,7 +411,7 @@ public sealed class RadioUnityEditorProbe : MonoBehaviour
         int rate = AudioSettings.outputSampleRate;
         PcmDecoders.Register(".sync", SyncDecoder.Open);
         string a = WriteSync(root, "sync-a.sync", rate, 60L * rate), b = WriteSync(root, "sync-b.sync", rate, 40L * rate),
-            c = WriteSync(root, "sync-c.sync", rate, 30L * rate), tiny = WriteSync(root, "sync-short.sync", rate, rate);
+            c = WriteSync(root, "sync-c.sync", rate, 30L * rate);
         driveEndpoints = true;
         timelineOffsets.Clear();
         bool wasMuted = EditorUtility.audioMasterMute;
@@ -538,13 +497,6 @@ public sealed class RadioUnityEditorProbe : MonoBehaviour
         yield return WaitPlaying();
         yield return Measure("next track adopting the preload on a slow decoder");
 
-        syncPeriod = SyncPeriod(rate, rate);
-        BeginScenario();
-        playback.SetTrack(tiny);
-        yield return WaitPlaying();
-        yield return Measure("one second repeating track");
-        syncPeriod = SyncPeriod(rate, 60L * rate);
-
         NewSyncPlayback(a, 30.25);
         yield return null;
         BeginScenario();
@@ -614,7 +566,7 @@ public sealed class RadioUnityEditorProbe : MonoBehaviour
     {
         if (playback != null) playback.Dispose();
         state = new RadioState { TrackPath = path, Powered = false, Volume = 1, PositionSeconds = position };
-        playback = new RadioPlayback(this, state, message => report += "WARNING: " + message + Environment.NewLine) { RepeatTrack = true };
+        playback = new RadioPlayback(this, state, message => report += "WARNING: " + message + Environment.NewLine);
         preloadPath = "";
     }
 
@@ -735,7 +687,6 @@ public sealed class RadioUnityEditorProbe : MonoBehaviour
                 }
                 if (!full || block.Dsp < windowDsp) continue;
                 long expected = scheduledSample + (long)Math.Round(Math.Max(0, block.Dsp - scheduledDsp) * clip.frequency);
-                if (playback.RepeatTrack) expected %= clip.samples;
                 timeline.Add(RadioContentTap.Fold(block.Position - expected, period));
                 if (id == 0) continue;
                 int match = Nearest(reference, block.Dsp);

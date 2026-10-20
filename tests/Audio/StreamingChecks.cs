@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using SailwindRadio;
+using SailwindRadio.Audio;
 using UnityEngine;
 
 // Streaming engine edge cases: tracks shorter than the window, a few frames long or started near
-// their end, repeats, backward seeks, several readers, early decoder ends and disposal while the
+// their end, backward seeks, several readers, early decoder ends and disposal while the
 // worker is busy. A scripted decoder registered under .fake controls timing and length exactly.
 static partial class AudioChecks
 {
@@ -233,8 +234,8 @@ static partial class AudioChecks
             var b = stream.CreateReader();
             string detail;
             Check(ReadsWholeTrack(stream, a, expected, 0, out detail), label + " streams every frame exactly then silence: " + detail);
-            // Repeat wraps to the start. A short track is still held, a longer one refills.
-            Check(ReadsWholeTrack(stream, a, expected, 0, out detail), label + " repeats from its start exactly: " + detail);
+            // Reading again from the start. A short track is still held, a longer one refills.
+            Check(ReadsWholeTrack(stream, a, expected, 0, out detail), label + " rereads from its start exactly: " + detail);
             int nearEnd = Math.Max(0, frames - 2);
             Check(ReadsWholeTrack(stream, b, expected, nearEnd, out detail), label + " starts two frames before its end: " + detail);
             Check(ReadsWholeTrack(stream, b, expected, frames / 2, out detail) && ReadsWholeTrack(stream, a, expected, Math.Min(1, frames - 1), out detail),
@@ -244,7 +245,7 @@ static partial class AudioChecks
             DeleteClosed(path);
         }
 
-        // A track held whole never decodes again on repeat or backward seek.
+        // A track held whole never decodes again on a reread or backward seek.
         string held = WriteFake("held.fake", 2, rate, rate * 3);
         var heldStream = OpenStream(held, 0);
         var heldReader = heldStream.CreateReader();
@@ -253,7 +254,7 @@ static partial class AudioChecks
         int seeks = FakeDecoder.Seeks;
         Check(ReadsWholeTrack(heldStream, heldReader, (f, c) => FakeSample(f, c), 0, out heldDetail) &&
             ReadsWholeTrack(heldStream, heldReader, (f, c) => FakeSample(f, c), rate, out heldDetail) && FakeDecoder.Seeks == seeks,
-            "A track held whole repeats and seeks backward without a decoder seek: seeks=" + (FakeDecoder.Seeks - seeks));
+            "A track held whole rereads and seeks backward without a decoder seek: seeks=" + (FakeDecoder.Seeks - seeks));
         heldStream.Dispose();
 
         // A decoder that ends before its reported length pads the rest with silence and keeps playing.
@@ -301,30 +302,23 @@ static partial class AudioChecks
         WriteWav(shortWav, 1, 16, 1, rate, rate * 3 / 10, (f, c) => .4 * Math.Sin(f * .05), false, 0);
         string tiny = Path.Combine(dir, "tiny-playback.wav");
         WriteWav(tiny, 1, 16, 1, rate, 3, (f, c) => .4, false, 0);
-        foreach (bool repeat in new[] { false, true })
-        {
-            AudioSettings.dspTime = 20000;
-            var state = new RadioState { TrackPath = shortWav, Powered = true };
-            var player = new RadioPlayback(new MonoBehaviour(), state, _ => { }) { RepeatTrack = repeat };
-            var source = AudioSource.Last;
-            player.SetAcoustics(new Vector3(), true, 0);
-            PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
-            Check(!player.LoadFailed && source.clip.Streaming && source.clip.samples == rate * 3 / 10 && source.Schedules == 1 &&
-                source.timeSamples == 0, "A 0.3 second WAV streams and schedules from its start with repeat " + repeat);
-            AudioSettings.dspTime = source.ScheduledAt + .45;
-            source.timeSamples = repeat ? rate * 15 / 100 : 0;
-            player.Tick(new Vector3(), false);
-            if (repeat)
-                Check(!player.TrackEnded && Math.Abs(state.PositionSeconds - .15) < 1e-6 && player.Status == "Playing",
-                    "A repeating 0.3 second track wraps its shared timeline: position=" + state.PositionSeconds);
-            else
-                Check(player.TrackEnded && Math.Abs(state.PositionSeconds - .3) < 1e-9 && player.Status == "Ended",
-                    "A 0.3 second track ends on the shared timeline without repeating");
-            player.Dispose();
-        }
+        AudioSettings.dspTime = 20000;
+        var state = new RadioState { TrackPath = shortWav, Powered = true };
+        var player = new RadioPlayback(new MonoBehaviour(), state, _ => { });
+        var source = AudioSource.Last;
+        player.SetAcoustics(new Vector3(), true, 0);
+        PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
+        Check(!player.LoadFailed && source.clip.Streaming && source.clip.samples == rate * 3 / 10 && source.Schedules == 1 &&
+            source.timeSamples == 0, "A 0.3 second WAV streams and schedules from its start");
+        AudioSettings.dspTime = source.ScheduledAt + .45;
+        source.timeSamples = 0;
+        player.Tick(new Vector3(), false);
+        Check(player.TrackEnded && Math.Abs(state.PositionSeconds - .3) < 1e-9 && player.Status == "Ended",
+            "A 0.3 second track ends on the shared timeline without repeating");
+        player.Dispose();
         AudioSettings.dspTime = 21000;
         var nearEnd = new RadioState { TrackPath = shortWav, Powered = true, PositionSeconds = .29 };
-        var endPlayer = new RadioPlayback(new MonoBehaviour(), nearEnd, _ => { }) { RepeatTrack = false };
+        var endPlayer = new RadioPlayback(new MonoBehaviour(), nearEnd, _ => { });
         var endSource = AudioSource.Last;
         PumpUntil(endPlayer, false, () => endPlayer.Status == "Playing" || endPlayer.LoadFailed);
         Check(endSource.timeSamples == (int)Math.Floor(.29 * rate), "A short track saved 10 ms before its end starts there");
@@ -334,7 +328,7 @@ static partial class AudioChecks
         endPlayer.Dispose();
         AudioSettings.dspTime = 22000;
         var tinyState = new RadioState { TrackPath = tiny, Powered = true };
-        var tinyPlayer = new RadioPlayback(new MonoBehaviour(), tinyState, _ => { }) { RepeatTrack = false };
+        var tinyPlayer = new RadioPlayback(new MonoBehaviour(), tinyState, _ => { });
         var tinySource = AudioSource.Last;
         PumpUntil(tinyPlayer, false, () => tinyPlayer.Status == "Playing" || tinyPlayer.LoadFailed);
         Check(!tinyPlayer.LoadFailed && tinySource.clip.samples == 3 && tinySource.Schedules == 1, "A three-frame WAV streams and plays");
@@ -377,7 +371,7 @@ static partial class AudioChecks
         return stream.Fault;
     }
 
-    // Damage after audio, main-thread-only worker targets, the looping look-ahead, prompt worker wakes and
+    // Damage after audio, main-thread-only worker targets, the look-ahead limit, prompt worker wakes and
     // cancelled opens, at stream level.
     static void CheckStreamRecovery()
     {
@@ -455,41 +449,19 @@ static partial class AudioChecks
         Check(WaitWorker(plainStream), "Disposal wakes and ends an idle worker");
         UnityEngine.Object.Destroy(plainClip);
 
-        // Fifty chunks at 8 kHz outgrow the forty-chunk window, so the looping look-ahead holds chunks from both
-        // sides of the wrap at once.
-        const int loopRate = 8000;
-        int loopFrames = 50 * 4096, target = loopFrames - 5 * loopRate;
-        string looped = WriteFake("loop.fake", 1, loopRate, loopFrames);
-        foreach (bool loop in new[] { false, true })
-        {
-            var stream = OpenStream(looped, target / (double)loopRate);
-            stream.Loop = loop;
-            Check(WaitReady(stream, target), "A track longer than the window fills at a position five seconds before its end");
-            if (loop) Check(WaitReady(stream, 0) && WaitReady(stream, 4 * loopRate),
-                "A looping look-ahead continues from the start of the track before the playhead wraps");
-            WaitIdle();
-            reads = FakeDecoder.Reads;
-            Thread.Sleep(150);
-            Check(FakeDecoder.Reads == reads && stream.Ready(target) && (!loop || stream.Ready(0)),
-                "The " + (loop ? "looping" : "plain") + " look-ahead settles without refill churn");
-            if (!loop) Check(!stream.Ready(0), "Without looping the look-ahead stops at the end of the track");
-            else
-            {
-                var reader = stream.CreateReader();
-                var block = new float[4096];
-                reader.SetPosition(loopFrames - 1000);
-                reader.Read(block);
-                bool exact = true;
-                // A tolerance, because Mono may compare the expected value at extended precision.
-                for (int i = 0; i < block.Length; i++) exact &= Math.Abs(block[i] - (i < 1000 ? FakeSample(loopFrames - 1000 + i, 0) : 0f)) <= 1e-6f;
-                reader.SetPosition(0);
-                reader.Read(block);
-                for (int i = 0; i < block.Length; i++) exact &= Math.Abs(block[i] - FakeSample(i, 0)) <= 1e-6f;
-                Check(exact, "Reads across the loop point return the exact end and start of the track");
-            }
-            stream.Dispose();
-            Check(WaitWorker(stream), "The look-ahead worker exits");
-        }
+        // Fifty chunks at 8 kHz outgrow the forty-chunk window, so the look-ahead stops at the end of the track.
+        const int longRate = 8000;
+        int longFrames = 50 * 4096, target = longFrames - 5 * longRate;
+        string longTrack = WriteFake("long.fake", 1, longRate, longFrames);
+        var longStream = OpenStream(longTrack, target / (double)longRate);
+        Check(WaitReady(longStream, target), "A track longer than the window fills at a position five seconds before its end");
+        WaitIdle();
+        reads = FakeDecoder.Reads;
+        Thread.Sleep(150);
+        Check(FakeDecoder.Reads == reads && longStream.Ready(target), "The look-ahead settles without refill churn");
+        Check(!longStream.Ready(0), "The look-ahead stops at the end of the track");
+        longStream.Dispose();
+        Check(WaitWorker(longStream), "The look-ahead worker exits");
 
         // An open cancelled once its decoder exists allocates no window and is never published as open.
         string layout = WriteFake("layout.fake", 1, rate, rate * 5, layout: true);
@@ -503,12 +475,12 @@ static partial class AudioChecks
         Check(WaitWorker(opening) && !opening.IsOpen && opening.Fault == null && opening.BufferSamples == 0 &&
             typeof(StreamedAudio).GetField("chunks", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(opening) == null &&
             FakeDecoder.Live == live, "An open cancelled after its decoder is built allocates no window, never opens and disposes the decoder");
-        DeleteClosed(damaged); DeleteClosed(plain); DeleteClosed(looped); DeleteClosed(layout);
+        DeleteClosed(damaged); DeleteClosed(plain); DeleteClosed(longTrack); DeleteClosed(layout);
         CheckPlaybackRecovery();
     }
 
-    // The same fixes through RadioPlayback: damage ends a track like a normal end, a repeating long track
-    // loops its look-ahead, adopted preloads get a fresh deadline and a restart keeps the next preload.
+    // The same fixes through RadioPlayback: damage ends a track like a normal end, adopted preloads get a
+    // fresh deadline and a restart keeps the next preload.
     static void CheckPlaybackRecovery()
     {
         int warnings = 0;
@@ -519,7 +491,7 @@ static partial class AudioChecks
         string damagedTrack = WriteFake("damaged-track.fake", 1, rate, rate * 30, damageAt: damageFrame);
         AudioSettings.dspTime = 30000;
         var state = new RadioState { TrackPath = damagedTrack, Powered = true };
-        var player = new RadioPlayback(new MonoBehaviour(), state, warn) { RepeatTrack = false };
+        var player = new RadioPlayback(new MonoBehaviour(), state, warn);
         var source = AudioSource.Last;
         player.SetAcoustics(new Vector3(), true, 0);
         PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
@@ -550,7 +522,7 @@ static partial class AudioChecks
         // Paused before the damage, a radio ends only once it would play again.
         AudioSettings.dspTime = 31000;
         state = new RadioState { TrackPath = damagedTrack, Powered = true, PositionSeconds = 11 };
-        player = new RadioPlayback(new MonoBehaviour(), state, warn) { RepeatTrack = false };
+        player = new RadioPlayback(new MonoBehaviour(), state, warn);
         player.SetAcoustics(new Vector3(), true, 0);
         PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
         stream = (StreamedAudio)Field(player, "streamed");
@@ -570,24 +542,11 @@ static partial class AudioChecks
         // The saved position may lie in the damage, so a failure before any audio resets it for a later selection.
         string brokenStart = WriteFake("damaged-start-track.fake", 1, rate, rate * 30, damageAt: 0);
         state = new RadioState { TrackPath = brokenStart, Powered = true, PositionSeconds = 5 };
-        player = new RadioPlayback(new MonoBehaviour(), state, warn) { RepeatTrack = false };
+        player = new RadioPlayback(new MonoBehaviour(), state, warn);
         PumpUntil(player, false, () => player.LoadFailed);
         Check(player.Status == "Unable to decode music" && player.FailedPath == brokenStart && !player.TrackEnded && warnings == 3 &&
             state.PositionSeconds == 0 && last == "Unable to decode music: Scripted damage at frame 0 (damaged-start-track.fake)",
             "Damage before any audio fails the track, names only the file and resets its saved position: " + last);
-        player.Dispose();
-
-        // A repeating track longer than the window loops its look-ahead through the engine.
-        string loopTrack = WriteFake("loop-track.fake", 1, 8000, 50 * 4096);
-        state = new RadioState { TrackPath = loopTrack, Powered = true, PositionSeconds = 22 };
-        player = new RadioPlayback(new MonoBehaviour(), state, warn) { RepeatTrack = true };
-        player.SetAcoustics(new Vector3(), true, 0);
-        PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
-        stream = (StreamedAudio)Field(player, "streamed");
-        Check(stream.Loop && WaitReady(stream, 0), "A repeating track longer than the window holds its start before the wrap");
-        player.RepeatTrack = false;
-        player.Tick(new Vector3(), false);
-        Check(!stream.Loop, "Turning repeat off stops the looping look-ahead");
         player.Dispose();
 
         // An adopted preload still opening gets its own load deadline.
@@ -595,7 +554,7 @@ static partial class AudioChecks
         string next = WriteFake("keep-next.fake", 1, rate, rate * 30, gate: true);
         float time = Time.realtimeSinceStartup;
         state = new RadioState { TrackPath = current, Powered = true };
-        player = new RadioPlayback(new MonoBehaviour(), state, warn) { RepeatTrack = false };
+        player = new RadioPlayback(new MonoBehaviour(), state, warn);
         source = AudioSource.Last;
         player.SetAcoustics(new Vector3(), true, 0);
         PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
@@ -650,8 +609,8 @@ static partial class AudioChecks
         Check(FakeDecoder.OpensOf(next) == opens + 1 && Field(player, "preloadStream") == null, "The selected track opens exactly once");
         FakeDecoder.Hold.Set();
         player.Dispose();
-        DeleteClosed(damagedTrack); DeleteClosed(brokenStart); DeleteClosed(loopTrack); DeleteClosed(current); DeleteClosed(next); DeleteClosed(held);
-        CheckLoopDamage();
+        DeleteClosed(damagedTrack); DeleteClosed(brokenStart); DeleteClosed(current); DeleteClosed(next); DeleteClosed(held);
+        CheckDeniedAccess();
         CheckOutputReaders();
     }
 
@@ -662,78 +621,24 @@ static partial class AudioChecks
         if (!done()) throw new Exception(what + " did not happen within 10 seconds");
     }
 
-    // Damage the looping look-ahead finds lies behind the playhead. It ends a repeating track only where the
-    // wrapped playhead crosses it, and a failed re-seek there never moves the end ahead of the playhead.
-    static void CheckLoopDamage()
+    static void CheckDeniedAccess()
     {
         int warnings = 0;
         string last = "";
         Action<string> warn = w => { warnings++; last = w; };
-        const int rate = 8000, frames = 50 * 4096;
-        string looped = WriteFake("loop-damaged.fake", 1, rate, frames, damageAt: 16000, damageEnd: 16001);
-        AudioSettings.dspTime = 32000;
-        var state = new RadioState { TrackPath = looped, Powered = true, PositionSeconds = 22 };
-        var player = new RadioPlayback(new MonoBehaviour(), state, warn) { RepeatTrack = true };
-        player.SetAcoustics(new Vector3(), true, 0);
-        PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
-        var stream = (StreamedAudio)Field(player, "streamed");
-        WaitFor(() => stream.LoopDamageFrame == 16000, "Loop look-ahead damage");
-        var source = AudioSource.Last;
-        AudioSettings.dspTime = source.ScheduledAt + 1;
-        player.Tick(new Vector3(), false);
-        Check(stream.DamageFrame == Int32.MaxValue && !player.TrackEnded && player.Status == "Playing" && warnings == 0 &&
-            Math.Abs(state.PositionSeconds - 23) < 1e-9, "Damage the looping look-ahead finds behind the playhead leaves the track playing: " + last);
-        state.Paused = true;
-        player.Tick(new Vector3(), false);
-        state.Paused = false;
-        WaitStream(player);
-        player.Tick(new Vector3(), false);
-        Check(!player.TrackEnded && player.Status == "Playing" && warnings == 0, "A saved position past loop damage resumes instead of ending");
-        double anchor = AudioSettings.dspTime;
-        foreach (double at in new[] { 2.5, 2.7, 4.59 })
-        {
-            AudioSettings.dspTime = anchor + at;
-            player.Tick(new Vector3(), false);
-        }
-        Check(!player.TrackEnded && warnings == 0 && Math.Abs(state.PositionSeconds - 15920 / 8000.0) < 1e-9,
-            "The wrapped playhead plays up to the loop damage: position=" + state.PositionSeconds);
-        AudioSettings.dspTime = anchor + 4.61;
-        player.Tick(new Vector3(), false);
-        Check(player.TrackEnded && warnings == 1 && last == "Music ended early at damaged audio: Scripted damage at frame 16000 (loop-damaged.fake)",
-            "Crossing the loop damage after the wrap ends the track once: " + last);
-        player.Dispose();
-
-        string reseek = WriteFake("reseek-damaged.fake", 1, rate, frames, damageAt: 192000, seekFails: true);
-        state = new RadioState { TrackPath = reseek, Powered = true, PositionSeconds = 20 };
-        player = new RadioPlayback(new MonoBehaviour(), state, warn) { RepeatTrack = true };
-        player.SetAcoustics(new Vector3(), true, 0);
-        PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
-        stream = (StreamedAudio)Field(player, "streamed");
-        WaitFor(() => stream.LoopDamageFrame == 0, "Failed loop re-seek");
-        source = AudioSource.Last;
-        AudioSettings.dspTime = source.ScheduledAt + 3.99;
-        player.Tick(new Vector3(), false);
-        Check(stream.DamageFrame == 192000 && !player.TrackEnded && player.Status == "Playing" && warnings == 1,
-            "A failed re-seek in the looping look-ahead keeps the damage ahead of the playhead as the end: damage=" + stream.DamageFrame);
-        AudioSettings.dspTime = source.ScheduledAt + 4.01;
-        player.Tick(new Vector3(), false);
-        Check(player.TrackEnded && warnings == 2 && last.StartsWith("Music ended early at damaged audio: Scripted damage at frame 192000", StringComparison.Ordinal),
-            "The track ends at the damage ahead of the playhead: " + last);
-        player.Dispose();
-
         // A file the worker may not read is a load failure, and its saved position waits for access to return.
         PcmDecoders.Register(".denied", (p, t) => { throw new UnauthorizedAccessException("Access to the music file is denied"); });
         string denied = Path.Combine(AppContext.BaseDirectory, "locked.denied");
         File.WriteAllText(denied, "");
-        state = new RadioState { TrackPath = denied, Powered = true, PositionSeconds = 5 };
-        player = new RadioPlayback(new MonoBehaviour(), state, warn);
+        var state = new RadioState { TrackPath = denied, Powered = true, PositionSeconds = 5 };
+        var player = new RadioPlayback(new MonoBehaviour(), state, warn);
         PumpUntil(player, false, () => player.LoadFailed);
         Check(player.Status == "Unable to load music" && state.PositionSeconds == 5 &&
             last == "Unable to load music: Access to the music file is denied (locked.denied)",
             "An unreadable file fails to load and keeps its saved position: " + last);
         player.Dispose();
         PcmDecoders.Register(".denied", null);
-        DeleteClosed(looped); DeleteClosed(reseek); DeleteClosed(denied);
+        DeleteClosed(denied);
     }
 
     // Unity alone positions each output's reader. It pre-reads a new clip's opening and plays it unchanged from
@@ -865,7 +770,7 @@ static partial class AudioChecks
         }
     }
 
-    // A stream is ready only once Unity's whole pre-read is decoded, continuing from the start when looping.
+    // A stream is ready only once Unity's whole pre-read is decoded.
     static void CheckPreReadReadiness()
     {
         int preRead = (int)Math.Round(48000 * AudioClip.PreReadSeconds);
@@ -880,23 +785,6 @@ static partial class AudioChecks
         Check(exact && stream.MissingFrames == 0, "Readiness covers Unity's pre-read of the opening: missing=" + stream.MissingFrames);
         stream.Dispose();
         WaitWorker(stream);
-
-        int frames = 48000 * 30, frame = frames - 48000 * 3 / 10;
-        var looping = OpenStream(path, frame / 48000.0);
-        looping.Loop = true;
-        looping.Request(frame);
-        Check(WaitReady(looping, frame), "A looping stream becomes ready near its end");
-        var wrapped = looping.CreateReader();
-        var tail = new float[frames - frame];
-        wrapped.SetPosition(frame);
-        wrapped.Read(tail);
-        var head = new float[preRead - tail.Length];
-        wrapped.SetPosition(0);
-        wrapped.Read(head);
-        Check(looping.MissingFrames == 0 && Math.Abs(head[0] - FakeSample(0, 0)) <= 1e-6f && Math.Abs(tail[0] - FakeSample(frame, 0)) <= 1e-6f,
-            "Readiness near the end of a looping track covers the pre-read across the wrap: missing=" + looping.MissingFrames);
-        looping.Dispose();
-        WaitWorker(looping);
         DeleteClosed(path);
     }
 
@@ -915,8 +803,8 @@ static partial class AudioChecks
         }
         string project = File.ReadAllText(Path.Combine(RepoRoot, "Radio.csproj"));
         Check(project.IndexOf("UnityWebRequest", StringComparison.Ordinal) < 0, "The plugin no longer references Unity web request modules");
-        Check(typeof(RadioPlayback).Assembly.GetType("SailwindRadio.OggClipLoad") == null &&
-            typeof(RadioPlayback).Assembly.GetType("SailwindRadio.OggVorbisInfo") == null, "The Unity Ogg loader and its length probe are gone");
+        Check(typeof(RadioPlayback).Assembly.GetType("SailwindRadio.Audio.OggClipLoad") == null &&
+            typeof(RadioPlayback).Assembly.GetType("SailwindRadio.Audio.OggVorbisInfo") == null, "The Unity Ogg loader and its length probe are gone");
         foreach (string name in new[] { "song.mp3", "song.WAV", "song.flac", "song.ogg", "SONG.OGG" })
             Check(PcmDecoders.Supports(name), name + " routes to an in-source decoder");
         Check(!PcmDecoders.Supports("song.opus") && !PcmDecoders.Supports("song.oga"), "Other Ogg extensions stay unsupported");

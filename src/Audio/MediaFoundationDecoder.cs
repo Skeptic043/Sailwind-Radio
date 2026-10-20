@@ -3,7 +3,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-namespace SailwindRadio
+namespace SailwindRadio.Audio
 {
     // M4A (AAC or Apple Lossless) and ADTS AAC through a synchronous IMFSourceReader. Worker
     // threads only. Each call joins the multithreaded apartment. Read always totals exactly Frames

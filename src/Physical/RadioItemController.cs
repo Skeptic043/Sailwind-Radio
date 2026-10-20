@@ -40,14 +40,20 @@ namespace SailwindRadio.Physical
         private static readonly Color LitIconColor = new Color(.8f, .75f, .54f);
         private static readonly Color UnlitIconColor = new Color(.30f, .23f, .15f);
         private int renderedLayer = -1;
-        private DotMatrixDisplay display;
+        private ITrackDisplay display;
+        private static bool fontReported;
         private Material screenMaterial;
         private bool screenLit;
         private string title = "", artist = "", album = "", displayContent = "", renderedText;
         private readonly Dictionary<RadioVolumeKnob, float> knobAngles = new Dictionary<RadioVolumeKnob, float>();
+        private readonly Dictionary<RadioVolumeKnob, Vector3> knobAxes = new Dictionary<RadioVolumeKnob, Vector3>();
+        private Vector3 soundOrigin;
+        // Cabinet height below a native hook.
+        internal float Height { get; private set; }
         private Transform menuPointer;
         private Collider menuControl;
         private bool shopStock, inventorySlot;
+        private readonly List<BoxCollider> bodyBoxes = new List<BoxCollider>();
 
         public DeviceVessel Vessel => DeviceVessels.Resolve(item, UsesPlayerPosition);
         internal bool WithinMenuReach => RadioControlReach.Contains(menuPointer, menuControl);
@@ -81,7 +87,7 @@ namespace SailwindRadio.Physical
 
         // Placed sound originates at the cone rather than the floor-level native item pivot.
         public Vector3 SoundPosition => UsesPlayerPosition || (item && item.itemRigidbodyC && item.itemRigidbodyC.GetCurrentBox())
-            ? VisualAudioPosition : transform.TransformPoint(RadioDevice.SoundOrigin(State.Kind));
+            ? VisualAudioPosition : transform.TransformPoint(soundOrigin);
 
         internal void Initialize(RadioWorldService service, RadioState state)
         {
@@ -95,7 +101,7 @@ namespace SailwindRadio.Physical
             BuildModel();
             // The native lamp hook accepts a HangableItem on the held object. It is rebuilt after
             // load alongside our model, while the saved native item keeps its original prefab ID.
-            if (State.Kind == 0 && RadioWorldService.HookCompatible && !GetComponent<HangableItem>())
+            if (RadioNativeHooks.CanHang(State.Kind) && RadioWorldService.HookCompatible && !GetComponent<HangableItem>())
                 gameObject.AddComponent<HangableItem>();
         }
 
@@ -109,14 +115,22 @@ namespace SailwindRadio.Physical
             RefreshOwnership();
         }
 
+        // Walnut kinds keep their tuned constants. Regional kinds derive their shape from model bounds.
+        private static bool Regional(int kind, out Vector3 min, out Vector3 max)
+        {
+            min = max = Vector3.zero;
+            return !DeviceKind.IsWalnut(kind) && DeviceModel.TryGetBounds(kind, out min, out max);
+        }
+
         internal static void ConfigureItem(ShipItem item, int kind)
         {
+            var role = DeviceKind.Role(kind);
             item.name = RadioDevice.Name(kind);
             item.description = "";
-            item.big = kind >= 2;
-            item.wallAttachment = kind == 1;
-            item.category = kind < 2 ? TransactionCategory.toolsAndSupplies : TransactionCategory.otherItems;
-            item.mass = kind == 1 ? .25f : kind == 2 ? 3f : kind == 3 ? 8f : .5f;
+            item.big = role == DeviceRole.Speaker || role == DeviceRole.Woofer;
+            item.wallAttachment = role == DeviceRole.SmallSpeaker;
+            item.category = role == DeviceRole.Radio || role == DeviceRole.SmallSpeaker ? TransactionCategory.toolsAndSupplies : TransactionCategory.otherItems;
+            item.mass = role == DeviceRole.SmallSpeaker ? .25f : role == DeviceRole.Speaker ? 3f : role == DeviceRole.Woofer ? 8f : .5f;
             // The inspected native PC inventory basis reverses X and faces +camera-Z at yaw zero.
             // Our models face -Z, so a local half-turn restores front-facing text and controls.
             item.inventoryRotation = RadioDevice.InventoryYaw;
@@ -124,7 +138,8 @@ namespace SailwindRadio.Physical
             // Native small-item holding positions the root at the pointer. The
             // radio's root is at its base, so lower it by half its height to
             // put the face and controls near the player's sight line.
-            item.holdHeight = kind == 0 ? -RadioDevice.Center(0).y : 0f;
+            item.holdHeight = role != DeviceRole.Radio ? 0f :
+                -(Regional(kind, out var min, out var max) ? RadioDevice.Center(role, min, max) : RadioDevice.Center(kind)).y;
             item.value = SailwindRadio.Shops.RadioShopCatalog.BasePrice(kind);
         }
 
@@ -153,6 +168,11 @@ namespace SailwindRadio.Physical
         {
             if (parts == null)
                 return;
+            // The body subcollider is also a live trigger on the item. Its native solid copy was made
+            // at ItemRigidbody.Start, so disabling the original in a slot leaves collision untouched.
+            foreach (var bodyBox in bodyBoxes)
+                if (bodyBox)
+                    bodyBox.enabled = !inventorySlot;
             foreach (var pair in parts)
             {
                 if (!pair.Key.StartsWith("control_", StringComparison.Ordinal))
@@ -169,9 +189,8 @@ namespace SailwindRadio.Physical
         }
         public void RequestAction(RadioAction action)
         {
-            if (!IsPlacedForControls)
+            if (!IsPlacedForControls || owner == null || !owner.RequestAction(this, action))
                 return;
-            owner?.RequestAction(this, action);
             if (action != RadioAction.Power && action != RadioAction.PlayPause && action != RadioAction.Shuffle)
                 pulses[action.ToString().ToLowerInvariant()] = Time.unscaledTime + .16f;
         }
@@ -195,9 +214,13 @@ namespace SailwindRadio.Physical
                 end--;
             return value.Substring(0, end) + "…";
         }
+        // Display mechanisms fall silent while paused, asleep, slotted, boxed or unsold.
+        private bool MechanismAudible => !shopStock && !inventorySlot && Time.timeScale > 0f && !GameState.sleeping &&
+            !(item && item.itemRigidbodyC && item.itemRigidbodyC.GetCurrentBox());
         internal bool IsPlacedForControls => item && item.sold && !item.held && gameObject.activeInHierarchy && gameObject.layer != 5 &&
-            item.itemRigidbodyC && !item.itemRigidbodyC.GetCurrentBox() && item.GetCurrentInventorySlot() < 0 &&
-            owner != null && owner.EnsureOwned(this);
+            item.itemRigidbodyC && !item.itemRigidbodyC.GetCurrentBox() && item.GetCurrentInventorySlot() < 0;
+        // Binds or confirms this device's saved identity. It may tick the world service and write a record.
+        internal bool EnsureOwned() => owner != null && owner.EnsureOwned(this);
         public void ReleaseControls()
         {
             foreach (var knob in knobs)
@@ -239,13 +262,13 @@ namespace SailwindRadio.Physical
             }
             foreach (var knob in knobs)
             {
-                float level = knob.Mode == RadioKnobMode.Bass ? State.Bass :
-                    knob.Mode == RadioKnobMode.Local ? State.LocalVolume : State.Volume;
-                float angle = DeviceControlVisuals.KnobAngle(level);
+                float angle = DeviceControlVisuals.KnobAngle(State.KnobLevel(knob.Mode));
                 if (!knobAngles.TryGetValue(knob, out float previous) || previous != angle)
                 {
-                    knob.transform.localRotation = State.Kind == 0 &&
-                        (knob.Mode == RadioKnobMode.Master || knob.Mode == RadioKnobMode.Local)
+                    // An authored axis points out of the knob's face. Turning about its reverse matches
+                    // the walnut front knobs, whose faces point along -Z, as seen from in front of that face.
+                    knob.transform.localRotation = knobAxes.TryGetValue(knob, out var axis) ? Quaternion.AngleAxis(angle, -axis) :
+                        State.Kind == DeviceKind.WalnutRadio && (knob.Mode == RadioKnobMode.Master || knob.Mode == RadioKnobMode.Local)
                         ? Quaternion.Euler(0, angle, 0) : Quaternion.Euler(0, 0, angle);
                     knobAngles[knob] = angle;
                 }
@@ -281,12 +304,14 @@ namespace SailwindRadio.Physical
                     material.SetColor("_Color", UnlitIconColor);
                     var halo = new GameObject("Local control glow");
                     halo.transform.SetParent(pair.Value.transform, false);
+                    // Regional icons are flat glyphs, so their first normal is the face they sit on.
+                    var face = DeviceKind.IsWalnut(State.Kind) ? Vector3.back : pair.Value.GetComponent<MeshFilter>().sharedMesh.normals[0];
                     halo.transform.position = pair.Value.GetComponent<Renderer>().bounds.center +
-                        pair.Value.transform.TransformDirection(Vector3.back) * .008f;
+                        pair.Value.transform.TransformDirection(face) * .008f;
                     var light = halo.AddComponent<Light>();
                     light.type = LightType.Point;
                     light.color = new Color(1f, .62f, .13f);
-                    light.range = State.Kind == 0 || State.Kind == 1 ? .08f : .12f;
+                    light.range = State.Role == DeviceRole.Radio || State.Role == DeviceRole.SmallSpeaker ? .08f : .12f;
                     light.intensity = .12f;
                     light.shadows = LightShadows.None;
                     light.enabled = false;
@@ -294,15 +319,29 @@ namespace SailwindRadio.Physical
                 }
             }
             var box = GetComponent<BoxCollider>();
-            // Keep the radio's top at .33 for pointer raycasts; include each
-            // floor speaker's visible feet without raising its cabinet top.
-            var contactCenter = State.Kind == 0 ? new Vector3(0, .16f, 0) : RadioDevice.Center(State.Kind);
-            var contactSize = State.Kind == 0 ? new Vector3(.6f, .34f, .2f) : RadioDevice.Size(State.Kind);
-            float footDepth = State.Kind == 2 ? .012f : State.Kind == 3 ? .015f : 0f;
-            if (footDepth > 0f)
+            Vector3 contactCenter, contactSize;
+            if (Regional(State.Kind, out var min, out var max) && DeviceModel.TryGetContact(State.Kind, out var contactMin, out var contactMax))
             {
-                contactCenter.y -= footDepth * .5f;
-                contactSize.y += footDepth;
+                // The authored contact box sits behind every control and on the wall plane for small speakers.
+                contactCenter = (contactMin + contactMax) * .5f;
+                contactSize = contactMax - contactMin;
+                soundOrigin = RadioDevice.SoundOrigin(min, max);
+                Height = max.y - min.y;
+            }
+            else
+            {
+                // Keep the radio's top at .33 for pointer raycasts; include each
+                // floor speaker's visible feet without raising its cabinet top.
+                contactCenter = State.Kind == DeviceKind.WalnutRadio ? new Vector3(0, .16f, 0) : RadioDevice.Center(State.Kind);
+                contactSize = State.Kind == DeviceKind.WalnutRadio ? new Vector3(.6f, .34f, .2f) : RadioDevice.Size(State.Kind);
+                float footDepth = State.Kind == DeviceKind.WalnutSpeaker ? .012f : State.Kind == DeviceKind.WalnutWoofer ? .015f : 0f;
+                if (footDepth > 0f)
+                {
+                    contactCenter.y -= footDepth * .5f;
+                    contactSize.y += footDepth;
+                }
+                soundOrigin = RadioDevice.SoundOrigin(State.Kind);
+                Height = RadioDevice.Size(State.Kind).y;
             }
             box.center = contactCenter;
             box.size = contactSize;
@@ -315,8 +354,20 @@ namespace SailwindRadio.Physical
                     physicsBox.size = box.size;
                 }
             }
+            if (Regional(State.Kind, out var bodyMin, out var bodyMax))
+            {
+                // Native ItemRigidbody.Start copies each direct child tagged ItemSubcollider as a solid box,
+                // so the whole regional body collides while the contact box stays behind the controls.
+                // It clones the whole object, so this child holds only its box. Layer 2 keeps it out of pointer raycasts.
+                // Authored solid boxes replace the bounds where items must rest on real tops between raised ends.
+                var solids = DeviceModel.Solids(State.Kind);
+                if (solids.Count == 0)
+                    AddBodyBox(bodyMin, bodyMax);
+                foreach (var solid in solids)
+                    AddBodyBox(new Vector3(solid.min[0], solid.min[1], solid.min[2]), new Vector3(solid.max[0], solid.max[1], solid.max[2]));
+            }
             AddButton("power", RadioAction.Power);
-            if (State.Kind == 0)
+            if (State.Role == DeviceRole.Radio)
             {
                 AddButton("playpause", RadioAction.PlayPause);
                 AddButton("previous", RadioAction.Previous);
@@ -327,10 +378,20 @@ namespace SailwindRadio.Physical
                 AddKnob("local", RadioKnobMode.Local);
                 BuildTrackDisplay();
             }
-            else if (State.Kind == 3)
+            else if (State.Role == DeviceRole.Woofer)
                 AddKnob("bass", RadioKnobMode.Bass);
             else
                 AddKnob("volume", RadioKnobMode.Volume);
+        }
+        private void AddBodyBox(Vector3 min, Vector3 max)
+        {
+            var body = new GameObject("Radio body subcollider") { tag = "ItemSubcollider", layer = 2 };
+            body.transform.SetParent(transform, false);
+            var box = body.AddComponent<BoxCollider>();
+            box.center = (min + max) * .5f;
+            box.size = max - min;
+            box.isTrigger = true;
+            bodyBoxes.Add(box);
         }
         private void AddButton(string name, RadioAction action)
         {
@@ -353,6 +414,8 @@ namespace SailwindRadio.Physical
             knob.Radio = this;
             knob.Mode = mode;
             knobs.Add(knob);
+            if (DeviceModel.TryGetAxis(State.Kind, "control_" + name, out var axis))
+                knobAxes[knob] = axis;
         }
         private void BuildTrackDisplay()
         {
@@ -363,7 +426,30 @@ namespace SailwindRadio.Physical
                 owner?.Report("Depth-tested radio track display shader unavailable");
                 return;
             }
-            display = new DotMatrixDisplay(transform, shader, assets);
+            var textShader = owner?.WorldTextShader;
+            if (!textShader)
+                textShader = shader;
+            if (DeviceKind.IsWalnut(State.Kind))
+            {
+                display = new DotMatrixDisplay(transform, shader, textShader, assets);
+                return;
+            }
+            Font font = null;
+            foreach (var candidate in Resources.FindObjectsOfTypeAll<Font>())
+                if (candidate.name == "IMMORTAL")
+                    font = candidate;
+            if (!font)
+            {
+                if (!fontReported)
+                    owner?.Report("Game font IMMORTAL unavailable for regional radio displays. Arial is used instead.");
+                fontReported = true;
+                font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            }
+            // Leaves, drum brass and the stylus share the shader DeviceModel chose for the cabinet.
+            parts.TryGetValue("display_carriage", out var carriage);
+            display = new RegionalTrackDisplay(transform, DeviceModel.Displays(State.Kind), GetComponent<Renderer>().sharedMaterial.shader,
+                textShader, font, () => MechanismAudible, owner.DisplaySounds,
+                carriage ? carriage.transform : null, message => owner?.Report(message), assets);
         }
         private void OnDestroy()
         {

@@ -11,5 +11,6 @@
     <Compile Include="Program.cs" />
     <Compile Include="../../src/Library/*.cs" Link="Library/%(Filename)%(Extension)" />
     <Compile Include="../../src/RadioState.cs" Link="RadioState.cs" />
+    <Compile Include="../../src/DeviceKind.cs" Link="DeviceKind.cs" />
   </ItemGroup>
 </Project>

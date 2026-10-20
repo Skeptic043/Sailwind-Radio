@@ -3,10 +3,13 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-// Runs in Unity 2019.1.10f1. The bundle contains only ordinary Unity components.
+// Runs in Unity 2019.1.10f1. The bundle contains only ordinary Unity components and the radio world text shader.
 // Sailwind's native item components are added to these off-scene assets at runtime.
 public static class BuildRadioItems
 {
+    private static readonly string[] ShaderFiles = { "WorldText.shader" };
+    private static readonly string[] ShaderNames = { "SailwindRadio/World Text" };
+
     public static void Build()
     {
         const string assetRoot = "Assets/RadioItems";
@@ -30,7 +33,7 @@ public static class BuildRadioItems
         if (!shader) throw new InvalidOperationException("Standard shader unavailable");
         var material = new Material(shader) { name = "Radio item template material" };
         AssetDatabase.CreateAsset(material, assetRoot + "/TemplateMaterial.mat");
-        for (int kind = 0; kind < 4; kind++)
+        for (int kind = 0; kind < 16; kind++)
         {
             int index = 43040 + kind;
             var root = new GameObject("Sailwind Radio item " + index);
@@ -44,6 +47,16 @@ public static class BuildRadioItems
             UnityEngine.Object.DestroyImmediate(root);
             AssetImporter.GetAtPath(path).assetBundleName = "radio-items.assets";
         }
+        // BuildItemBundle.ps1 copies the shader sources in before the editor starts.
+        for (int i = 0; i < ShaderFiles.Length; i++)
+        {
+            string shaderPath = assetRoot + "/" + ShaderFiles[i];
+            AssetDatabase.ImportAsset(shaderPath, ImportAssetOptions.ForceUpdate);
+            var compiled = AssetDatabase.LoadAssetAtPath<Shader>(shaderPath);
+            if (!compiled || compiled.name != ShaderNames[i] || ShaderUtil.ShaderHasError(compiled))
+                throw new InvalidDataException("Radio shader did not compile: " + ShaderNames[i]);
+            AssetImporter.GetAtPath(shaderPath).assetBundleName = "radio-items.assets";
+        }
         AssetDatabase.SaveAssets();
         Directory.CreateDirectory("Build");
         BuildPipeline.BuildAssetBundles("Build", BuildAssetBundleOptions.UncompressedAssetBundle, BuildTarget.StandaloneWindows64);
@@ -51,7 +64,7 @@ public static class BuildRadioItems
             throw new FileNotFoundException("Radio item bundle was not built");
         var bundle = AssetBundle.LoadFromMemory(File.ReadAllBytes("Build/radio-items.assets"));
         if (!bundle) throw new InvalidDataException("Radio item bundle cannot be loaded");
-        for (int kind = 0; kind < 4; kind++)
+        for (int kind = 0; kind < 16; kind++)
         {
             int index = 43040 + kind;
             var asset = bundle.LoadAsset<GameObject>("assets/radioitems/radioitem" + index + ".prefab");
@@ -69,6 +82,12 @@ public static class BuildRadioItems
             if (!clone || !clone.scene.IsValid() || !clone.GetComponent<AudioSource>())
                 throw new InvalidDataException("Radio item clone did not enter a scene: " + index);
             UnityEngine.Object.DestroyImmediate(clone);
+        }
+        for (int i = 0; i < ShaderFiles.Length; i++)
+        {
+            var bundled = bundle.LoadAsset<Shader>("assets/radioitems/" + ShaderFiles[i].ToLowerInvariant());
+            if (!bundled || bundled.name != ShaderNames[i])
+                throw new InvalidDataException("Radio shader is missing from the bundle: " + ShaderNames[i]);
         }
         bundle.Unload(false);
         Debug.Log("Radio item bundle built for Unity 2019.1.10f1");

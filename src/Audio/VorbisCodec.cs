@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace SailwindRadio
+namespace SailwindRadio.Audio
 {
     // Vorbis I codec layer written from the Xiph.Org Vorbis I specification, with stb_vorbis 1.22 (public
     // domain) consulted for structure and codeword assignment. It parses the identification and setup

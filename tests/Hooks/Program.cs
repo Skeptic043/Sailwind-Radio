@@ -27,14 +27,28 @@ internal static class Program
         var hook = new ShipItemLampHook { transform = target.transform };
         target.transform.Components.Add(typeof(ShipItemLampHook), hook);
         var radio = Device(0);
+        int[] radioKinds = { 0, 4, 8, 12 };
+        foreach (int kind in radioKinds)
+        {
+            bool expected = kind != 8;
+            Check(RadioNativeHooks.CanHang(kind) == expected, "hook eligibility matches the radio family: " + kind);
+            Check(RadioNativeHooks.AllowsHookTarget(Device(kind), target) == expected, "native hook targeting matches the radio family: " + kind);
+        }
         Check(RadioNativeHooks.AllowsHookTarget(radio, target), "Radio can target a native hook without donor ID, name or third-party component");
         Check(!RadioNativeHooks.AllowsHookTarget(radio, new Component()), "ordinary targets retain native placement policy");
         Check(!RadioNativeHooks.AllowsHookTarget(radio, null), "missing pointer target is ignored");
         Check(!RadioNativeHooks.AllowsHookTarget(null, target), "missing held item is ignored");
         Check(!RadioNativeHooks.AllowsHookTarget(new ShipItem(), target), "unrelated native items remain unchanged");
         Check(!RadioNativeHooks.AllowsHookTarget(Device(0, false), target), "radio requires its actual native hangable component");
-        for (int kind = 1; kind <= 3; kind++)
-            Check(!RadioNativeHooks.AllowsHookTarget(Device(kind), target), "speakers are excluded even with a hangable component: " + kind);
+        for (int family = 0; family < 4; family++)
+            for (int role = 1; role <= 3; role++)
+            {
+                int kind = DeviceKind.Of(family, (DeviceRole)role);
+                Check(!RadioNativeHooks.CanHang(kind), "speaker hook eligibility is excluded: " + kind);
+                Check(!RadioNativeHooks.AllowsHookTarget(Device(kind), target), "speakers are excluded even with a hangable component: " + kind);
+            }
+        var invalidHouse = new Collider { Tag = "House" };
+        Check(!RadioNativeHooks.AllowHouseTrigger(Device(8, false), invalidHouse), "Aestrin radio keeps general radio house-trigger handling");
         radio.GetComponent<RadioItemController>().State = null;
         Check(!RadioNativeHooks.AllowsHookTarget(radio, target), "uninitialized controller is ignored");
         radio.GetComponent<RadioItemController>().State = new RadioState();

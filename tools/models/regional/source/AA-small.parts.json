@@ -1,0 +1,958 @@
+{
+ "name": "AA small — Al Ankh cathedral speaker (low-poly)",
+ "pivot": [
+  0,
+  0,
+  0.7625500000000001
+ ],
+ "parts": [
+  {
+   "id": "AA-small-foot-1",
+   "name": "Brass foot 1",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    2.2,
+    0.8,
+    2.2
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -7,
+    0.4,
+    4.6,
+    1
+   ]
+  },
+  {
+   "id": "AA-small-foot-2",
+   "name": "Brass foot 2",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    2.2,
+    0.8,
+    2.2
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    7,
+    0.4,
+    4.6,
+    1
+   ]
+  },
+  {
+   "id": "AA-small-foot-3",
+   "name": "Brass foot 3",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    2.2,
+    0.8,
+    2.2
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -7,
+    0.4,
+    -4.6,
+    1
+   ]
+  },
+  {
+   "id": "AA-small-foot-4",
+   "name": "Brass foot 4",
+   "type": "box",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    2.2,
+    0.8,
+    2.2
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    7,
+    0.4,
+    -4.6,
+    1
+   ]
+  },
+  {
+   "id": "AA-small-plinth",
+   "name": "Plinth",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    17,
+    3.4,
+    12
+   ],
+   "material": {
+    "name": "Al Ankh mahogany",
+    "color": "#6b3a27",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    2.5,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "AA-small-plinth-cap",
+   "name": "Plinth top moulding",
+   "type": "box",
+   "role": "body",
+   "parent": null,
+   "size": [
+    16,
+    0.8,
+    11
+   ],
+   "material": {
+    "name": "Dark mahogany trim",
+    "color": "#4a2a1d",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    4.6,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "AA-small-cabinet",
+   "name": "Arched cabinet",
+   "type": "extrude",
+   "role": "body",
+   "parent": null,
+   "size": [
+    15,
+    21,
+    10
+   ],
+   "material": {
+    "name": "Al Ankh mahogany",
+    "color": "#6b3a27",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    15.5,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "AA-small-moulding",
+   "name": "Arch moulding",
+   "type": "extrude",
+   "role": "body",
+   "parent": "AA-small-cabinet",
+   "size": [
+    15,
+    21,
+    0.6
+   ],
+   "material": {
+    "name": "Dark mahogany trim",
+    "color": "#4a2a1d",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    15.5,
+    5.3,
+    1
+   ]
+  },
+  {
+   "id": "AA-small-cloth",
+   "name": "Speaker grille cloth",
+   "type": "extrude",
+   "role": "speaker",
+   "parent": "AA-small-cabinet",
+   "size": [
+    12.6,
+    18.7266,
+    0.3
+   ],
+   "material": {
+    "name": "Dark speaker grille cloth",
+    "color": "#2b241e",
+    "roughness": 0.98,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    15.3633,
+    5.15,
+    1
+   ]
+  },
+  {
+   "id": "AA-small-frame",
+   "name": "Brass arch frame",
+   "type": "extrude",
+   "role": "speaker",
+   "parent": "AA-small-cabinet",
+   "size": [
+    12.6,
+    18.7266,
+    0.5
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    15.3633,
+    5.25,
+    1
+   ]
+  },
+  {
+   "id": "AA-small-sill",
+   "name": "Brass sill",
+   "type": "box",
+   "role": "speaker",
+   "parent": "AA-small-cabinet",
+   "size": [
+    12.6,
+    0.8,
+    0.5
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    6.4,
+    5.25,
+    1
+   ]
+  },
+  {
+   "id": "AA-small-driver-cone",
+   "name": "Driver cone",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "AA-small-cabinet",
+   "size": [
+    9.6,
+    9.6,
+    0.05
+   ],
+   "material": {
+    "name": "Black paper cone",
+    "color": "#26292a",
+    "roughness": 0.9,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    15.4869,
+    5.325,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "AA-small-driver-rim",
+   "name": "Driver brass rim",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "AA-small-cabinet",
+   "size": [
+    10.2,
+    10.2,
+    0.06
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    15.4869,
+    5.33,
+    1
+   ],
+   "profile": [
+    [
+     5.09598,
+     0.015
+    ],
+    [
+     5.07,
+     0.03
+    ],
+    [
+     5.04402,
+     0.015
+    ],
+    [
+     5.04402,
+     -0.015
+    ],
+    [
+     5.07,
+     -0.03
+    ],
+    [
+     5.09598,
+     -0.015
+    ]
+   ]
+  },
+  {
+   "id": "AA-small-driver-cap",
+   "name": "Driver dust cap",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "AA-small-cabinet",
+   "size": [
+    2.4,
+    2.4,
+    0.06
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    15.4869,
+    5.390000000000001,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "AA-small-slats",
+   "name": "Mahogany louvre slats",
+   "type": "mesh",
+   "role": "speaker",
+   "parent": "AA-small-cabinet",
+   "size": [
+    11,
+    15.62,
+    0.6
+   ],
+   "material": {
+    "name": "Mahogany slats",
+    "color": "#7a4a30",
+    "roughness": 0.94,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    14.74,
+    5.75,
+    1
+   ]
+  },
+  {
+   "id": "AA-small-volume-skirt",
+   "name": "Volume — skirt ring",
+   "type": "lathe",
+   "role": "control",
+   "parent": "AA-small-plinth",
+   "size": [
+    2.5875,
+    2.5875,
+    0.25
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    5,
+    2.5,
+    6.125,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "AA-small-volume-knob",
+   "name": "Volume — knob",
+   "type": "extrude",
+   "role": "control",
+   "parent": "AA-small-volume-skirt",
+   "size": [
+    2.07,
+    2.07,
+    1.1385
+   ],
+   "material": {
+    "name": "Dark mahogany trim",
+    "color": "#4a2a1d",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    5,
+    2.5,
+    6.81925,
+    1
+   ]
+  },
+  {
+   "id": "AA-small-volume-cap",
+   "name": "Volume — brass cap",
+   "type": "lathe",
+   "role": "control",
+   "parent": "AA-small-volume-knob",
+   "size": [
+    1.2834,
+    1.2834,
+    0.1139
+   ],
+   "material": {
+    "name": "Brushed brass",
+    "color": "#a88e57",
+    "roughness": 0.62,
+    "metalness": 0.6
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    5,
+    2.5,
+    7.38855,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "AA-small-volume-index",
+   "name": "Volume — pointer",
+   "type": "box",
+   "role": "control",
+   "parent": "AA-small-volume-knob",
+   "size": [
+    0.2484,
+    0.828,
+    0.1594
+   ],
+   "material": {
+    "name": "Brushed brass",
+    "color": "#a88e57",
+    "roughness": 0.62,
+    "metalness": 0.6
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    5,
+    3.0589,
+    7.4454,
+    1
+   ]
+  },
+  {
+   "id": "AA-small-power-socket",
+   "name": "Power — panel plate",
+   "type": "box",
+   "role": "control",
+   "parent": "AA-small-plinth",
+   "size": [
+    3.3689,
+    3.3689,
+    0.25
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -5,
+    2.5,
+    6.125,
+    1
+   ]
+  },
+  {
+   "id": "AA-small-power-screws",
+   "name": "Power — plate screws",
+   "type": "mesh",
+   "role": "detail",
+   "parent": "AA-small-power-socket",
+   "size": [
+    2.8973,
+    2.8431,
+    0.1213
+   ],
+   "material": {
+    "name": "Brushed brass",
+    "color": "#a88e57",
+    "roughness": 0.62,
+    "metalness": 0.6
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -5,
+    2.5,
+    6.31065,
+    1
+   ]
+  },
+  {
+   "id": "AA-small-power-collar",
+   "name": "Power — hex collar",
+   "type": "mesh",
+   "role": "detail",
+   "parent": "AA-small-power-socket",
+   "size": [
+    2.6951,
+    2.3341,
+    0.42
+   ],
+   "material": {
+    "name": "Brushed brass",
+    "color": "#a88e57",
+    "roughness": 0.62,
+    "metalness": 0.6
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -5,
+    2.5,
+    6.46,
+    1
+   ]
+  },
+  {
+   "id": "AA-small-power-button",
+   "name": "Power — button",
+   "type": "lathe",
+   "role": "control",
+   "parent": "AA-small-power-socket",
+   "size": [
+    2.0431,
+    2.0431,
+    0.5
+   ],
+   "material": {
+    "name": "Brushed brass",
+    "color": "#a88e57",
+    "roughness": 0.62,
+    "metalness": 0.6
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -5,
+    2.5,
+    6.5,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.0215,
+     0
+    ],
+    [
+     1.0215,
+     0.44
+    ],
+    [
+     0.95,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  }
+ ]
+}

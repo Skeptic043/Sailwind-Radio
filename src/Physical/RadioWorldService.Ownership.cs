@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using SailwindRadio.Persistence;
 using SailwindRadio.Shops;
+using UnityEngine;
 
 namespace SailwindRadio.Physical
 {
@@ -36,7 +37,7 @@ namespace SailwindRadio.Physical
             if (!controller || controller.State == null || !item || !item.sold ||
                 (!items.Contains(controller) && !pendingBindings.Contains(controller))) return false;
             // Migrated live donors intentionally retain their native name and lack a marker.
-            if (!marker && items.Contains(controller) && prefab.gameObject.name == DonorName + "(Clone)" &&
+            if (!marker && items.Contains(controller) && IsDonorClone(prefab) &&
                 store.TryGet(prefab.instanceId, prefab.prefabIndex, out var legacy) && legacy.Kind == controller.State.Kind &&
                 arbiter.TryGet(prefab.instanceId, out var managed) && managed.Kind == legacy.Kind)
             {
@@ -44,10 +45,7 @@ namespace SailwindRadio.Physical
                 controller.RefreshOwnership();
                 return true;
             }
-            if (!marker ||
-                marker.Kind != controller.State.Kind || marker.Kind < 0 || marker.Kind > 3 ||
-                prefab.prefabIndex != RadioSaveStore.ItemIndex(marker.Kind) ||
-                !IsTemplateInstanceName(prefab.gameObject.name, marker.Kind)) return false;
+            if (!IsRegisteredClone(prefab, controller.State.Kind)) return false;
             var stock = prefab.GetComponent<RadioShopStock>();
             if (stock && stock.Controller != controller) return false;
             int id = prefab.instanceId;
@@ -75,6 +73,21 @@ namespace SailwindRadio.Physical
             }
             return true;
         }
+
+        // The one identity rule for a clone of a registered template of this kind.
+        internal static bool IsRegisteredClone(SaveablePrefab prefab, int kind)
+        {
+            var marker = prefab.GetComponent<RadioTemplateMarker>();
+            return marker && marker.Kind == kind && DeviceKind.IsValid(kind) &&
+                prefab.prefabIndex == RadioSaveStore.ItemIndex(kind) && IsTemplateInstanceName(prefab.gameObject.name, kind);
+        }
+
+        // A live clone of the legacy donor. Callers apply their own prefab index rule.
+        private static bool IsDonorClone(Component clone) => clone.gameObject.name == DonorName + "(Clone)";
+
+        // Exactly the native item types with the native box collider, never a subclassed or decorated item.
+        private static bool IsPlainNativeItem(SaveablePrefab prefab, ShipItem item) =>
+            item && item.GetType() == typeof(ShipItem) && prefab.GetType() == typeof(SaveablePrefab) && prefab.GetComponent<BoxCollider>();
 
         private void ReconcileShopOwnership(RadioItemController controller)
         {

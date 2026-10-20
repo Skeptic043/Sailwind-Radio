@@ -67,14 +67,37 @@ internal static class Program
         var restored = new RadioSaveStore();
         Check(restored.Load(json), "valid document round trips");
         Check(restored.TryGet(42, RadioSaveStore.DonorIndex, out var record), "stable native identity survives");
-        Check(RadioSaveStore.ItemIndex(0) == 43040 && RadioSaveStore.ItemIndex(3) == 43043 &&
-            RadioSaveStore.ItemIndex(1) != RadioSaveStore.ItemIndex(2), "four stable registered item identities");
-        var occupied = new HashSet<int> { 604, 605, 820, 821, 43044 };
-        Check(RadioSaveStore.CanClaimItemSlots(occupied.Contains, out int collision) && collision == -1,
-            "fixed Radio slots ignore other providers and appended directory growth");
+        Check(RadioSaveStore.ItemIndex(0) == 43040 && RadioSaveStore.ItemIndex(3) == 43043 && RadioSaveStore.ItemIndex(15) == 43055 &&
+            RadioSaveStore.ItemIndex(1) != RadioSaveStore.ItemIndex(2), "sixteen stable registered item identities keep the walnut slots");
+        Check(RadioSaveStore.IsItemIndex(43040) && RadioSaveStore.IsItemIndex(43055) && !RadioSaveStore.IsItemIndex(43039) &&
+            !RadioSaveStore.IsItemIndex(43056), "registered item range covers exactly the sixteen device kinds");
+        bool outOfRange = false;
+        try { RadioSaveStore.ItemIndex(16); } catch (ArgumentOutOfRangeException) { outOfRange = true; }
+        Check(outOfRange, "no item slot exists beyond the sixteen device kinds");
+        var present = new[] { 0, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15 };
+        var occupied = new HashSet<int> { 604, 605, 820, 821, 43044, 43048, 43052 };
+        var skipped = new List<(int family, int slot)>();
+        var claimed = RadioSaveStore.ClaimItemKinds(present, occupied.Contains, (f, s) => skipped.Add((f, s)), out int collision);
+        Check(claimed != null && claimed.SequenceEqual(present) && collision == -1 && skipped.Count == 0,
+            "fixed Radio slots ignore other providers and the slots of kinds without a model");
+        Check(RadioSaveStore.DirectoryLength(claimed) == 43056, "the registered kinds set the directory length");
+        occupied.Add(RadioSaveStore.ItemIndex(6));
+        claimed = RadioSaveStore.ClaimItemKinds(present, occupied.Contains, (f, s) => skipped.Add((f, s)), out collision);
+        Check(claimed != null && claimed.SequenceEqual(new[] { 0, 1, 2, 3, 9, 10, 11, 13, 14, 15 }) &&
+            skipped.Count == 1 && skipped[0] == (1, RadioSaveStore.ItemIndex(6)),
+            "an occupied regional slot skips its whole family while the walnut and other families register");
+        skipped.Clear();
+        occupied.Add(RadioSaveStore.ItemIndex(15));
+        claimed = RadioSaveStore.ClaimItemKinds(present, occupied.Contains, (f, s) => skipped.Add((f, s)), out collision);
+        Check(claimed != null && claimed.SequenceEqual(new[] { 0, 1, 2, 3, 9, 10, 11 }) && RadioSaveStore.DirectoryLength(claimed) == 43052 &&
+            skipped.Count == 2, "a skipped last family shortens the directory to the registered kinds");
+        foreach (int kind in new[] { 9, 10, 11 }) occupied.Add(RadioSaveStore.ItemIndex(kind));
+        claimed = RadioSaveStore.ClaimItemKinds(present, occupied.Contains, null, out collision);
+        Check(claimed != null && claimed.SequenceEqual(new[] { 0, 1, 2, 3 }) && RadioSaveStore.DirectoryLength(claimed) == 43044,
+            "walnut devices register exactly as before when every regional slot is occupied");
         occupied.Add(RadioSaveStore.ItemIndex(2));
-        Check(!RadioSaveStore.CanClaimItemSlots(occupied.Contains, out collision) && collision == RadioSaveStore.ItemIndex(2),
-            "an occupied fixed slot blocks registration without choosing another index");
+        Check(RadioSaveStore.ClaimItemKinds(present, occupied.Contains, null, out collision) == null && collision == RadioSaveStore.ItemIndex(2),
+            "an occupied walnut slot blocks registration without choosing another index");
         Check(RadioSaveStore.HasUniqueNativeOwner(42, new[] { 17, 42, 80 }, out int owners) && owners == 1,
             "one live native owner can restore its Radio state");
         Check(!RadioSaveStore.HasUniqueNativeOwner(42, new[] { 42, 42 }, out owners) && owners == 2,
@@ -86,19 +109,27 @@ internal static class Program
         Check(!RadioSaveStore.HasUniqueNativeOwner(0, new[] { 0 }, out _),
             "unassigned native identities never own Radio state");
         RestoreDeferralChecks();
-        for (int kind = 0; kind < 4; kind++)
+        for (int kind = 0; kind < 16; kind++)
         {
             var indexed = RadioRecord.Capture(200 + kind, RadioSaveStore.ItemIndex(kind), new RadioState { Kind = kind, Volume = .5f });
             restored.Put(indexed);
             var roundtrip = new RadioSaveStore();
-            Check(roundtrip.Load(restored.Save()) && roundtrip.TryGet(200 + kind, RadioSaveStore.ItemIndex(kind), out _),
-                "registered kind survives save and reload");
-            var mismatched = RadioRecord.Capture(250 + kind, RadioSaveStore.ItemIndex((kind + 1) % 4),
-                new RadioState { Kind = kind, Volume = .5f });
-            bool mismatch = false;
-            try { restored.Put(mismatched); } catch (SerializationException) { mismatch = true; }
-            Check(mismatch, "registered record rejects mismatched device kind");
+            Check(roundtrip.Load(restored.Save()) && roundtrip.TryGet(200 + kind, RadioSaveStore.ItemIndex(kind), out var reloaded) &&
+                reloaded.Kind == kind, "registered kind " + kind + " survives save and reload");
+            // A regional kind beside the same role in another family, and the donor for any regional kind, are both foreign.
+            foreach (int prefab in new[] { RadioSaveStore.ItemIndex((kind + 1) % 4 + kind / 4 * 4), RadioSaveStore.ItemIndex((kind + 4) % 16),
+                RadioSaveStore.DonorIndex })
+            {
+                if (prefab == RadioSaveStore.DonorIndex && kind < 4) continue;
+                var mismatched = RadioRecord.Capture(250 + kind, prefab, new RadioState { Kind = kind, Volume = .5f });
+                bool mismatch = false;
+                try { restored.Put(mismatched); } catch (SerializationException) { mismatch = true; }
+                Check(mismatch, "registered record rejects mismatched prefab index " + prefab + " for kind " + kind);
+            }
         }
+        var outOfRangeKind = new RadioSaveStore();
+        Check(!outOfRangeKind.Load("{\"Schema\":3,\"Radios\":[{\"InstanceId\":5,\"PrefabIndex\":43056,\"Kind\":16,\"Volume\":0.5}]}") && !outOfRangeKind.Writable,
+            "an unknown device kind keeps the whole document preserved rather than partly loaded");
         var migrating = new RadioSaveStore();
         migrating.Put(Record(301));
         Check(migrating.MigrateLegacy(301, 0) && migrating.TryGet(301, RadioSaveStore.ItemIndex(0), out _),

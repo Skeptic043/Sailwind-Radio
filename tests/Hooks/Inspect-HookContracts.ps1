@@ -20,6 +20,12 @@ function Assert-HookReference($Method, [string]$Reference) {
         throw "Missing contract reference $Reference in $($Method.FullName)"
     }
 }
+# Patch groups pass their installation to InstallGroup as a lambda compiled into a separate method.
+function Get-InstallerInstructions($Assembly, [string]$TypeName, [string]$MethodName) {
+    $installer = Find-HookMethod $Assembly $TypeName $MethodName
+    $lambdas = @($installer.DeclaringType.Methods | Where-Object { $_.Name.StartsWith("<$MethodName>") })
+    return @(@($installer) + $lambdas | ForEach-Object { $_.Body.Instructions })
+}
 function Show-HookMethod($Method) {
     Write-Output $Method.FullName
     foreach ($instruction in $Method.Body.Instructions) {
@@ -46,13 +52,15 @@ try {
     Assert-HookReference $click 'HangableItem::ConnectJoint'
     Show-HookMethod $click
 
-    $installer = Find-HookMethod $radio 'SailwindRadio.Physical.RadioWorldService' 'TryPatchNativeHooks'
+    $installer = Get-InstallerInstructions $radio 'SailwindRadio.Physical.RadioWorldService' 'TryPatchNativeHooks'
     foreach ($name in @('AllowOnItemClick', 'HookTargetPostfix')) {
-        if (-not @($installer.Body.Instructions | Where-Object { $_.OpCode.Name -eq 'ldstr' -and $_.Operand -eq $name }).Count) {
+        if (-not @($installer | Where-Object { $_.OpCode.Name -eq 'ldstr' -and $_.Operand -eq $name }).Count) {
             throw "Hook patch installer is missing $name"
         }
     }
-    Assert-HookReference $installer 'HarmonyLib.Harmony::Patch'
+    if (-not @($installer | Where-Object { $_.Operand -and $_.Operand.ToString().Contains('HarmonyLib.Harmony::Patch') }).Count) {
+        throw 'Hook patch installer is missing HarmonyLib.Harmony::Patch'
+    }
     $postfix = Find-HookMethod $radio 'SailwindRadio.Physical.RadioWorldService' 'HookTargetPostfix'
     if (($postfix.Parameters.Name -join ',') -ne '__instance,lookedAtButton,__result' -or
         $postfix.Parameters[2].ParameterType.FullName -ne 'System.Boolean&') { throw 'Hook postfix Harmony parameter contract changed' }
@@ -71,9 +79,9 @@ try {
     Show-HookMethod $exitSlot
     $boarding = Find-HookMethod $game 'ShipItem' 'OnTriggerEnter'
     Assert-HookReference $boarding 'ShipItem::currentlyStayedEmbarkCol'
-    $inventoryInstaller = Find-HookMethod $radio 'SailwindRadio.Physical.RadioWorldService' 'TryPatchInventoryControls'
+    $inventoryInstaller = Get-InstallerInstructions $radio 'SailwindRadio.Physical.RadioWorldService' 'TryPatchInventoryControls'
     foreach ($name in @('EnterInventorySlot', 'ExitInventorySlot', 'InventoryEnterPostfix', 'InventoryExitPostfix')) {
-        if (-not @($inventoryInstaller.Body.Instructions | Where-Object { $_.OpCode.Name -eq 'ldstr' -and $_.Operand -eq $name }).Count) {
+        if (-not @($inventoryInstaller | Where-Object { $_.OpCode.Name -eq 'ldstr' -and $_.Operand -eq $name }).Count) {
             throw "Inventory control installer is missing $name"
         }
     }

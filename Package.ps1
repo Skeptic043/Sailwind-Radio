@@ -36,7 +36,9 @@ $radioBinaryFiles = [ordered]@{
     'BepInEx/plugins/SailwindRadio/NLayer.dll' = "$PSScriptRoot\artifacts\build\$radioVersion\NLayer.dll"
     'README.md' = "$PSScriptRoot\README.md"
     'LICENSE' = "$PSScriptRoot\LICENSE"
+    'ASSET_LICENSES.md' = "$PSScriptRoot\ASSET_LICENSES.md"
     'THIRD_PARTY_NOTICES.md' = "$PSScriptRoot\THIRD_PARTY_NOTICES.md"
+    'licenses/CC-BY-NC-4.0.txt' = "$PSScriptRoot\licenses\CC-BY-NC-4.0.txt"
     'licenses/NLayer.txt' = "$PSScriptRoot\licenses\NLayer.txt"
     'docs/BUILDING.md' = "$PSScriptRoot\docs\BUILDING.md"
     'docs/SHOPS.md' = "$PSScriptRoot\docs\SHOPS.md"
@@ -48,7 +50,9 @@ $radioPublicFiles = [ordered]@{
     'README.md' = "$PSScriptRoot\README.md"
     'CHANGELOG.md' = "$PSScriptRoot\CHANGELOG.md"
     'LICENSE' = "$PSScriptRoot\LICENSE"
+    'ASSET_LICENSES.md' = "$PSScriptRoot\ASSET_LICENSES.md"
     'THIRD_PARTY_NOTICES.md' = "$PSScriptRoot\THIRD_PARTY_NOTICES.md"
+    'licenses/CC-BY-NC-4.0.txt' = "$PSScriptRoot\licenses\CC-BY-NC-4.0.txt"
     'licenses/NLayer.txt' = "$PSScriptRoot\licenses\NLayer.txt"
     'BepInEx/plugins/SailwindRadio/SailwindRadio.dll' = "$PSScriptRoot\artifacts\build\$radioVersion\SailwindRadio.dll"
     'BepInEx/plugins/SailwindRadio/NLayer.dll' = "$PSScriptRoot\artifacts\build\$radioVersion\NLayer.dll"
@@ -58,6 +62,17 @@ if ($radioManifest.version_number -ne $radioVersion -or $radioManifest.name -ne 
     @($radioManifest.dependencies).Count -ne 1 -or $radioManifest.dependencies[0] -ne 'BepInEx-BepInExPack-5.4.2305') {
     throw 'Thunderstore manifest does not match the public package version, name or loader dependency.'
 }
+$radioAssetLicense = Get-Content -LiteralPath "$PSScriptRoot\ASSET_LICENSES.md" -Raw
+$radioCcLicense = Get-Content -LiteralPath "$PSScriptRoot\licenses\CC-BY-NC-4.0.txt" -Raw
+if ($radioAssetLicense -notmatch 'CC-BY-NC-4\.0' -or $radioAssetLicense -notmatch 'kinds 4 through 15' -or
+    $radioAssetLicense -notmatch 'tools/models/regional/source/AA-radio\.glb' -or
+    $radioAssetLicense -notmatch 'tools/models/regional/source/EA-woofer\.glb') {
+    throw 'Regional model license notice does not identify the expected CC license, runtime kinds and source boundary.'
+}
+if ($radioCcLicense -notmatch 'Attribution-NonCommercial 4\.0 International' -or
+    $radioCcLicense -notmatch 'Section 8 -- Interpretation\.') {
+    throw 'CC BY-NC 4.0 legal text is missing or incomplete.'
+}
 Add-Type -AssemblyName System.Drawing
 $radioIcon = [Drawing.Image]::FromFile("$PSScriptRoot\icon.png")
 try {
@@ -66,17 +81,18 @@ try {
     }
 } finally { $radioIcon.Dispose() }
 $radioSourceFiles = [ordered]@{}
-foreach ($radioName in @('.gitignore', 'README.md', 'CHANGELOG.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'manifest.json', 'icon.png', 'Radio.csproj', 'Directory.Build.props', 'Build.ps1', 'Package.ps1')) {
+foreach ($radioName in @('.gitignore', 'README.md', 'CHANGELOG.md', 'LICENSE', 'ASSET_LICENSES.md', 'THIRD_PARTY_NOTICES.md', 'manifest.json', 'icon.png', 'Radio.csproj', 'Directory.Build.props', 'Build.ps1', 'Package.ps1')) {
     $radioSourceFiles[$radioName] = Join-Path $PSScriptRoot $radioName
 }
 $radioSourceFiles['licenses/NLayer.txt'] = "$PSScriptRoot\licenses\NLayer.txt"
+$radioSourceFiles['licenses/CC-BY-NC-4.0.txt'] = "$PSScriptRoot\licenses\CC-BY-NC-4.0.txt"
 $radioSourceFiles['assets/runtime/radio-items.assets'] = "$PSScriptRoot\assets\runtime\radio-items.assets"
 foreach ($radioSourceDirectory in @('src', 'tests', 'docs', 'assets', 'tools')) {
     Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot $radioSourceDirectory) -Recurse -File | ForEach-Object {
         $radioRelative = $_.FullName.Substring($PSScriptRoot.Length + 1).Replace('\', '/')
         # Unity editor projects live under ignored .local. src/Library and tests/Library
         # are production music code, not Unity's root Library cache.
-        if (-not (Test-RadioPrivatePath $radioRelative) -and $radioRelative -notlike 'assets/authoring/*' -and $radioRelative -notmatch '/(bin|obj|Temp|Logs|\.local|__pycache__)/' -and $_.Extension -in @('.cs', '.csproj', '.ps1', '.md', '.json', '.py', '.png')) {
+        if (-not (Test-RadioPrivatePath $radioRelative) -and $radioRelative -notlike 'assets/authoring/*' -and $radioRelative -notmatch '/(bin|obj|Temp|Logs|\.local|__pycache__)/' -and $_.Extension -in @('.cs', '.csproj', '.ps1', '.md', '.json', '.py', '.png', '.glb', '.wav', '.shader')) {
             $radioSourceFiles[$radioRelative] = $_.FullName
         }
     }
@@ -171,7 +187,7 @@ $radioResult = [ordered]@{
     binary_entries = $radioBinaryFiles.Count
     public_entries = $radioPublicFiles.Count
     source_entries = $radioSourceFiles.Count
-    live_sailwind_acceptance = 'pending'
+    live_sailwind_acceptance = 'user-confirmed 2026-10-20'
 }
 $radioResult | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $radioOutput "SailwindRadio-$radioVersion-validation.json") -Encoding utf8
 $radioResult | ConvertTo-Json

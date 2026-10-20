@@ -1,6 +1,6 @@
 using System;
 
-namespace SailwindRadio
+namespace SailwindRadio.Audio
 {
     // Decodes one local file to interleaved float PCM for the stream worker. Implementations never touch Unity objects.
     internal interface IPcmDecoder : IDisposable

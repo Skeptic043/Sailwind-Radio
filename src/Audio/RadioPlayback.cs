@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
-namespace SailwindRadio
+namespace SailwindRadio.Audio
 {
     /// <summary>One local track streamed to the built-in emitter and any speaker endpoints. Call only from the Unity main thread.</summary>
     public sealed partial class RadioPlayback : IDisposable
@@ -35,14 +35,11 @@ namespace SailwindRadio
         private double scheduledDsp;
         private double lastDsp;
         private int scheduledSample;
-        // Playhead at the previous running Tick, so loop damage ends the track only where it is crossed.
-        private int lastSample;
         private double loadStartedAt;
         private double streamWaitingSince = -1;
 
         public string Status { get; private set; }
         public string TrackLabel { get; private set; }
-        public bool RepeatTrack { get; set; } = true;
         public bool TrackEnded { get; private set; }
         public bool LoadFailed { get { return failure != null; } }
         public string FailedPath { get; private set; }
@@ -139,12 +136,7 @@ namespace SailwindRadio
             state.Volume = Single.IsNaN(state.Volume) ? 0.5f : Mathf.Clamp01(state.Volume);
             // The saved knob value stays as set. Outputs square it for useful quiet tabletop settings.
             builtIn.Update(state.Volume, listenerPosition, listenerKnown);
-            source.loop = RepeatTrack;
-            foreach (var endpoint in endpoints.Values)
-            {
-                endpoint.Update(state.Volume, listenerPosition, listenerKnown);
-                if (endpoint.Source != null) endpoint.Source.loop = RepeatTrack;
-            }
+            foreach (var endpoint in endpoints.Values) endpoint.Update(state.Volume, listenerPosition, listenerKnown);
             double dsp = AudioSettings.dspTime;
             if (resetRequested || dsp < lastDsp)
             {
@@ -175,7 +167,6 @@ namespace SailwindRadio
             AttachStream();
             if (streamed != null)
             {
-                streamed.Loop = RepeatTrack;
                 Exception fault = streamed.Fault;
                 if (fault != null) FailStream(fault);
                 else if (clip != null) streamed.Request(running ? SampleAt(dsp) : SafeSavedFrame());
@@ -241,7 +232,7 @@ namespace SailwindRadio
         private int SampleAt(double dsp)
         {
             long sample = scheduledSample + (long)Math.Round(Math.Max(0, dsp - scheduledDsp) * clip.frequency);
-            return RepeatTrack ? (int)(sample % clip.samples) : (int)Math.Min(clip.samples, sample);
+            return (int)Math.Min(clip.samples, sample);
         }
 
         internal static float DistanceGain(float distance)
@@ -298,16 +289,15 @@ namespace SailwindRadio
             double position = state.PositionSeconds;
             if (Double.IsNaN(position) || Double.IsInfinity(position) || position < 0) position = 0;
             double duration = clip.samples / (double)clip.frequency;
-            if (!RepeatTrack && position >= duration)
+            if (position >= duration)
             {
                 state.PositionSeconds = duration;
                 TrackEnded = true;
                 return;
             }
-            scheduledSample = (int)Math.Min(clip.samples - 1, Math.Floor((position % duration) * clip.frequency));
+            scheduledSample = (int)Math.Min(clip.samples - 1, Math.Floor(position * clip.frequency));
             double now = AudioSettings.dspTime;
             scheduledDsp = now + (voicesPaused ? 0 : ScheduleLeadSeconds);
-            lastSample = scheduledSample;
             if (voicesPaused)
             {
                 ResumeOutput(builtIn, now);
@@ -338,7 +328,7 @@ namespace SailwindRadio
 
         private bool FinishIfEnded()
         {
-            if (!running || RepeatTrack || clip == null || AudioSettings.dspTime < EndDspTime()) return false;
+            if (!running || clip == null || AudioSettings.dspTime < EndDspTime()) return false;
             state.PositionSeconds = clip.samples / (double)clip.frequency;
             TrackEnded = true;
             StopOutputs();
@@ -347,22 +337,11 @@ namespace SailwindRadio
 
         // A decode failure after audio played ends the track where the damage starts, like a normal
         // end, so the queue advances and keeps the song. A paused radio ends only once it would play.
-        // Damage found by the looping look-ahead lies behind the playhead, so it ends the track only
-        // once the wrapped playhead crosses it, and never from a saved position.
         private void FinishIfDamaged(double dsp, bool wantsToPlay)
         {
             if (streamed == null || clip == null || TrackEnded) return;
-            int damage = streamed.DamageFrame, loopDamage = streamed.LoopDamageFrame;
-            bool reached;
-            if (running)
-            {
-                int sample = SampleAt(dsp), previous = lastSample;
-                lastSample = sample;
-                reached = sample >= damage || (loopDamage < clip.samples && (sample >= previous
-                    ? previous <= loopDamage && loopDamage <= sample
-                    : previous <= loopDamage || sample >= loopDamage));
-            }
-            else reached = wantsToPlay && SafeSavedFrame() >= damage;
+            int damage = streamed.DamageFrame;
+            bool reached = running ? SampleAt(dsp) >= damage : wantsToPlay && SafeSavedFrame() >= damage;
             if (!reached) return;
             Exception reason = streamed.Damage;
             state.PositionSeconds = clip.samples / (double)clip.frequency;
@@ -387,14 +366,14 @@ namespace SailwindRadio
         {
             if (output.Running || output.Source == null) return;
             double start = waitingForStart ? scheduledDsp : now + ScheduleLeadSeconds;
-            if (!RepeatTrack && start >= EndDspTime()) return;
+            if (start >= EndDspTime()) return;
             ScheduleEndpoint(output, start, SampleAt(start));
         }
 
         private void ScheduleEndpoint(RadioSpeakerOutput endpoint, double start, int sample)
         {
             if (endpoint.Source == null) return;
-            if (clip == null || sample < 0 || sample >= clip.samples || (!RepeatTrack && start >= EndDspTime())) return;
+            if (clip == null || sample < 0 || sample >= clip.samples || start >= EndDspTime()) return;
             Want(sample);
             if (endpoint.StreamClip == null)
             {
@@ -403,7 +382,6 @@ namespace SailwindRadio
                 if (endpoint.StreamClip == null) return;
             }
             endpoint.Source.clip = endpoint.StreamClip;
-            endpoint.Source.loop = RepeatTrack;
             // Unity alone positions the reader. It seeks it on PlayScheduled to a nonzero sample and, at sample 0,
             // plays the opening it pre-read. Moving the reader here would desynchronize it from that buffered audio.
             endpoint.Source.timeSamples = sample;
@@ -493,7 +471,6 @@ namespace SailwindRadio
             if (output.Source.isPlaying && (output.Source.isVirtual || output.Source.volume <= 0)) { output.DriftObservations = 0; return; }
             int expected = SampleAt(now);
             int difference = Math.Abs(output.Source.timeSamples - expected);
-            if (RepeatTrack) difference = Math.Min(difference, clip.samples - difference);
             int bufferLength, bufferCount;
             AudioSettings.GetDSPBufferSize(out bufferLength, out bufferCount);
             double tolerance = Math.Max(.05, 2d * bufferLength / Math.Max(8000, AudioSettings.outputSampleRate) + .01);

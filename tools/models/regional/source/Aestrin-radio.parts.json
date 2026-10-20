@@ -1,0 +1,3810 @@
+{
+ "name": "Aestrin 06 — set style (low-poly)",
+ "pivot": [
+  -6.500000000000001,
+  0.0499999999999996,
+  0.5
+ ],
+ "parts": [
+  {
+   "id": "Aestrin-01-Desk-Receiver-housing",
+   "name": "Sloped hollow chassis — sides / back / bottom",
+   "type": "mesh",
+   "role": "body",
+   "parent": null,
+   "size": [
+    28,
+    13.8,
+    15
+   ],
+   "material": {
+    "name": "Weathered dark oak",
+    "color": "#4e382b",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -6.5,
+    8,
+    0.5,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-lower-front",
+   "name": "Lower front fascia",
+   "type": "box",
+   "role": "body",
+   "parent": "Aestrin-01-Desk-Receiver-housing",
+   "size": [
+    27.1,
+    2.8,
+    0.55
+   ],
+   "material": {
+    "name": "Weathered dark oak",
+    "color": "#4e382b",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -6.5,
+    2.8,
+    7.95,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-deck-cross-shaft",
+   "name": "Internal deck support cross-shaft",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-housing",
+   "size": [
+    0.24,
+    0.24,
+    26.349999999999998
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    0,
+    -0.7104819346476358,
+    -0.703715440031944,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    1,
+    0,
+    0,
+    0,
+    -6.5000000000000036,
+    9.415807000000001,
+    2.468514,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-deck",
+   "name": "Sloped control deck — complete assembly",
+   "type": "mesh",
+   "role": "body",
+   "parent": "Aestrin-01-Desk-Receiver-deck-cross-shaft",
+   "size": [
+    27.15,
+    14.228700890132393,
+    0.42
+   ],
+   "material": {
+    "name": "Grey green enamel",
+    "color": "#57665d",
+    "roughness": 0.62,
+    "metalness": 0.08
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -6.5000000000000036,
+    9.699999773859055,
+    2.7500001760127777,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-frame",
+   "name": "Readout Frame frame",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    17.080000000000002,
+    4.65,
+    0.45
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -6.5000000000000036,
+    11.80404127460841,
+    0.6115172176695509,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-back",
+   "name": "Split-leaf mechanism shadow recess",
+   "type": "box",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    16.13,
+    4.15,
+    1.35
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -6.5000000000000036,
+    11.264075004276208,
+    0.07669348324527359,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-01",
+   "name": "Title split-leaf cell 01",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -13.810000000000002,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-02",
+   "name": "Title split-leaf cell 02",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -12.950000000000003,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-03",
+   "name": "Title split-leaf cell 03",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -12.090000000000003,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-04",
+   "name": "Title split-leaf cell 04",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -11.230000000000004,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-05",
+   "name": "Title split-leaf cell 05",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -10.370000000000005,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-06",
+   "name": "Title split-leaf cell 06",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -9.510000000000003,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-07",
+   "name": "Title split-leaf cell 07",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -8.650000000000004,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-08",
+   "name": "Title split-leaf cell 08",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -7.790000000000004,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-09",
+   "name": "Title split-leaf cell 09",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -6.930000000000003,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-10",
+   "name": "Title split-leaf cell 10",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -6.070000000000004,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-11",
+   "name": "Title split-leaf cell 11",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -5.2100000000000035,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-12",
+   "name": "Title split-leaf cell 12",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -4.350000000000003,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-13",
+   "name": "Title split-leaf cell 13",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -3.4900000000000038,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-14",
+   "name": "Title split-leaf cell 14",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -2.6300000000000034,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-15",
+   "name": "Title split-leaf cell 15",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -1.7700000000000031,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-16",
+   "name": "Title split-leaf cell 16",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -0.9100000000000037,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-17",
+   "name": "Title split-leaf cell 17",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -0.050000000000003375,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-1-18",
+   "name": "Title split-leaf cell 18",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    0.8099999999999961,
+    12.567809354354619,
+    -0.10985877330934857,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-legend-1",
+   "name": "title — static lettering",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    4.51087,
+    1.127,
+    0.065
+   ],
+   "material": {
+    "name": "Ivory leaf lettering",
+    "color": "#e3d5ae",
+    "roughness": 0.85,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -6.5000000000000036,
+    12.656619596185573,
+    -0.021894343305355557,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-hinges-1",
+   "name": "Leaf hinge lines — row 1",
+   "type": "mesh",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    15.36,
+    0.05500000000000016,
+    0.05499999999999999
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -6.5000000000000036,
+    12.70280092193767,
+    0.023847160296720737,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-01",
+   "name": "Artist split-leaf cell 01",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -13.810000000000002,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-02",
+   "name": "Artist split-leaf cell 02",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -12.950000000000003,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-03",
+   "name": "Artist split-leaf cell 03",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -12.090000000000003,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-04",
+   "name": "Artist split-leaf cell 04",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -11.230000000000004,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-05",
+   "name": "Artist split-leaf cell 05",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -10.370000000000005,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-06",
+   "name": "Artist split-leaf cell 06",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -9.510000000000003,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-07",
+   "name": "Artist split-leaf cell 07",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -8.650000000000004,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-08",
+   "name": "Artist split-leaf cell 08",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -7.790000000000004,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-09",
+   "name": "Artist split-leaf cell 09",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -6.930000000000003,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-10",
+   "name": "Artist split-leaf cell 10",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -6.070000000000004,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-11",
+   "name": "Artist split-leaf cell 11",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -5.2100000000000035,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-12",
+   "name": "Artist split-leaf cell 12",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -4.350000000000003,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-13",
+   "name": "Artist split-leaf cell 13",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -3.4900000000000038,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-14",
+   "name": "Artist split-leaf cell 14",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -2.6300000000000034,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-15",
+   "name": "Artist split-leaf cell 15",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -1.7700000000000031,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-16",
+   "name": "Artist split-leaf cell 16",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -0.9100000000000037,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-17",
+   "name": "Artist split-leaf cell 17",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -0.050000000000003375,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-leaf-2-18",
+   "name": "Artist split-leaf cell 18",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    0.76,
+    1.6099999999999999,
+    0.19
+   ],
+   "material": {
+    "name": "Charcoal split leaves",
+    "color": "#273632",
+    "roughness": 0.72,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    0.8099999999999961,
+    11.090006930287537,
+    1.3821532894506865,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-legend-2",
+   "name": "Artist — static lettering",
+   "type": "mesh",
+   "role": "display",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    5.589675,
+    1.154171,
+    0.065
+   ],
+   "material": {
+    "name": "Ivory leaf lettering",
+    "color": "#e3d5ae",
+    "roughness": 0.85,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -6.5000000000000036,
+    11.17881717211849,
+    1.4701177194546795,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-readout-hinges-2",
+   "name": "Leaf hinge lines — row 2",
+   "type": "mesh",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-readout-frame",
+   "size": [
+    15.36,
+    0.05500000000000016,
+    0.05499999999999999
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -6.5000000000000036,
+    11.224998497870587,
+    1.5158592230567558,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-tuning-escutcheon",
+   "name": "Master vol — base ring",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    3.865,
+    3.865,
+    0.18352326685660023
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -17.557500000000005,
+    12.03975192176841,
+    0.8449830015232638,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-tuning",
+   "name": "Master vol — rotary control",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    3.7000000000000006,
+    3.7000000000000006,
+    1.438888888888888
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -17.557500000000005,
+    12.634910425960229,
+    1.4344733294846854,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.85,
+     0
+    ],
+    [
+     1.85,
+     1.1511
+    ],
+    [
+     1.665,
+     1.4389
+    ],
+    [
+     0,
+     1.4389
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-tuning-index",
+   "name": "Tuning index mark",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-tuning",
+   "size": [
+    0.74,
+    2.738,
+    0.4317
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -17.557500000000005,
+    13.56078623658732,
+    1.726603351894493,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-source-socket",
+   "name": "Power — bezel",
+   "type": "lathe",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    3.3379,
+    3.3379,
+    0.28
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    6.123233995736766e-17,
+    -1,
+    0,
+    0,
+    1,
+    6.123233995736766e-17,
+    0,
+    4.4999999999999964,
+    14.999706,
+    -4.96,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-source",
+   "name": "Power — push button",
+   "type": "lathe",
+   "role": "control",
+   "parent": null,
+   "size": [
+    2.4033,
+    2.4033,
+    0.7
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    6.123233995736766e-17,
+    -1,
+    0,
+    0,
+    1,
+    6.123233995736766e-17,
+    0,
+    4.4999999999999964,
+    15.33,
+    -4.93,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.2017,
+     0
+    ],
+    [
+     1.2017,
+     0.42
+    ],
+    [
+     1.0334,
+     0.7
+    ],
+    [
+     0,
+     0.7
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-01-Desk-Receiver-base",
+   "name": "Base and feet",
+   "type": "mesh",
+   "role": "body",
+   "parent": "Aestrin-01-Desk-Receiver-housing",
+   "size": [
+    29.2,
+    1.1,
+    16.3
+   ],
+   "material": {
+    "name": "Weathered dark oak",
+    "color": "#4e382b",
+    "roughness": 0.95,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    -6.5,
+    0.5999999999999996,
+    0.5,
+    1
+   ]
+  },
+  {
+   "id": "revised-aestrin-prev-seat",
+   "name": "Previous track — inset bezel",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    3.15,
+    3.15,
+    0.23
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -11.900000000000004,
+    7.239364006862743,
+    5.731656028417356,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "revised-aestrin-prev-button",
+   "name": "Previous track — push button",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    2.475,
+    2.475,
+    0.62
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -11.900000000000004,
+    7.53776641941475,
+    6.027216513230773,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.2375,
+     0
+    ],
+    [
+     1.2375,
+     0.372
+    ],
+    [
+     1.0642,
+     0.62
+    ],
+    [
+     0,
+     0.62
+    ]
+   ]
+  },
+  {
+   "id": "revised-aestrin-prev-arrow",
+   "name": "Previous track — left arrow",
+   "type": "extrude",
+   "role": "detail",
+   "parent": "revised-aestrin-prev-button",
+   "size": [
+    1.0875,
+    0.9125,
+    0.085
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -11.900000000000004,
+    7.805973349744232,
+    6.292869091842832,
+    1
+   ]
+  },
+  {
+   "id": "revised-aestrin-next-seat",
+   "name": "Next track — inset bezel",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    3.15,
+    3.15,
+    0.23
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -4.700000000000004,
+    7.239364006862743,
+    5.731656028417356,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "revised-aestrin-next-button",
+   "name": "Next track — push button",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    2.475,
+    2.475,
+    0.62
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -4.700000000000004,
+    7.53776641941475,
+    6.027216513230773,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.2375,
+     0
+    ],
+    [
+     1.2375,
+     0.372
+    ],
+    [
+     1.0642,
+     0.62
+    ],
+    [
+     0,
+     0.62
+    ]
+   ]
+  },
+  {
+   "id": "revised-aestrin-next-arrow",
+   "name": "Next track — right arrow",
+   "type": "extrude",
+   "role": "detail",
+   "parent": "revised-aestrin-next-button",
+   "size": [
+    1.0875,
+    0.9125,
+    0.085
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -4.700000000000004,
+    7.805973349744232,
+    6.292869091842832,
+    1
+   ]
+  },
+  {
+   "id": "revised-aestrin-source-eject-arrow",
+   "name": "Source pop-out — eject arrow",
+   "type": "extrude",
+   "role": "detail",
+   "parent": "Aestrin-03-source-button",
+   "size": [
+    0.9494,
+    0.7417,
+    0.07
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    6.123233995736766e-17,
+    -1,
+    0,
+    0,
+    1,
+    6.123233995736766e-17,
+    0,
+    -17.5,
+    15.745000000000001,
+    -5.1377,
+    1
+   ]
+  },
+  {
+   "id": "revised-aestrin-source-eject-line",
+   "name": "Source pop-out — eject line",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-03-source-button",
+   "size": [
+    1.2313,
+    0.1483,
+    0.08
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    6.123233995736766e-17,
+    -1,
+    0,
+    0,
+    1,
+    6.123233995736766e-17,
+    0,
+    -17.5,
+    15.77,
+    -4.4403999999999995,
+    1
+   ]
+  },
+  {
+   "id": "8127bf37-c6c4-42fa-ac28-72490a4c0592",
+   "name": "Local vol — rotary control",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    3.145,
+    3.145,
+    1.2231
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    4.557499999999996,
+    12.558253372333608,
+    1.3585463430354612,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.5725,
+     0
+    ],
+    [
+     1.5725,
+     0.9785
+    ],
+    [
+     1.4153,
+     1.2231
+    ],
+    [
+     0,
+     1.2231
+    ]
+   ]
+  },
+  {
+   "id": "3f8d6773-7524-4048-8dbb-887212a75654",
+   "name": "Tuning index mark",
+   "type": "box",
+   "role": "detail",
+   "parent": "8127bf37-c6c4-42fa-ac28-72490a4c0592",
+   "size": [
+    0.629,
+    2.3273,
+    0.3669
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    4.557499999999996,
+    13.345187223046098,
+    1.606796850794884,
+    1
+   ]
+  },
+  {
+   "id": "67a469c8-8fc9-4315-87fb-111fe69ca3c4",
+   "name": "Right integrated speaker cloth",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    5.61,
+    5.61,
+    0.15
+   ],
+   "material": {
+    "name": "Woven speaker cloth",
+    "color": "#5b5040",
+    "roughness": 0.97,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    3.799999999999997,
+    7.214497139150076,
+    5.7070259880162375,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "879dd8f4-7e7f-458d-ae5f-d48b1a3e483e",
+   "name": "Left integrated speaker cloth",
+   "type": "lathe",
+   "role": "speaker",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    5.61,
+    5.61,
+    0.15
+   ],
+   "material": {
+    "name": "Woven speaker cloth",
+    "color": "#5b5040",
+    "roughness": 0.97,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -16.800000000000004,
+    7.214497139150076,
+    5.7070259880162375,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-speaker-left-bezel",
+   "name": "Speaker opening — brass lip",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    5.973,
+    5.973,
+    0.18
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -16.800000000000004,
+    7.299754971307792,
+    5.791471840820071,
+    1
+   ],
+   "profile": [
+    [
+     2.97444,
+     0.045
+    ],
+    [
+     2.8965,
+     0.09
+    ],
+    [
+     2.81856,
+     0.045
+    ],
+    [
+     2.81856,
+     -0.045
+    ],
+    [
+     2.8965,
+     -0.09
+    ],
+    [
+     2.97444,
+     -0.045
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-speaker-left-slat-0",
+   "name": "Speaker grille slat 1",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    3.3329,
+    0.22,
+    0.15
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -16.800000000000004,
+    5.917055629064258,
+    7.208781803022869,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-speaker-left-slat-1",
+   "name": "Speaker grille slat 2",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    4.341,
+    0.22,
+    0.15
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -16.800000000000004,
+    6.381507819485341,
+    6.739863726155429,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-speaker-left-slat-2",
+   "name": "Speaker grille slat 3",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    4.8553,
+    0.22,
+    0.15
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -16.800000000000004,
+    6.845960009906424,
+    6.27094564928799,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-speaker-left-slat-3",
+   "name": "Speaker grille slat 4",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    5.016,
+    0.22,
+    0.15
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -16.800000000000004,
+    7.310412200327507,
+    5.802027572420551,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-speaker-left-slat-4",
+   "name": "Speaker grille slat 5",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    4.8553,
+    0.22,
+    0.15
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -16.800000000000004,
+    7.77486439074859,
+    5.333109495553111,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-speaker-left-slat-5",
+   "name": "Speaker grille slat 6",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    4.341,
+    0.22,
+    0.15
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -16.800000000000004,
+    8.239316581169673,
+    4.864191418685671,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-speaker-left-slat-6",
+   "name": "Speaker grille slat 7",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    3.3329,
+    0.22,
+    0.15
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -16.800000000000004,
+    8.703768771590756,
+    4.395273341818231,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-speaker-right-bezel",
+   "name": "Speaker opening — brass lip",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    5.973,
+    5.973,
+    0.18
+   ],
+   "material": {
+    "name": "Aged brass",
+    "color": "#b09559",
+    "roughness": 0.44,
+    "metalness": 0.78
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    3.799999999999997,
+    7.299754971307792,
+    5.791471840820071,
+    1
+   ],
+   "profile": [
+    [
+     2.97444,
+     0.045
+    ],
+    [
+     2.8965,
+     0.09
+    ],
+    [
+     2.81856,
+     0.045
+    ],
+    [
+     2.81856,
+     -0.045
+    ],
+    [
+     2.8965,
+     -0.09
+    ],
+    [
+     2.97444,
+     -0.045
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-speaker-right-slat-0",
+   "name": "Speaker grille slat 1",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    3.3329,
+    0.22,
+    0.15
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    3.799999999999997,
+    5.917055629064258,
+    7.208781803022869,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-speaker-right-slat-1",
+   "name": "Speaker grille slat 2",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    4.341,
+    0.22,
+    0.15
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    3.799999999999997,
+    6.381507819485341,
+    6.739863726155429,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-speaker-right-slat-2",
+   "name": "Speaker grille slat 3",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    4.8553,
+    0.22,
+    0.15
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    3.799999999999997,
+    6.845960009906424,
+    6.27094564928799,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-speaker-right-slat-3",
+   "name": "Speaker grille slat 4",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    5.016,
+    0.22,
+    0.15
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    3.799999999999997,
+    7.310412200327507,
+    5.802027572420551,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-speaker-right-slat-4",
+   "name": "Speaker grille slat 5",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    4.8553,
+    0.22,
+    0.15
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    3.799999999999997,
+    7.77486439074859,
+    5.333109495553111,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-speaker-right-slat-5",
+   "name": "Speaker grille slat 6",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    4.341,
+    0.22,
+    0.15
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    3.799999999999997,
+    8.239316581169673,
+    4.864191418685671,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-speaker-right-slat-6",
+   "name": "Speaker grille slat 7",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    3.3329,
+    0.22,
+    0.15
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    3.799999999999997,
+    8.703768771590756,
+    4.395273341818231,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-local-vol-base",
+   "name": "Local vol — base ring",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    3.2853,
+    3.2853,
+    0.21713483146067417
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    4.557499999999996,
+    12.051692126491627,
+    0.8568094900110228,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-02-power-symbol-ring",
+   "name": "Power symbol — ring",
+   "type": "lathe",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-source",
+   "size": [
+    1.0094,
+    1.0094,
+    0.122472
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    6.123233995736766e-17,
+    -1,
+    0,
+    0,
+    1,
+    6.123233995736766e-17,
+    0,
+    4.4999999999999964,
+    15.721236,
+    -4.93,
+    1
+   ],
+   "profile": [
+    [
+     0.4965,
+     0.03062
+    ],
+    [
+     0.44346,
+     0.06124
+    ],
+    [
+     0.39043,
+     0.03062
+    ],
+    [
+     0.39043,
+     -0.03062
+    ],
+    [
+     0.44346,
+     -0.06124
+    ],
+    [
+     0.4965,
+     -0.03062
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-02-power-symbol-bar",
+   "name": "Power symbol — bar",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-01-Desk-Receiver-source",
+   "size": [
+    0.1615,
+    0.6056,
+    0.1
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    6.123233995736766e-17,
+    -1,
+    0,
+    0,
+    1,
+    6.123233995736766e-17,
+    0,
+    4.4999999999999964,
+    15.71,
+    -5.2528999999999995,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-03-source-button-socket",
+   "name": "Source — socket",
+   "type": "lathe",
+   "role": "detail",
+   "parent": null,
+   "size": [
+    3.3379,
+    3.3379,
+    0.28
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    6.123233995736766e-17,
+    -1,
+    0,
+    0,
+    1,
+    6.123233995736766e-17,
+    0,
+    -17.5,
+    14.999706,
+    -4.96,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-03-source-button",
+   "name": "Source — push button",
+   "type": "lathe",
+   "role": "control",
+   "parent": null,
+   "size": [
+    2.4033,
+    2.4033,
+    0.7
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    6.123233995736766e-17,
+    -1,
+    0,
+    0,
+    1,
+    6.123233995736766e-17,
+    0,
+    -17.5,
+    15.33,
+    -4.93,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.2017,
+     0
+    ],
+    [
+     1.2017,
+     0.42
+    ],
+    [
+     1.0334,
+     0.7
+    ],
+    [
+     0,
+     0.7
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-03-pause-seat",
+   "name": "Pause — bezel",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    3.15,
+    3.15,
+    0.23
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -8.300000000000004,
+    7.239364006862743,
+    5.731656028417356,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-03-pause-button",
+   "name": "Pause — button",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    2.475,
+    2.475,
+    0.62
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -8.300000000000004,
+    7.53776641941475,
+    6.027216513230773,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.2375,
+     0
+    ],
+    [
+     1.2375,
+     0.372
+    ],
+    [
+     1.0642,
+     0.62
+    ],
+    [
+     0,
+     0.62
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-03-pause-bar-left",
+   "name": "Pause mark — left bar",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-03-pause-button",
+   "size": [
+    0.2228,
+    0.8415,
+    0.09
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -8.522800000000004,
+    7.811301964254089,
+    6.2981469576430715,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-03-pause-bar-right",
+   "name": "Pause mark — right bar",
+   "type": "box",
+   "role": "detail",
+   "parent": "Aestrin-03-pause-button",
+   "size": [
+    0.2228,
+    0.8415,
+    0.09
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -8.077200000000005,
+    7.811301964254089,
+    6.2981469576430715,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-04-shuffle-seat",
+   "name": "Shuffle — bezel",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    3.15,
+    3.15,
+    0.23
+   ],
+   "material": {
+    "name": "Blackened iron",
+    "color": "#343b3a",
+    "roughness": 0.62,
+    "metalness": 0.66
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -1.1000000000000032,
+    7.239364006862743,
+    5.731656028417356,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     -0.5
+    ],
+    [
+     0.5,
+     -0.5
+    ],
+    [
+     0.5,
+     0.5
+    ],
+    [
+     0,
+     0.5
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-04-shuffle-button",
+   "name": "Shuffle — button",
+   "type": "lathe",
+   "role": "control",
+   "parent": "Aestrin-01-Desk-Receiver-deck",
+   "size": [
+    2.475,
+    2.475,
+    0.62
+   ],
+   "material": {
+    "name": "Dark bronze",
+    "color": "#766344",
+    "roughness": 0.55,
+    "metalness": 0.65
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -1.1000000000000032,
+    7.53776641941475,
+    6.027216513230773,
+    1
+   ],
+   "profile": [
+    [
+     0,
+     0
+    ],
+    [
+     1.2375,
+     0
+    ],
+    [
+     1.2375,
+     0.372
+    ],
+    [
+     1.0642,
+     0.62
+    ],
+    [
+     0,
+     0.62
+    ]
+   ]
+  },
+  {
+   "id": "Aestrin-04-shuffle-arrow-upper",
+   "name": "Shuffle mark — upper arrow",
+   "type": "extrude",
+   "role": "detail",
+   "parent": "Aestrin-04-shuffle-button",
+   "size": [
+    0.6525,
+    0.5475,
+    0.085
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -1.1000000000000032,
+    8.034680867754615,
+    6.06196246308235,
+    1
+   ]
+  },
+  {
+   "id": "Aestrin-04-shuffle-arrow-lower",
+   "name": "Shuffle mark — lower arrow",
+   "type": "extrude",
+   "role": "detail",
+   "parent": "Aestrin-04-shuffle-button",
+   "size": [
+    0.6525,
+    0.5475,
+    0.085
+   ],
+   "material": {
+    "name": "Ivory engraved symbol",
+    "color": "#e3d5ae",
+    "roughness": 0.8,
+    "metalness": 0
+   },
+   "world": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0.703715440031944,
+    -0.7104819346476358,
+    0,
+    0,
+    0.7104819346476358,
+    0.703715440031944,
+    0,
+    -1.1000000000000032,
+    7.57726583173385,
+    6.523775720603314,
+    1
+   ]
+  }
+ ]
+}

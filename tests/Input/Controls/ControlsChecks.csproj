@@ -5,9 +5,13 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\..\Shared\UnityValues.cs" Link="Shared\UnityValues.cs" />
+    <Compile Include="..\..\Shared\PlayerStateDoubles.cs" Link="Shared\PlayerStateDoubles.cs" />
     <Compile Include="..\..\..\src\Physical\RadioVolumeKnob.cs" Link="RadioVolumeKnob.cs" />
     <Compile Include="..\..\..\src\Physical\RadioButtons.cs" Link="RadioButtons.cs" />
     <Compile Include="..\..\..\src\Physical\RadioHeldItemTarget.cs" Link="RadioHeldItemTarget.cs" />
+    <Compile Include="..\..\..\src\Physical\RadioControlReach.cs" Link="RadioControlReach.cs" />
     <Compile Include="..\..\..\src\RadioState.cs" Link="RadioState.cs" />
+    <Compile Include="..\..\..\src\DeviceKind.cs" Link="DeviceKind.cs" />
   </ItemGroup>
 </Project>

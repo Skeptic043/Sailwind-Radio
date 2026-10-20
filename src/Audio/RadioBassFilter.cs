@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace SailwindRadio
+namespace SailwindRadio.Audio
 {
     /// <summary>Low-frequency processing for the Turbo Wolfer output only.</summary>
     public sealed class RadioBassFilter : MonoBehaviour

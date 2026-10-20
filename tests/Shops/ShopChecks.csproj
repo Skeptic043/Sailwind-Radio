@@ -4,13 +4,17 @@
     <Compile Include="Program.cs" />
     <Compile Include="PurchaseChecks.cs" />
     <Compile Include="LifecycleDoubles.cs" />
-    <Compile Include="../../src/Shops/RadioWorldPurchases.cs" />
+    <Compile Include="../Shared/UnityValues.cs" Link="Shared/UnityValues.cs" />
+    <Compile Include="../../src/Physical/RadioWorldService.Ownership.cs" />
     <Compile Include="../../src/Shops/ShopRestock.cs" />
     <Compile Include="../../src/Shops/RadioStandLayout.cs" />
+    <Compile Include="../../src/Shops/RadioShopCatalog.cs" />
+    <Compile Include="../../src/Shops/RadioStalls.cs" />
     <Compile Include="../../src/Shops/RadioShopStock.cs" />
     <Compile Include="../../src/Shops/RadioShopService.cs" />
     <Compile Include="../../src/Shops/NativeShopContract.cs" />
     <Compile Include="../../src/RadioState.cs" />
+    <Compile Include="../../src/DeviceKind.cs" />
     <Compile Include="../../src/Persistence/RadioSaveStore.cs" />
     <Compile Include="../../src/Playback/GlobalRadioArbiter.cs" />
   </ItemGroup>

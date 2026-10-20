@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace SailwindRadio.Models
 {
-    internal sealed class DotMatrixDisplay : IDisposable
+    internal sealed class DotMatrixDisplay : ITrackDisplay
     {
         private static readonly Color Amber = new Color(.94f, .46f, .10f, 1f);
         private readonly GameObject root;
@@ -15,7 +15,8 @@ namespace SailwindRadio.Models
         private readonly bool[] fallbackRequired = new bool[3];
         private readonly byte[] mask = new byte[DotMatrixFont.Width * DotMatrixFont.Height];
         private readonly Color32[] pixels = new Color32[DotMatrixFont.Width * DotMatrixFont.Height];
-        internal DotMatrixDisplay(Transform parent, Shader shader, List<UnityEngine.Object> owned)
+        // The bitmap is RGBA and uses shader. Unicode fallback labels sample the Alpha8 font atlas through textShader.
+        internal DotMatrixDisplay(Transform parent, Shader shader, Shader textShader, List<UnityEngine.Object> owned)
         {
             root = new GameObject("Recessed dot matrix display");
             root.transform.SetParent(parent, false);
@@ -47,7 +48,8 @@ namespace SailwindRadio.Models
             renderer.receiveShadows = false;
 
             var font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            fallbackMaterial = new Material(shader) { mainTexture = font.material.mainTexture };
+            // Amber goes on the material: its colour is converted for the linear colour space, a TextMesh vertex colour is not.
+            fallbackMaterial = new Material(textShader) { mainTexture = font.material.mainTexture, color = Amber };
             owned.Add(fallbackMaterial);
             for (int index = 0; index < fallback.Length; index++)
             {
@@ -61,7 +63,6 @@ namespace SailwindRadio.Models
                 text.fontSize = 64;
                 text.characterSize = .014f;
                 text.richText = false;
-                text.color = Amber;
                 var textRenderer = label.GetComponent<Renderer>();
                 textRenderer.sharedMaterial = fallbackMaterial;
                 textRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -72,14 +73,14 @@ namespace SailwindRadio.Models
             SetMetadata(false, "", "", "");
         }
 
-        internal void SetLayer(int layer)
+        public void SetLayer(int layer)
         {
             root.layer = layer;
             foreach (var text in fallback)
                 text.gameObject.layer = layer;
         }
 
-        internal void SetMetadata(bool powered, string title, string artist, string album)
+        public void SetMetadata(bool powered, string title, string artist, string album)
         {
             marquee.Set(powered, title, artist, album, Time.unscaledTime);
             bool wasTitleFallback = fallbackRequired[0], wasArtistFallback = fallbackRequired[1], wasAlbumFallback = fallbackRequired[2];
@@ -104,7 +105,7 @@ namespace SailwindRadio.Models
                 fallback[index].text = fallbackRequired[index] ? marquee[index] : "";
         }
 
-        internal void Tick()
+        public void Tick()
         {
             RefreshBitmap();
         }
