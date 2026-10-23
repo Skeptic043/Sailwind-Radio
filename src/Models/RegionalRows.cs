@@ -42,7 +42,8 @@ namespace SailwindRadio.Models
         internal string Cut(string folded) => TrackDisplayText.Left(TrackDisplayText.CutCells(folded, Cells), Cells);
 
         // Capitals at the row's cap height, centred on the capital centre. Each glyph squeezes into its cell only
-        // as far as it needs, and a glyph reaching past the cell above or below that centre is drawn smaller.
+        // as far as it needs, and a glyph reaching past the cell above or below that centre is drawn smaller. Then
+        // every glyph takes the smallest letter's height and nearly its squeeze, so sizes and stroke weights match.
         internal void FitGlyphs(RegionalTrackDisplay.GlyphSet glyphs, float cap, float floor)
         {
             Scale = glyphs.Valid ? TextFit.CapScale(glyphs.CapPixels, Anchor.height, cap) : 0f;
@@ -53,6 +54,7 @@ namespace SailwindRadio.Models
                 TextFit.Glyph(glyph.MaxX - glyph.MinX, reach, Scale, TextFit.CellRoom * Anchor.pitch, TextFit.CellReach * Anchor.height,
                     floor, out GlyphScale[i], out GlyphSqueeze[i]);
             }
+            TextFit.Even(GlyphScale, GlyphSqueeze, TrackDisplayText.Charset, TextFit.CellSpread);
         }
     }
 

@@ -18,7 +18,8 @@ namespace SailwindRadio.Models
     internal sealed class DrumRows : RegionalRows<DrumRow>
     {
         internal static readonly Color Brass = new Color32(0xb0, 0x95, 0x59, 255);
-        private static readonly Color Ink = new Color32(0x23, 0x1d, 0x14, 255);
+        // Darker than the brass light floor, so the letters still read in a dark cabin.
+        private static readonly Color Ink = new Color32(0x15, 0x11, 0x0b, 255);
         private const int Facets = 6, Slices = 3;
         private readonly List<DrumEvent> events = new List<DrumEvent>(8);
         private DrumShaft shaft;
@@ -39,6 +40,7 @@ namespace SailwindRadio.Models
             wheels += anchor.cells;
             row.FitGlyphs(Display.Glyphs, TextFit.DrumCap, TextFit.DrumFloor);
             var brass = DeviceModel.Surface(surfaceShader, "Character drum brass", Brass, .75f, .45f, owned);
+            DeviceModel.SetLightFloor(brass);
             var surface = Display.AddMesh(row, "Character drums", brass, owned);
             float radius = anchor.radius, arc = Mathf.Asin(Mathf.Min(1f, anchor.height * .55f / radius)), half = anchor.pitch * .92f * .5f;
             int perWheel = (Facets + 1) * 2;

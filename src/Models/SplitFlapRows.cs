@@ -41,6 +41,7 @@ namespace SailwindRadio.Models
             row.FitGlyphs(Display.Glyphs, TextFit.FlapCap, TextFit.FlapFloor);
             // Plain charcoal leaves in the cabinet's shader, the look the user preferred.
             var material = DeviceModel.Surface(surfaceShader, "Split-flap leaves", Leaf, 0, .25f, owned);
+            DeviceModel.SetLightFloor(material);
             row.SurfaceMesh = Display.AddMesh(row, "Split-flap leaves", material, owned);
             int quads = anchor.cells * 5;
             row.SurfaceVertices = new Vector3[quads * 4];

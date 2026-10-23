@@ -112,6 +112,26 @@ internal static partial class Program
             paths.Select(path => new MusicTrack(path, new TrackInfo(path))).ToArray()) }, new string[0]);
         AudioSettings.dspTime = 50;
 
+        // Stacking or unstacking gives a radio a new controller. Its player moves with it and plays on.
+        using (var h = new Harness(snapshot, 1))
+        {
+            Radio a = h.Radios[0];
+            h.Frame();
+            var engine = h.EngineOf(a);
+            var source = h.SourceOf(a);
+            var replacement = new Radio { Id = a.Id, State = a.State };
+            h.Set.Move(a, replacement);
+            h.Radios[0] = replacement;
+            h.Frame();
+            Check(h.Attached[a] == null && h.EngineOf(replacement) == engine && source.isPlaying && source.Schedules == 1 && source.Pauses == 0,
+                "a radio given a new controller keeps its player and plays on without a restart");
+            h.Set.Move(a, new Radio { Id = a.Id, State = a.State });
+            Check(h.EngineOf(replacement) == engine, "moving a radio that has no player changes nothing");
+            h.Set.Move(replacement, null);
+            Check(h.Attached[replacement] == null && source.Destroyed, "a replacement that could not be built releases the player");
+            h.Radios.Clear();
+        }
+
         using (var h = new Harness(snapshot, 2))
         {
             Radio a = h.Radios[0], b = h.Radios[1];

@@ -15,6 +15,41 @@ FRAGMENTS = ROOT / "assets" / "authoring" / "regional"
 REGISTRY = json.loads((Path(__file__).parent / "regional.json").read_text(encoding="utf-8"))
 
 
+def scale_depth(fragment, factor):
+    """Scales a fragment along Unity z, for a cabinet deeper or shallower than its source design. Directions along a
+    surface scale with it, and normals take the inverse scale so lighting stays correct. A display anchor's centre is
+    its front face, where a drum's curve starts, so drum radii keep their curvature."""
+    def point(p):
+        return [p[0], p[1], round(p[2] * factor, 6)]
+
+    def direction(n, z_scale):
+        x, y, z = n[0], n[1], n[2] * z_scale
+        length = (x * x + y * y + z * z) ** .5 or 1
+        return [round(x / length, 6), round(y / length, 6), round(z / length, 6)]
+
+    for part in fragment["parts"]:
+        part["pivot"] = point(part["pivot"])
+        v, n = part["vertices"], part["normals"]
+        for i in range(0, len(v), 3):
+            v[i + 2] = round(v[i + 2] * factor, 6)
+            n[i:i + 3] = direction(n[i:i + 3], 1 / factor)
+    for box in (fragment["bounds"], fragment["contact"]):
+        box["min"], box["max"] = point(box["min"]), point(box["max"])
+    for display in fragment.get("displays") or []:
+        display["center"] = point(display["center"])
+        display["right"] = direction(display["right"], factor)
+        display["up"] = direction(display["up"], factor)
+        display["normal"] = direction(display["normal"], 1 / factor)
+
+
+def set_display_cells(fragment, cells):
+    """Fewer, wider cells in the same window, for larger letters."""
+    for display in fragment.get("displays") or []:
+        if "cells" in display:
+            display["cells"] = cells
+            display["pitch"] = round(display["width"] / cells, 6)
+
+
 def material_key(m):
     return (m["name"], tuple(round(c, 6) for c in m["color"]), round(m["metallic"], 6), round(m["smoothness"], 6))
 
@@ -34,6 +69,10 @@ def main():
         fragment = json.loads((FRAGMENTS / f"{device['source']}.model.json").read_text(encoding="utf-8"))
         if fragment["kind"] != device["kind"]:
             raise SystemExit(f"{device['source']}: fragment kind {fragment['kind']} != registry kind {device['kind']}")
+        if "depth" in device:
+            scale_depth(fragment, device["depth"])
+        if "display_cells" in device:
+            set_display_cells(fragment, device["display_cells"])
         remap = []
         for m in fragment["materials"]:
             k = material_key(m)

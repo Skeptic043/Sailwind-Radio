@@ -67,13 +67,17 @@ public class GoPointerButton : Component
         Refs.mouseCrosshair.SetActive(true);
     }
 }
-public class PickupableItem : GoPointerButton { }
+public class PickupableItem : GoPointerButton { public bool big; }
+public class ShipItem : PickupableItem { }
+public static class CargoStorageUI { public static bool loadingCargoMode; }
 namespace SailwindRadio.Physical
 {
     public enum RadioAction { Power, PlayPause, Previous, Next, Shuffle, Collections }
     public sealed class RadioItemController : Object
     {
         public bool IsPlacedForControls = true;
+        public ShipItem Item;
+        public RadioItemController RecordOwner => this;
         public bool EnsureOwned() => true;
         public RadioState State = new RadioState { Volume = .5f };
         public int RequestedCount;

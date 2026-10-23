@@ -20,7 +20,7 @@ namespace SailwindRadio
     public sealed class Plugin : BaseUnityPlugin
     {
         public const string Id = "local.sailwind.radio";
-        public const string Version = "1.3.0";
+        public const string Version = "1.4.0";
         private static Plugin instance;
         private Harmony harmony;
         private RadioWorldService world;
@@ -29,6 +29,7 @@ namespace SailwindRadio
         private ConfigEntry<string> musicFolders;
         private ConfigEntry<bool> continueWhileSleeping;
         private ConfigEntry<float> mechanismVolume;
+        private ConfigEntry<bool> songHover;
         private ConfigEntry<bool> logDisplayTiming;
         private LibraryScanner library;
         private RadioMenus menus;
@@ -48,9 +49,15 @@ namespace SailwindRadio
                     "Music folders separated by |. Each folder is one collection including all its subfolders. Example: D:\\Music | E:\\Sailing Music");
                 continueWhileSleeping = Config.Bind("Audio", "ContinueWhileSleeping", false,
                     "Keep music playing while the player sleeps. Loading still suspends playback.");
+                BindFalloff("RadioFalloff", "the radio's built-in speaker", RadioSpeakerProfile.BuiltIn);
+                BindFalloff("SmallSpeakerFalloff", "Small Speakers", RadioSpeakerProfile.Small);
+                BindFalloff("SpeakerFalloff", "Speakers", RadioSpeakerProfile.Normal);
+                BindFalloff("WooferFalloff", "Woofers and Turbo Wolfers", RadioSpeakerProfile.TurboWoofer);
                 mechanismVolume = Config.Bind("Display", "MechanismVolume", .2f, new ConfigDescription(
                     "Volume of the regional radio display mechanisms, from silent at 0 to full at 1. Game volume also applies.",
                     new AcceptableValueRange<float>(0f, 1f)));
+                songHover = Config.Bind("Display", "ShowSongOnHover", false,
+                    "Show the current song's title and artist when looking at a radio.");
                 logDisplayTiming = Config.Bind("Development", "LogDisplayTiming", false,
                     "Log regional display timing, mesh updates and allocations every 10 seconds for performance checks.");
                 RemoveRetiredSettings();
@@ -68,6 +75,7 @@ namespace SailwindRadio
                 world = new RadioWorldService(harmony, Warn, new DisplaySoundBank(() => mechanismVolume.Value, Warn));
                 world.BeforeSave += CapturePositions;
                 world.ActionRequested += HandleAction;
+                world.RadioReplaced += (from, to) => radios.Move(from, to);
                 shops = new RadioShopService(world, Warn);
                 menus.CollectionsChanged += SelectCollections;
                 library.RequestScan(musicFolders.Value);
@@ -88,6 +96,16 @@ namespace SailwindRadio
                 Shutdown();
                 enabled = false;
             }
+        }
+
+        private void BindFalloff(string key, string output, RadioSpeakerProfile profile)
+        {
+            var entry = Config.Bind("Audio", key, profile.DefaultRadius, new ConfigDescription(
+                "How far " + output + " can be heard, in metres." + (profile == RadioSpeakerProfile.BuiltIn ? "" :
+                " They join a playing radio up to " + DeviceVessels.MaximumLinkRange + " m away whatever this is set to."),
+                new AcceptableValueRange<float>(RadioSpeakerProfile.MinimumRadius, RadioSpeakerProfile.MaximumRadius)));
+            profile.SetRadius(entry.Value);
+            entry.SettingChanged += (sender, args) => profile.SetRadius(entry.Value);
         }
 
         private void RemoveRetiredSettings()
@@ -196,6 +214,7 @@ namespace SailwindRadio
             {
                 item.CapturePosition = null;
                 item.SuspendPlayback = null;
+                item.ForgetPlayback();
                 return;
             }
             item.CapturePosition = () => radios.Capture(item);
@@ -216,19 +235,26 @@ namespace SailwindRadio
             }
         }
 
+        // In the boat camera, a radio on the player's own boat and its speakers, which share its vessel, are
+        // heard from the player's head. They play flat because the moving camera listener cannot pan them.
+        private bool HeardFromHead(DeviceVessel vessel) => acoustics.HeadKnown && DeviceVessels.OnPlayerBoat(vessel);
+
         private void TickPlayback(RadioItemController item, RadioPlayback engine, RadioQueue queue, bool suspended)
         {
             if (!item) return;
             Vector3 devicePosition = item.VisualAudioPosition;
             Vector3 position = item.SoundPosition;
             bool carried = item.UsesPlayerPosition;
+            var vessel = item.Vessel;
+            bool fromHead = HeardFromHead(vessel);
             if (carried && acoustics.ListenerKnown) position = acoustics.ListenerPosition;
-            float obstruction = item.State.Powered ? acoustics.ObstructionAt(position, carried) : 0;
-            engine.SetAcoustics(acoustics.ListenerPosition, acoustics.ListenerKnown, obstruction);
+            float obstruction = item.State.Powered ? acoustics.ObstructionAt(position, carried, fromHead) : 0;
+            item.HearFromHead(fromHead, acoustics.HeadPosition);
+            engine.SetAcoustics(fromHead ? acoustics.HeadPosition : acoustics.ListenerPosition, acoustics.ListenerKnown, obstruction, fromHead);
             engine.SetCarried(carried);
             engine.BeginEndpoints();
             if (item.InstanceId == world.ActiveRadioId && item.State.Powered)
-                ConnectSpeakers(item, engine, devicePosition);
+                ConnectSpeakers(vessel, engine, devicePosition, fromHead);
             engine.EndEndpoints();
             engine.Tick(position, suspended);
             if (!suspended && item.State.Powered && !item.State.Paused)
@@ -240,12 +266,11 @@ namespace SailwindRadio
             engine.PreloadTrack(item.InstanceId == world.ActiveRadioId && item.State.Powered
                 ? queue.PeekNext() : "");
             var info = library.Snapshot.GetTrackInfo(item.State.TrackPath);
-            item.SetTrackInfo(info.Title, info.Artist, info.Album);
+            item.SetTrackInfo(info.Title, info.Artist, info.Album, engine.NamesTrack && songHover.Value);
         }
 
-        private void ConnectSpeakers(RadioItemController item, RadioPlayback engine, Vector3 devicePosition)
+        private void ConnectSpeakers(DeviceVessel sourceVessel, RadioPlayback engine, Vector3 devicePosition, bool fromHead)
         {
-            var sourceVessel = item.Vessel;
             foreach (var speaker in world.Items)
             {
                 if (!speaker || speaker.State.Role == DeviceRole.Radio || !speaker.State.SpeakerEnabled) continue;
@@ -254,8 +279,9 @@ namespace SailwindRadio
                 Vector3 speakerDevicePosition = speaker.VisualAudioPosition;
                 if (!DeviceVessels.CanConnect(sourceVessel, speakerVessel, devicePosition, speakerDevicePosition)) continue;
                 Vector3 speakerPosition = speakerCarried && acoustics.ListenerKnown ? acoustics.ListenerPosition : speaker.SoundPosition;
+                float obstruction = acoustics.ObstructionAt(speakerPosition, speakerCarried, fromHead);
                 engine.SetEndpoint(speaker.InstanceId, speakerPosition, speakerCarried, speaker.State.Kind,
-                    speaker.State.Role == DeviceRole.Woofer ? 1f : speaker.State.Volume, speaker.State.Bass, acoustics.ObstructionAt(speakerPosition, speakerCarried));
+                    speaker.State.Role == DeviceRole.Woofer ? 1f : speaker.State.Volume, speaker.State.Bass, obstruction);
             }
         }
 

@@ -23,16 +23,22 @@ Install [Sailwind Radio on Thunderstore](https://thunderstore.io/c/sailwind/p/Sk
 - Place a hook somewhere clever and set the radio in a tight corner, or hammer it down if you keep grabbing it off your shelf trying to skip tracks. The Aestrin radio has no handle, so it won't hang from hooks.
 - Turning on a second radio turns the one currently playing off. Each keeps its own folder selection, volume, and song position saved.
 - Turn a radio off and back on to reload its selected music folders after adding songs.
+- With `ShowSongOnHover` turned on, look at a radio to see the song it is playing.
 
 ## Configuration
 
-After the first launch, close the game and edit `BepInEx/config/local.sailwind.radio.cfg` in your active game or mod manager profile.
+After the first launch, close the game and edit `BepInEx/config/local.sailwind.radio.cfg` in your active game or mod manager profile. With [Configuration Manager](https://github.com/BepInEx/BepInEx.ConfigurationManager) installed, the audio and display settings can also be changed in game.
 
 | Section | Setting | Default | What it does |
 | --- | --- | --- | --- |
 | Music | `MusicFolders` | Blank | Music folders separated by `\|`. |
 | Audio | `ContinueWhileSleeping` | `false` | Keep music playing while the player sleeps. |
+| Audio | `RadioFalloff` | `12` | How far the radio's built-in speaker can be heard, from 5 to 50 m. |
+| Audio | `SmallSpeakerFalloff` | `15` | How far Small Speakers can be heard, from 5 to 50 m. |
+| Audio | `SpeakerFalloff` | `20` | How far Speakers can be heard, from 5 to 50 m. |
+| Audio | `WooferFalloff` | `20` | How far Woofers and Turbo Wolfers can be heard, from 5 to 50 m. |
 | Display | `MechanismVolume` | `0.2` | Volume of the regional radio display mechanisms, from silent at 0 to full at 1. |
+| Display | `ShowSongOnHover` | `false` | Show the current song's title and artist when looking at a radio. |
 | Development | `LogDisplayTiming` | `false` | Log regional display frame cost every 10 seconds. |
 
 Example folder setup: `MusicFolders = D:\Music | E:\Sailing Music`. Each folder is one collection, including music within its subfolders. The radio reads file metadata to display title, artist and album tags, and uses the filename when a title tag is missing.

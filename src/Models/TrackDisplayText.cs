@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 
@@ -63,7 +64,8 @@ namespace SailwindRadio.Models
     // Glyph scale from measured font metrics: world units per font pixel, and a horizontal squeeze.
     internal static class TextFit
     {
-        internal const float DrumCap = .82f, FlapCap = .82f, CellRoom = .9f, FlapFloor = .5f, DrumFloor = .7f;
+        // Floors are low so a wide letter condenses rather than shrinking, which would shrink its whole row with it.
+        internal const float DrumCap = .82f, FlapCap = .82f, CellRoom = .9f, FlapFloor = .45f, DrumFloor = .55f;
         // Share of the row height a glyph may reach above or below the capital centre.
         internal const float CellReach = .48f;
         internal const float ScrollCap = .62f, ScrollMargin = .3f, ScrollMinSqueeze = .85f;
@@ -87,6 +89,32 @@ namespace SailwindRadio.Models
             }
             if (reachPixels * glyphScale > reach)
                 glyphScale = reach / reachPixels;
+        }
+
+        // How much wider than the row's most condensed letter a glyph may stay: enough for letters to keep some
+        // character, not so much that an I keeps its full stroke weight beside condensed neighbours.
+        internal const float CellSpread = .12f;
+
+        // Every glyph is drawn no taller than the row's smallest letter, which a glyph too wide for its cell sets, and
+        // no wider than its most condensed letter plus spread. It only ever narrows and shrinks, so every glyph still
+        // fits its cell. Scales and squeezes are indexed like charset.
+        internal static void Even(float[] scale, float[] squeeze, string charset, float spread)
+        {
+            float smallest = float.MaxValue, condensed = float.MaxValue;
+            for (int i = 0; i < charset.Length; i++)
+                if (char.IsLetter(charset[i]))
+                {
+                    smallest = Math.Min(smallest, scale[i]);
+                    condensed = Math.Min(condensed, squeeze[i]);
+                }
+            if (smallest == float.MaxValue)
+                return;
+            for (int i = 0; i < charset.Length; i++)
+                if (charset[i] != ' ')
+                {
+                    scale[i] = Math.Min(scale[i], smallest);
+                    squeeze[i] = Math.Min(squeeze[i], condensed + spread);
+                }
         }
 
         internal static float ScrollScale(float capPixels, float height) => CapScale(capPixels, height, ScrollCap);

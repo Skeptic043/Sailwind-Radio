@@ -336,6 +336,36 @@ namespace SailwindRadio.Models
         // Each authored solid box as its min and max corners, empty when the model has none.
         internal static IReadOnlyList<ModelBounds> Solids(int kind) => Definition(kind)?.solids ?? Array.Empty<ModelBounds>();
         internal static IReadOnlyList<ModelDisplay> Displays(int kind) => Definition(kind)?.displays ?? Array.Empty<ModelDisplay>();
+
+        internal static List<(Vector3 Min, Vector3 Max)> SolidBoxes(int kind)
+        {
+            var boxes = new List<(Vector3, Vector3)>();
+            foreach (var solid in Solids(kind))
+                if (Box(solid, out var min, out var max)) boxes.Add((min, max));
+            return boxes;
+        }
+
+        // A regional cabinet's collision boxes in its own space: its authored solids, else its whole bounds.
+        // Empty for walnut kinds, which have no model data.
+        internal static List<(Vector3 Min, Vector3 Max)> CollisionBoxes(int kind)
+        {
+            var boxes = SolidBoxes(kind);
+            if (boxes.Count == 0 && !DeviceKind.IsWalnut(kind) && TryGetBounds(kind, out var min, out var max))
+                boxes.Add((min, max));
+            return boxes;
+        }
+
+        // How far above the base's origin a stacked top's origin sits: its lowest box rests on the highest base box
+        // beneath it. Overhanging parts, such as feet beyond a narrow top, never hold it up.
+        internal static float StackSeat(List<(Vector3 Min, Vector3 Max)> bottom, List<(Vector3 Min, Vector3 Max)> top)
+        {
+            float seat = float.NegativeInfinity;
+            foreach (var b in bottom)
+                foreach (var t in top)
+                    if (b.Min.x < t.Max.x && t.Min.x < b.Max.x && b.Min.z < t.Max.z && t.Min.z < b.Max.z)
+                        seat = Mathf.Max(seat, b.Max.y - t.Min.y);
+            return seat;
+        }
         private static bool Box(ModelBounds box, out Vector3 min, out Vector3 max)
         {
             min = box == null ? Vector3.zero : new Vector3(box.min[0], box.min[1], box.min[2]);
@@ -485,6 +515,17 @@ namespace SailwindRadio.Models
             }
             owned.Add(material);
             return material;
+        }
+
+        // Display faces emit this share of their own colour whatever the light. Ink is unlit, so a dark face keeps
+        // enough brightness behind dark ink to stay readable, well below the lit control icons.
+        internal const float DisplayLightFloor = .35f;
+
+        internal static void SetLightFloor(Material material)
+        {
+            material.EnableKeyword("_EMISSION");
+            material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+            material.SetColor("_EmissionColor", material.color * DisplayLightFloor);
         }
 
         private static void FitControl(BoxCollider collider, Mesh mesh)

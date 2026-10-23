@@ -82,7 +82,7 @@ namespace SailwindRadio.Models
     internal sealed class DisplaySoundPlayer : IDisposable
     {
         private const int PoolSize = 6;
-        private const float FadeSeconds = .15f;
+        private const float FadeSeconds = .15f, MinDistance = .25f, MaxDistance = 12f;
         private readonly DisplaySoundBank bank;
         private readonly List<AudioSource> pool = new List<AudioSource>();
         private readonly AudioSource loop;
@@ -96,6 +96,10 @@ namespace SailwindRadio.Models
         private AudioSource fadingVoice;
         private AudioClip fadingClip;
         private float fadingVolume, voiceFade;
+        private readonly Transform origin;
+        // 1 while native 3D rolloff applies. Heard flat from the head, the same logarithmic rolloff by hand.
+        private float hearing = 1f;
+        private bool flat;
 
         internal DisplaySoundPlayer(Transform parent, Vector3 localCentre, DisplaySoundBank bank, float loopDecibels)
         {
@@ -104,6 +108,7 @@ namespace SailwindRadio.Models
             var emitter = new GameObject("Radio display sounds");
             emitter.transform.SetParent(parent, false);
             emitter.transform.localPosition = localCentre;
+            origin = emitter.transform;
             for (int i = 0; i < PoolSize; i++)
                 pool.Add(Source(emitter, false));
             loop = Source(emitter, true);
@@ -117,8 +122,8 @@ namespace SailwindRadio.Models
             source.loop = looped;
             source.spatialBlend = 1f;
             source.rolloffMode = AudioRolloffMode.Logarithmic;
-            source.minDistance = .25f;
-            source.maxDistance = 12f;
+            source.minDistance = MinDistance;
+            source.maxDistance = MaxDistance;
             source.dopplerLevel = 0f;
             // Matches the Radio's speakers: kept out of a modded port's global reverb.
             source.bypassReverbZones = true;
@@ -126,6 +131,21 @@ namespace SailwindRadio.Models
         }
 
         internal static float Gain(float decibels) => Mathf.Pow(10f, decibels / 20f);
+
+        // The boat camera's listener moves too fast to pan the voices, so they play flat at the volume the head would hear.
+        internal void HearFrom(bool fromHead, Vector3 head)
+        {
+            if (!origin || (!fromHead && !flat))
+                return;
+            if (flat != fromHead)
+            {
+                flat = fromHead;
+                foreach (var source in pool)
+                    source.spatialBlend = flat ? 0f : 1f;
+                loop.spatialBlend = flat ? 0f : 1f;
+            }
+            hearing = flat ? MinDistance / Mathf.Clamp(Vector3.Distance(origin.position, head), MinDistance, MaxDistance) : 1f;
+        }
 
         // Voices may still sound, a loop runs or fades, or a coalesced burst waits for its window.
         internal bool Busy => loopActive || coalescer.Pending || fadingVoice || (voicesEnd > 0 && Sounding());
@@ -151,7 +171,7 @@ namespace SailwindRadio.Models
             source.Stop();
             source.clip = clip;
             source.pitch = pitch;
-            source.volume = Gain(decibels) * bank.Volume;
+            source.volume = Gain(decibels) * bank.Volume * hearing;
             source.Play();
             voicesEnd = Math.Max(voicesEnd, now + length);
             return source;
@@ -183,7 +203,7 @@ namespace SailwindRadio.Models
                 return;
             looping = loopActive = true;
             fade = 1f;
-            loop.volume = loopGain * bank.Volume;
+            loop.volume = loopGain * bank.Volume * hearing;
             if (!loop.isPlaying)
                 loop.Play();
         }
@@ -219,7 +239,7 @@ namespace SailwindRadio.Models
                 loopActive = false;
                 return;
             }
-            loop.volume = loopGain * fade * bank.Volume;
+            loop.volume = loopGain * fade * bank.Volume * hearing;
         }
 
         // Stops every voice at once, for pause, sleep, a slot, a box or shop stock.

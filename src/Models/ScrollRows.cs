@@ -20,7 +20,10 @@ namespace SailwindRadio.Models
     // Emerald wax scroll rows, written by the stylus on the model's carriage and cleared by its felt pad.
     internal sealed class ScrollRows : RegionalRows<ScrollRow>
     {
-        private static readonly Color Ink = new Color32(0x20, 0x26, 0x21, 255);
+        // Darker than the belt's light floor, so the writing still reads in a dark cabin.
+        private static readonly Color Ink = new Color32(0x14, 0x18, 0x14, 255);
+        // The devices.json material the stylus writes on.
+        private const string WritingBelt = "Wax-coated cloth writing belt";
         private static readonly Color StylusTipColour = new Color32(0x2b, 0x24, 0x18, 255), PadFelt = new Color32(0x51, 0x49, 0x37, 255);
         private const float InkLift = .0006f;
         private const float StylusRod = .0012f, StylusTip = .003f, PadHalf = .0035f, PadThick = .004f;
@@ -62,6 +65,10 @@ namespace SailwindRadio.Models
         internal override void Finish(Shader surfaceShader, List<UnityEngine.Object> owned)
         {
             base.Finish(surfaceShader, owned);
+            // The writing belt is model geometry, so its light floor goes on the device's own belt material.
+            foreach (var material in Display.Device.GetComponent<Renderer>().sharedMaterials)
+                if (material && material.name == WritingBelt)
+                    DeviceModel.SetLightFloor(material);
             ArtistRow.Offset = Vector3.Dot(Vector(ArtistRow.Anchor.center) - Vector(TitleRow.Anchor.center), Vector(TitleRow.Anchor.right));
             if (carriage)
             {

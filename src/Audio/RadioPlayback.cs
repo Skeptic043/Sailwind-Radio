@@ -20,7 +20,7 @@ namespace SailwindRadio.Audio
         private readonly Dictionary<int, RadioSpeakerOutput> endpoints = new Dictionary<int, RadioSpeakerOutput>();
         private readonly List<int> lostEndpoints = new List<int>();
         private Vector3 listenerPosition;
-        private bool listenerKnown;
+        private bool listenerKnown, flat;
         private AudioClip clip;
         private StreamedAudio streamed;
         private string requestedPath;
@@ -118,9 +118,11 @@ namespace SailwindRadio.Audio
         }
 
         /// <summary>Set current listener and obstruction from native world geometry. Main thread only.</summary>
-        public void SetAcoustics(Vector3 listenerPosition, bool listenerKnown, float obstruction)
+        /// <param name="flat">The listening point is not the native listener, such as the player's head in the boat camera.</param>
+        public void SetAcoustics(Vector3 listenerPosition, bool listenerKnown, float obstruction, bool flat = false)
         {
             if (disposed) return;
+            this.flat = flat;
             this.listenerPosition = listenerPosition;
             this.listenerKnown = listenerKnown && IsFinite(listenerPosition.x) && IsFinite(listenerPosition.y) && IsFinite(listenerPosition.z);
             builtIn.Obstruction = obstruction;
@@ -135,8 +137,13 @@ namespace SailwindRadio.Audio
             builtIn.LocalVolume = state.LocalVolume;
             state.Volume = Single.IsNaN(state.Volume) ? 0.5f : Mathf.Clamp01(state.Volume);
             // The saved knob value stays as set. Outputs square it for useful quiet tabletop settings.
+            builtIn.Flat = flat;
             builtIn.Update(state.Volume, listenerPosition, listenerKnown);
-            foreach (var endpoint in endpoints.Values) endpoint.Update(state.Volume, listenerPosition, listenerKnown);
+            foreach (var endpoint in endpoints.Values)
+            {
+                endpoint.Flat = flat;
+                endpoint.Update(state.Volume, listenerPosition, listenerKnown);
+            }
             double dsp = AudioSettings.dspTime;
             if (resetRequested || dsp < lastDsp)
             {
@@ -210,6 +217,9 @@ namespace SailwindRadio.Audio
 
         // True while the current track's stream is still opening.
         private bool Loading { get { return streamed != null && clip == null; } }
+
+        // The current song stays named while opening, paused or suspended, but not once it ends or fails.
+        public bool NamesTrack => !disposed && state.Powered && failure == null && !TrackEnded && (clip != null || Loading);
 
         public void CapturePosition()
         {

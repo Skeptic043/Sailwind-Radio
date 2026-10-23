@@ -70,6 +70,7 @@ internal static partial class Program
         WriteSilentWav(track, 480000, 48000, 1);
         AudioSettings.dspTime = 10;
         LegacyAndCachedStates();
+        StackedRadioStates();
         LiveSwitching();
         OrderedPlaybackAndPendingLoad();
         StreamedPendingLoad();
@@ -89,6 +90,31 @@ internal static partial class Program
             try { File.Delete(path); return; }
             catch (IOException) { if (DateTime.UtcNow > deadline) throw; Thread.Sleep(2); }
         }
+    }
+
+    // A Radio stacked on a cabinet is known by its base's negative ID and shares its base's saved state.
+    private static void StackedRadioStates()
+    {
+        var radio = new RadioState { Kind = DeviceKind.Of(DeviceKind.AlAnkh, DeviceRole.Radio), TrackPath = track, Powered = true, PositionSeconds = 4 };
+        var speaker = new RadioState { Kind = DeviceKind.Of(DeviceKind.AlAnkh, DeviceRole.Speaker), Stacked = radio };
+        var woofer = new RadioState { Kind = DeviceKind.Of(DeviceKind.AlAnkh, DeviceRole.Woofer), Stacked = speaker };
+        var arbiter = new GlobalRadioArbiter();
+        arbiter.Reset(new[] { RadioRecord.Capture(30, RadioSaveStore.ItemIndex(woofer.Kind), woofer) });
+        Check(arbiter.TryGet(-30, out var stacked) && arbiter.TryGet(30, out var bottom) && ReferenceEquals(stacked, bottom.Stacked.Stacked) &&
+            arbiter.ActiveId == -30, "a radio atop a taller stack is tracked through its base and can be the playing radio");
+        Check(GlobalRadioArbiter.RadioId(30, woofer) == -30 && GlobalRadioArbiter.RadioId(30, radio) == 30 &&
+            GlobalRadioArbiter.RadioId(30, new RadioState { Kind = woofer.Kind }) == 0, "a carried stack's radio is found wherever it stands");
+        var playing = new List<int>();
+        PlaybackOrder.Tick(new[] { 30, -30 }, arbiter.ActiveId, id => id, (id, blocked) => { if (!blocked) playing.Add(id); }, false);
+        Check(playing.SequenceEqual(new[] { -30 }), "playback lets the stacked radio play under its negative ID");
+        stacked.PositionSeconds = 9;
+        var store = new RadioSaveStore();
+        arbiter.WriteTo(store);
+        Check(store.Records.Count() == 1 && store.TryGetAny(30, out var record) && record.Stacked.Stacked.PositionSeconds == 9,
+            "a stacked radio is saved only inside its base");
+        arbiter.Rename(-30, 77);
+        Check(arbiter.ActiveId == 77 && arbiter.TryGet(77, out var moved) && ReferenceEquals(moved, stacked) && moved.Powered &&
+            !arbiter.TryGet(-30, out _), "unstacking keeps the playing radio's state and power under its new item");
     }
 
     private static void LegacyAndCachedStates()

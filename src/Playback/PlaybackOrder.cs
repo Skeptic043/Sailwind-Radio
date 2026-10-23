@@ -6,7 +6,8 @@ namespace SailwindRadio.Playback
     internal static class PlaybackOrder
     {
         // Defer the sole winner until every other endpoint has reconciled its stopped state.
-        // Even duplicate native identities cannot result in two unsuspended endpoints.
+        // Even duplicate native identities cannot result in two unsuspended endpoints. An active ID of 0 means
+        // none. A stacked Radio's ID is negative.
         internal static void Tick<T>(IEnumerable<T> endpoints, int activeId, Func<T, int> identity,
             Action<T, bool> tick, bool suspended)
         {
@@ -14,7 +15,7 @@ namespace SailwindRadio.Playback
             T winner = default(T);
             foreach (T endpoint in endpoints)
             {
-                if (!found && activeId > 0 && identity(endpoint) == activeId)
+                if (!found && activeId != 0 && identity(endpoint) == activeId)
                 {
                     winner = endpoint;
                     found = true;

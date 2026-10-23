@@ -48,6 +48,13 @@ namespace SailwindRadio.Physical
             return new DeviceVessel(false, null);
         }
 
+        internal static bool OnPlayerBoat(DeviceVessel vessel)
+        {
+            if (!vessel.Known || !vessel.Root || !GameState.playing) return false;
+            var player = Normalize(GameState.currentBoat);
+            return player.Known && player.Root == vessel.Root;
+        }
+
         private static DeviceVessel Normalize(Transform model)
         {
             if (!model) return new DeviceVessel(true, null);

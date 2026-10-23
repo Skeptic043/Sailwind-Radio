@@ -159,8 +159,10 @@ Write-RadioZip $radioPublicZip $radioPublicFiles
 & "$PSScriptRoot\tools\Verify-PublicPackage.ps1" -PackagePath $radioPublicZip
 Write-RadioZip $radioSourceZip $radioSourceFiles
 
-# Fresh unique extraction. No existing directory is deleted or replaced.
-$radioFresh = Join-Path $PSScriptRoot ('artifacts\source-check\' + [Guid]::NewGuid().ToString('N'))
+# Fresh unique extraction. No existing directory is deleted or replaced. It is removed after a
+# successful check, and a failed check keeps it for inspection.
+$radioFreshRoot = Join-Path $PSScriptRoot 'artifacts\source-check'
+$radioFresh = Join-Path $radioFreshRoot ([Guid]::NewGuid().ToString('N'))
 [IO.Compression.ZipFile]::ExtractToDirectory($radioSourceZip, $radioFresh)
 & (Join-Path $radioFresh 'Build.ps1') -GameDir $GameDir -LoaderPath $LoaderPath -OfflineFeed $OfflineFeed
 $radioOriginalHash = (Get-FileHash -LiteralPath "$PSScriptRoot\artifacts\build\$radioVersion\SailwindRadio.dll" -Algorithm SHA256).Hash
@@ -169,6 +171,8 @@ if ($radioOriginalHash -ne $radioFreshHash) { throw 'Fresh source build produced
 $radioDecoderHash = (Get-FileHash -LiteralPath "$PSScriptRoot\artifacts\build\$radioVersion\NLayer.dll" -Algorithm SHA256).Hash
 $radioFreshDecoderHash = (Get-FileHash -LiteralPath "$radioFresh\artifacts\build\$radioVersion\NLayer.dll" -Algorithm SHA256).Hash
 if ($radioDecoderHash -ne $radioFreshDecoderHash) { throw 'Fresh source build resolved a different decoder DLL.' }
+if ((Split-Path -Parent $radioFresh) -ne $radioFreshRoot -or (Split-Path -Leaf $radioFresh) -notmatch '^[0-9a-f]{32}$') { throw "Unexpected source check folder: $radioFresh" }
+Remove-Item -LiteralPath $radioFresh -Recurse -Force
 $radioResult = [ordered]@{
     version = $radioVersion
     checked_utc = [datetime]::UtcNow.ToString('o')
@@ -187,7 +191,8 @@ $radioResult = [ordered]@{
     binary_entries = $radioBinaryFiles.Count
     public_entries = $radioPublicFiles.Count
     source_entries = $radioSourceFiles.Count
-    live_sailwind_acceptance = 'user-confirmed 2026-10-20'
+    # Packaging checks source and build only. Gameplay acceptance is recorded with the tested candidate's issue.
+    live_sailwind_acceptance = 'pending'
 }
 $radioResult | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $radioOutput "SailwindRadio-$radioVersion-validation.json") -Encoding utf8
 $radioResult | ConvertTo-Json

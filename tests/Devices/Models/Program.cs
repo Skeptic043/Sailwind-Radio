@@ -359,12 +359,34 @@ internal static class Program
         TextFit.Glyph(40,20,scale,room,vertical,TextFit.FlapFloor,out glyphScale,out squeeze);
         Check(glyphScale==scale&&Math.Abs(40*scale*squeeze-room)<1e-6f&&squeeze>.5f,"a wide glyph squeezes on its own only as far as it needs, keeping its height");
         TextFit.Glyph(90,20,scale,room,vertical,TextFit.FlapFloor,out glyphScale,out squeeze);
-        Check(squeeze==.5f&&glyphScale<scale&&Math.Abs(90*glyphScale*squeeze-room)<1e-6f,"only a split-flap glyph too wide at the 0.5 floor is drawn smaller");
+        Check(squeeze==TextFit.FlapFloor&&glyphScale<scale&&Math.Abs(90*glyphScale*squeeze-room)<1e-6f,"only a split-flap glyph too wide at its floor is drawn smaller");
         TextFit.Glyph(90,20,scale,room,vertical,TextFit.DrumFloor,out glyphScale,out squeeze);
-        Check(squeeze==.7f&&Math.Abs(90*glyphScale*squeeze-room)<1e-6f,"drum glyphs stay at least 70% wide");
+        Check(squeeze==TextFit.DrumFloor&&Math.Abs(90*glyphScale*squeeze-room)<1e-6f,"drum glyphs condense no further than their floor");
         TextFit.Glyph(25,30,scale,room,vertical,TextFit.FlapFloor,out glyphScale,out squeeze);
         Check(glyphScale<scale&&Math.Abs(30*glyphScale-vertical)<1e-6f,"a glyph reaching past its cell above or below the capital centre is drawn smaller so it stays inside");
         Check(Math.Abs(TextFit.ScrollScale(40,.02f)*40-.0124f)<1e-6f&&Math.Abs(TextFit.ScrollRoom(.3f,.02f)-.288f)<1e-6f,"scroll capitals stand at 62% of the row inside its margins");
+        // The Al'Ankh large speaker is a wide box on end feet with corner caps on top. The woofer is an octagon whose
+        // flat top is narrower, standing on corner feet. The speaker is deep enough for its caps to reach the front feet.
+        float onWoofer=DeviceModel.StackSeat(DeviceModel.CollisionBoxes(7),DeviceModel.CollisionBoxes(6));
+        Check(onWoofer>.85f&&onWoofer<.87f,"a speaker on the octagon woofer rests its underside on the flat top, its feet hanging past the chamfers: "+onWoofer);
+        float capTops=DeviceModel.CollisionBoxes(6).Max(b=>b.Max.y);
+        float onSpeaker=DeviceModel.StackSeat(DeviceModel.CollisionBoxes(6),DeviceModel.CollisionBoxes(7));
+        Check(Math.Abs(onSpeaker-capTops)<1e-4f,"a woofer on the speaker stands its feet on the corner caps: "+onSpeaker+" for caps at "+capTops);
+        // The Emerald large speaker's top carries front and back curved beams. Its radio is shallow enough to slip
+        // between them rather than resting on them.
+        float beamTops=DeviceModel.CollisionBoxes(14).Max(b=>b.Max.y);
+        float radioSeat=DeviceModel.StackSeat(DeviceModel.CollisionBoxes(14),DeviceModel.CollisionBoxes(12));
+        Check(radioSeat<beamTops-.02f,"the Emerald radio sits between the large speaker's top beams: "+radioSeat+" under "+beamTops);
+        // " AIMWO." : W is too wide for its cell even at the floor, so it is drawn smaller. A narrow I and a
+        // full-width full stop would otherwise stand taller and heavier than it.
+        var scales=new[]{1f,1f,1f,1f,.9f,1f,1f};
+        var squeezes=new[]{1f,.82f,1f,.78f,.7f,.8f,1f};
+        TextFit.Even(scales,squeezes," AIMWO.",TextFit.CellSpread);
+        Check(scales[0]==1&&scales.Skip(1).All(s=>s==.9f),"every glyph stands as tall as the smallest letter, spaces untouched");
+        float widest=.7f+TextFit.CellSpread;
+        Check(squeezes[0]==1&&Math.Abs(squeezes[2]-widest)<1e-6f&&Math.Abs(squeezes[6]-widest)<1e-6f,
+            "glyphs squeeze to within the allowance of the most condensed letter");
+        Check(squeezes[1]<=widest&&squeezes[3]==.78f&&squeezes[4]==.7f&&squeezes[5]==.8f,"letters already narrower than that keep their fit");
 
         var flap=new FlapCell{Shown=a,Target=a};
         flap.Retarget(c,10,1/12.0);

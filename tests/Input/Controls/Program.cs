@@ -201,6 +201,24 @@ internal static class Program
             hit.distance = 2f;
             RadioHeldItemTarget.Restore(pointer, hit, ref target, ref lookDistance);
             Check(target == root, "out-of-reach hit cannot restore radio control");
+
+            // Cargo loading takes a big output's control hit as the whole item and leaves small devices alone.
+            var item = new ShipItem { big = true };
+            radio.Item = item;
+            hit.distance = 1.25f;
+            target = control; control.Unlooked = false;
+            Check(!RadioHeldItemTarget.CargoTarget(pointer, hit, ref target) && target == control,
+                "controls stay controls outside cargo loading");
+            CargoStorageUI.loadingCargoMode = true;
+            Check(RadioHeldItemTarget.CargoTarget(pointer, hit, ref target) && target == item && control.Unlooked &&
+                item.LookedAtBy == pointer, "cargo loading targets the big output under its control");
+            item.LookedAtBy = null;
+            Check(RadioHeldItemTarget.CargoTarget(pointer, hit, ref target) && target == item && item.LookedAtBy == null,
+                "an already targeted cargo item keeps its hover state");
+            item.big = false; target = control;
+            Check(!RadioHeldItemTarget.CargoTarget(pointer, hit, ref target) && target == control,
+                "small devices keep their controls in cargo loading");
+            CargoStorageUI.loadingCargoMode = false;
         }
         Console.WriteLine(checks + " production knob lifecycle checks passed with explicit native input doubles. Live click, scroll and menu behavior remain acceptance gates.");
     }

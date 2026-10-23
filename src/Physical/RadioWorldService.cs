@@ -42,10 +42,13 @@ namespace SailwindRadio.Physical
         private string reportedTemplateProblem;
         private float nextRestoreRetry;
         internal static bool HookCompatible { get; private set; }
+        internal static bool CargoCompatible { get; private set; }
         public IReadOnlyList<RadioItemController> Items => items;
         public int ActiveRadioId => arbiter.ActiveId;
         public event Action BeforeSave;
         public event Action<RadioItemController, RadioAction> ActionRequested;
+        // A Radio's controller replaced by stacking or unstacking, whose player should carry on with the new one.
+        public event Action<RadioItemController, RadioItemController> RadioReplaced;
         public string PersistenceStatus => store.Writable ? "Native save ready" : "Radio data preserved: " + store.Problem;
         internal bool ReadyForShop => !disposed && manager && manager == SaveLoadManager.instance && !loading && store.Writable &&
             FloatingOriginManager.instance && GameState.playing && !GameState.currentlyLoading && !GameState.justStarted &&
@@ -400,7 +403,7 @@ namespace SailwindRadio.Physical
                 if (item.State.Role != DeviceRole.Radio)
                 {
                     item.State.SpeakerEnabled = !item.State.SpeakerEnabled;
-                    WriteCanonical(item.InstanceId);
+                    WriteCanonical(item.RecordOwner.InstanceId);
                     return;
                 }
                 arbiter.Toggle(item.InstanceId, CaptureAndStop);
@@ -621,7 +624,7 @@ namespace SailwindRadio.Physical
             if (templateBundle) templateBundle.Unload(false);
             if (active == this)
             {
-                HookCompatible = false;
+                HookCompatible = CargoCompatible = StacksCompatible = false;
                 active = null;
             }
         }

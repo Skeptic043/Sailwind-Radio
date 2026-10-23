@@ -32,8 +32,13 @@ namespace SailwindRadio.Acoustics
         private float nextListeners;
         private float previousTime = -1;
         private bool disposed;
+        private Vector3 headOffset;
+        private bool headTracked;
         internal bool ListenerKnown { get; private set; }
         internal Vector3 ListenerPosition { get; private set; }
+        // The player's head while the boat camera has carried the native listener away from it.
+        internal bool HeadKnown { get; private set; }
+        internal Vector3 HeadPosition { get; private set; }
 
         internal RadioAcousticsService()
         {
@@ -81,29 +86,48 @@ namespace SailwindRadio.Acoustics
                 ListenerPosition = selected.transform.position;
                 ListenerKnown = Finite(ListenerPosition);
             }
+            TrackHead();
         }
 
-        internal float ObstructionAt(Vector3 sourcePosition, bool carriedOrPlayerInventory)
+        // Native BoatCamera reparents the listener's eye anchor to its own rig and leaves the player's
+        // camera rig in place. The listener's last place in that rig is the head while the camera is on.
+        private void TrackHead()
+        {
+            HeadKnown = false;
+            Transform rig = Refs.ovrCameraRig;
+            if (!rig || !ListenerKnown) return;
+            if (!BoatCamera.on)
+            {
+                headOffset = rig.InverseTransformPoint(ListenerPosition);
+                headTracked = true;
+                return;
+            }
+            if (!headTracked) return;
+            HeadPosition = rig.TransformPoint(headOffset);
+            HeadKnown = Finite(HeadPosition);
+        }
+
+        internal float ObstructionAt(Vector3 sourcePosition, bool carriedOrPlayerInventory, bool fromHead = false)
         {
             if (disposed || !ListenerKnown || carriedOrPlayerInventory || !Finite(sourcePosition)) return 0;
+            Vector3 listenerPosition = fromHead && HeadKnown ? HeadPosition : ListenerPosition;
             float obstruction = 0;
             foreach (var volume in volumes)
             {
                 if (!volume.Trigger || !volume.Trigger.enabled || !volume.Trigger.gameObject.activeInHierarchy) continue;
                 if (!TryContains(volume.Colliders, sourcePosition, out bool sourceInside) ||
-                    !TryContains(volume.Colliders, ListenerPosition, out bool listenerInside)) continue;
+                    !TryContains(volume.Colliders, listenerPosition, out bool listenerInside)) continue;
                 // Native overlapping volumes can describe one cabin. A shared enclosure is clear,
                 // rather than inventing an internal wall from an extra overlapping trigger.
                 if (sourceInside && listenerInside) return 0;
-                if (sourceInside != listenerInside && HasPhysicalBoundary(volume, sourcePosition))
+                if (sourceInside != listenerInside && HasPhysicalBoundary(volume, sourcePosition, listenerPosition))
                     obstruction = Math.Max(obstruction, BoundaryObstruction(volume.Trigger));
             }
             return obstruction;
         }
 
-        private bool HasPhysicalBoundary(Volume volume, Vector3 source)
+        private bool HasPhysicalBoundary(Volume volume, Vector3 source, Vector3 listener)
         {
-            Vector3 listener = ListenerPosition;
             Transform walk = null;
             if (volume.BoatOwned)
             {
@@ -228,7 +252,7 @@ namespace SailwindRadio.Acoustics
             SceneManager.sceneUnloaded -= SceneUnloaded;
             volumes = Array.Empty<Volume>();
             listeners = Array.Empty<AudioListener>();
-            ListenerKnown = false;
+            ListenerKnown = HeadKnown = false;
         }
     }
 }

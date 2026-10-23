@@ -56,6 +56,7 @@ namespace SailwindRadio.Models
         }
 
         internal readonly GlyphSet Glyphs;
+        internal readonly Transform Device;
         internal readonly DisplaySoundPlayer Sounds;
         internal int VerticesUpdated;
         private readonly List<GameObject> objects = new List<GameObject>();
@@ -69,6 +70,7 @@ namespace SailwindRadio.Models
         internal RegionalTrackDisplay(Transform parent, IReadOnlyList<ModelDisplay> anchors, Shader surfaceShader, Shader textShader,
             Font font, Func<bool> audible, DisplaySoundBank bank, Transform carriage, Action<string> report, List<UnityEngine.Object> owned)
         {
+            Device = parent;
             this.font = font;
             this.audible = audible;
             if (!Fonts.TryGetValue(font, out Glyphs))

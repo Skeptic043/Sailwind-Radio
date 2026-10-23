@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Reflection.Emit;
 using HarmonyLib;
 using UnityEngine;
 
@@ -9,6 +10,7 @@ namespace SailwindRadio.Physical
     public sealed partial class RadioWorldService
     {
         private readonly List<KeyValuePair<MethodInfo, MethodInfo>> patches = new List<KeyValuePair<MethodInfo, MethodInfo>>();
+        private bool controlRaycastPatched;
 
         private void InstallPatches()
         {
@@ -19,12 +21,14 @@ namespace SailwindRadio.Physical
             Patch(typeof(SaveablePrefab), "Load", nameof(PrefabPostfix), false);
             Patch(typeof(SaveablePrefab), "PrepareSaveData", nameof(CapturePrefix), true);
             PatchDirectory();
-            TryPatchControlHover();
+            TryPatchHoverText();
             TryPatchHeldItemControlTarget();
             TryPatchHammerNail();
             TryPatchNativeHooks();
             TryPatchHouseTriggers();
             TryPatchInventoryControls();
+            TryPatchCargo();
+            TryPatchStacks();
         }
 
         private void Patch(Type type, string name, string callback, bool prefix)
@@ -46,19 +50,19 @@ namespace SailwindRadio.Physical
             patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(start, directoryPatch));
         }
 
-        private void TryPatchControlHover()
+        private void TryPatchHoverText()
         {
             try
             {
                 var target = typeof(LookUI).GetMethod("ShowLookText", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
                     null, new[] { typeof(GoPointerButton) }, null);
-                if (target == null || target.ReturnType != typeof(void) || !RadioControlHover.Compatible)
+                if (target == null || target.ReturnType != typeof(void) || !RadioHoverText.Compatible)
                     throw new MissingMethodException("Native control hint layout changed");
-                var patch = AccessTools.Method(typeof(RadioWorldService), nameof(ControlHoverPostfix));
+                var patch = AccessTools.Method(typeof(RadioWorldService), nameof(HoverTextPostfix));
                 harmony.Patch(target, postfix: new HarmonyMethod(patch));
                 patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
             }
-            catch (Exception error) { warn("Radio control hint cleanup unavailable. Native hints remain visible. " + error.Message); }
+            catch (Exception error) { warn("Radio hover text unavailable. Native hints remain and the song is not shown. " + error.Message); }
         }
 
         private void TryPatchHeldItemControlTarget()
@@ -89,8 +93,121 @@ namespace SailwindRadio.Physical
                 var orderedPatch = new HarmonyMethod(patch) { after = new[] { "com.dizzy.sailwind.fixes" } };
                 harmony.Patch(raycast, postfix: orderedPatch);
                 patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(raycast, patch));
+                controlRaycastPatched = true;
             }
             catch (Exception error) { warn("Radio pointer target correction unavailable. " + error.Message); }
+        }
+
+        // Speakers and Woofers travel as free cargo. The cargo-mode pointer redirect in the DoRaycast
+        // postfix belongs to this group, so no part works without the others.
+        private void TryPatchCargo()
+        {
+            CargoCompatible = InstallGroup("Radio speaker cargo transport unavailable on this game version.", () =>
+            {
+                var mode = typeof(CargoStorageUI).GetField("loadingCargoMode", BindingFlags.Public | BindingFlags.Static);
+                if (!controlRaycastPatched || mode?.FieldType != typeof(bool))
+                    throw new MissingFieldException("Native cargo pointer contract changed");
+                var target = typeof(CargoCarrier).GetMethod("GetTransportPrice", BindingFlags.Instance | BindingFlags.Public,
+                    null, new[] { typeof(ShipItem) }, null);
+                if (target == null || target.ReturnType != typeof(int))
+                    throw new MissingMethodException("Native cargo price contract changed");
+                var patch = AccessTools.Method(typeof(RadioWorldService), nameof(TransportPricePostfix));
+                harmony.Patch(target, postfix: new HarmonyMethod(patch));
+                patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(target, patch));
+                // A storage fee of 0, which free transport always gives, makes the cargo list ask a Good for its mission.
+                var list = typeof(CargoStorageUI).GetMethod("UpdateButtons", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null, Type.EmptyTypes, null);
+                if (list == null || list.ReturnType != typeof(void))
+                    throw new MissingMethodException("Native cargo list contract changed");
+                var transpiler = AccessTools.Method(typeof(RadioWorldService), nameof(MissionCheckTranspiler));
+                missionChecksReplaced = 0;
+                harmony.Patch(list, transpiler: new HarmonyMethod(transpiler));
+                patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(list, transpiler));
+                if (missionChecksReplaced != 1)
+                    throw new MissingMethodException("Native cargo mission check changed");
+            });
+        }
+
+        private static int missionChecksReplaced;
+
+        private static IEnumerable<CodeInstruction> MissionCheckTranspiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var code = new List<CodeInstruction>(instructions);
+            var mission = AccessTools.Method(typeof(Good), "GetMissionIndex");
+            var safe = AccessTools.Method(typeof(RadioWorldService), nameof(MissionIndexOrNone));
+            for (int i = 0; i + 1 < code.Count; i++)
+            {
+                // The helper takes the ShipItem the native call reads from, so only Component's getter matches.
+                if (!(code[i].operand is MethodInfo getter) || getter.DeclaringType != typeof(Component) ||
+                    getter.Name != "GetComponent" || !getter.IsGenericMethod ||
+                    getter.GetGenericArguments()[0] != typeof(Good) || !code[i + 1].Calls(mission))
+                    continue;
+                code[i].opcode = OpCodes.Call;
+                code[i].operand = safe;
+                code[i + 1].opcode = OpCodes.Nop;
+                code[i + 1].operand = null;
+                missionChecksReplaced++;
+            }
+            return code;
+        }
+
+        // Items without a Good, such as Radio outputs, are never mission cargo.
+        private static int MissionIndexOrNone(ShipItem item)
+        {
+            var good = item ? item.GetComponent<Good>() : null;
+            return good ? good.GetMissionIndex() : -1;
+        }
+
+        // Right click reaches the held item's OnAltActivate while holding, and the pointed item's with empty hands.
+        // Native ShowHoldText runs every frame an item is held, which carries the stacking prompt.
+        // Native ShipItem does not override the pointer overload, and the overload without it only buys shop stock.
+        // Saved stacks still load and play without this group.
+        private void TryPatchStacks()
+        {
+            StacksCompatible = InstallGroup("Radio stacking unavailable on this game version.", () =>
+            {
+                var alt = typeof(GoPointerButton).GetMethod("OnAltActivate", BindingFlags.Instance | BindingFlags.Public,
+                    null, new[] { typeof(GoPointer) }, null);
+                var hold = typeof(LookUI).GetMethod("ShowHoldText", BindingFlags.Instance | BindingFlags.Public,
+                    null, new[] { typeof(PickupableItem) }, null);
+                if (alt?.ReturnType != typeof(void) || hold?.ReturnType != typeof(void) || !NativeSubcolliders.Compatible)
+                    throw new MissingMethodException("Native right click, hold text or subcollider contract changed");
+                var patch = AccessTools.Method(typeof(RadioWorldService), nameof(StackPrefix));
+                harmony.Patch(alt, prefix: new HarmonyMethod(patch));
+                patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(alt, patch));
+                var holdPatch = AccessTools.Method(typeof(RadioWorldService), nameof(HoldTextPostfix));
+                harmony.Patch(hold, postfix: new HarmonyMethod(holdPatch));
+                patches.Add(new KeyValuePair<MethodInfo, MethodInfo>(hold, holdPatch));
+            });
+        }
+
+        // Native ShowHoldText writes the held item's prompts. A device that can go on the stack in view says so.
+        private static void HoldTextPostfix(LookUI __instance, PickupableItem item) =>
+            Guard(() => RadioHoverText.AddControls(__instance, HoldHint(item)));
+
+        // The device a pointed button belongs to: an item body or one of its controls.
+        private static RadioItemController DeviceOf(GoPointerButton button) =>
+            RadioControls.IsOwnControl(button) ? RadioControls.RadioOf(button) : button ? button.GetComponent<RadioItemController>() : null;
+
+        // Right click with a device in hand stacks it on the device looked at. With empty hands, right click on a
+        // stack's body or its top's controls takes the top off.
+        private static bool StackPrefix(GoPointerButton __instance, GoPointer activatingPointer)
+        {
+            if (active == null || active.disposed || !StacksCompatible || !activatingPointer) return true;
+            try
+            {
+                var held = activatingPointer.GetHeldItem();
+                if (held)
+                    return !(held == __instance && __instance is ShipItem item && active.TryStack(item, activatingPointer));
+                var device = DeviceOf(__instance);
+                if (!device || (RadioControls.IsOwnControl(__instance) && !device.IsStackTop)) return true;
+                return !active.TryUnstack(device.RecordOwner, activatingPointer);
+            }
+            catch (Exception error)
+            {
+                active.warn("Radio stacking failed: " + error.Message);
+                return true;
+            }
         }
 
         private void TryPatchHammerNail()
@@ -189,6 +306,17 @@ namespace SailwindRadio.Physical
                 __result = true;
         }
 
+        // Radio's big outputs travel free. Storage fees scale with this price, so storage is free too.
+        // Big is the native cargo rule, set for Speakers and Woofers by ConfigureItem.
+        private static void TransportPricePostfix(ShipItem item, ref int __result)
+        {
+            if (__result <= 0 || active == null || active.disposed || !CargoCompatible || !item || !item.big)
+                return;
+            var radio = item.GetComponent<RadioItemController>();
+            if (radio && active.items.Contains(radio))
+                __result = 0;
+        }
+
         private static void HookTargetPostfix(ShipItem __instance, GoPointerButton lookedAtButton, ref bool __result)
         {
             if (__result || active == null || active.disposed || !HookCompatible || !__instance || !__instance.sold)
@@ -237,7 +365,7 @@ namespace SailwindRadio.Physical
         });
         private static void PrefabPostfix(SaveablePrefab __instance) => Guard(() => { active.loadingPrefabs.Remove(__instance); active.Restore(__instance); });
         private static void CapturePrefix(SaveablePrefab __instance) => Guard(() => active.Capture(__instance));
-        private static void ControlHoverPostfix(LookUI __instance, GoPointerButton button) => Guard(() => RadioControlHover.ClearPickupHint(__instance, button));
+        private static void HoverTextPostfix(LookUI __instance, GoPointerButton button) => Guard(() => RadioHoverText.Show(__instance, button));
         private static void HeldItemControlClearPrefix(GoPointer __instance,
             ref GoPointerButton ___pointedAtButton, ref float ___currentLookDistance)
         {
@@ -249,7 +377,11 @@ namespace SailwindRadio.Physical
             ref GoPointerButton ___pointedAtButton, ref float ___currentLookDistance)
         {
             if (active == null || active.disposed) return;
-            try { RadioHeldItemTarget.Restore(__instance, ___hit, ref ___pointedAtButton, ref ___currentLookDistance); }
+            try
+            {
+                if (!CargoCompatible || !RadioHeldItemTarget.CargoTarget(__instance, ___hit, ref ___pointedAtButton))
+                    RadioHeldItemTarget.Restore(__instance, ___hit, ref ___pointedAtButton, ref ___currentLookDistance);
+            }
             catch (Exception ex) { active.warn("Radio pointer target correction failed: " + ex.Message); }
         }
 

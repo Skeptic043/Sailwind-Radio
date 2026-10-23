@@ -30,6 +30,7 @@ static partial class AudioChecks
         AudioSettings.dspTime = 100;
         player.Tick(new Vector3(1,2,3), false);
         Check(player.Status == "Loading" && source.Schedules == 0, "Async load does not start output");
+        Check(player.NamesTrack, "Hover names a song while it opens");
         Check(source.pitch == 1 && source.dopplerLevel == 0 && source.spatialBlend == 1 && !source.ignoreListenerPause && source.bypassReverbZones,
             "Real time positional source keeps listener pause and bypasses external reverb zones");
         Check(emitter.transform.position.x == 1 && emitter.transform.position.z == 3, "Independent emitter follows requested position");
@@ -58,6 +59,7 @@ static partial class AudioChecks
         state.Paused = true;
         player.Tick(new Vector3(), false);
         Check(state.PositionSeconds == 3 && player.Status == "Paused", "Manual pause captures shared position while retaining native voice");
+        Check(player.NamesTrack, "Hover keeps naming a paused song");
         player.Tick(new Vector3(), true);
         player.Tick(new Vector3(), false);
         Check(source.Schedules == 1, "Suspend and resume never undo manual pause");
@@ -70,6 +72,7 @@ static partial class AudioChecks
         state.Powered = false;
         player.Tick(new Vector3(), false);
         Check(state.PositionSeconds == 4 && source.clip == firstClip && player.Status == "Off", "Power off preserves cursor and the open stream");
+        Check(!player.NamesTrack, "Hover names nothing while the radio is off");
         state.Powered = true;
         AudioListener.pause = true;
         player.Tick(new Vector3(), false);
@@ -98,6 +101,7 @@ static partial class AudioChecks
             "Replacing a pending load cancels and releases its stream");
         player.Tick(new Vector3(), false);
         Check(warnings == 1 && player.Status == "Unable to load music", "Remote URI rejected");
+        Check(!player.NamesTrack, "Hover names nothing after a failed load");
         int opens = FakeDecoder.Opens;
         for (int i=0;i<20;i++) player.Tick(new Vector3(), false);
         Check(warnings == 1 && Field(player, "streamed") == null && FakeDecoder.Opens == opens, "Invalid file is not retried each frame");
@@ -270,9 +274,26 @@ static partial class AudioChecks
         Check(RadioPlayback.DistanceGain(11.99f) < 0.000001f && RadioPlayback.DistanceGain(12) == 0 &&
             RadioPlayback.DistanceGain(Single.NaN) == 0 && RadioPlayback.DistanceGain(Single.PositiveInfinity) == 0,
             "Fade approaches zero gently and rejects invalid distance inputs");
+        player.SetAcoustics(new Vector3(15, 0, 0), true, 0);
+        RadioSpeakerProfile.BuiltIn.SetRadius(30);
+        player.Tick(new Vector3(), false);
+        bool widened = source.volume > 0 && source.maxDistance == 30;
+        RadioSpeakerProfile.BuiltIn.SetRadius(Single.NaN);
+        player.Tick(new Vector3(), false);
+        bool restored = source.volume == 0 && RadioSpeakerProfile.BuiltIn.Radius == 12;
+        RadioSpeakerProfile.BuiltIn.SetRadius(500);
+        bool clamped = RadioSpeakerProfile.BuiltIn.Radius == RadioSpeakerProfile.MaximumRadius;
+        RadioSpeakerProfile.BuiltIn.SetRadius(12);
+        Check(widened && restored && clamped, "Falloff setting changes the running output on its next tick within the allowed range");
         player.SetAcoustics(new Vector3(3, 4, 0), true, 0);
         player.Tick(new Vector3(3, 3, 0), false);
         Check(source.volume == 0.25f, "Distance uses supplied listener and emitter world positions");
+        player.SetAcoustics(new Vector3(3, 4, 0), true, 0, true);
+        player.Tick(new Vector3(3, 3, 0), false);
+        bool flatPlayback = source.spatialBlend == 0 && source.volume == 0.25f;
+        player.SetAcoustics(new Vector3(3, 4, 0), true, 0);
+        player.Tick(new Vector3(3, 3, 0), false);
+        Check(flatPlayback && source.spatialBlend == 1, "Head listening plays flat at its own distance gain and returns to 3D after");
         player.SetAcoustics(new Vector3(), false, 0);
         player.Tick(new Vector3(), false);
         Check(source.volume == 0, "Listener loss immediately mutes flat-rolloff source");
@@ -429,6 +450,7 @@ static partial class AudioChecks
         // The ended stream refills its final frames on its worker. Status reads Ended once they are held.
         PumpUntil(player, false, () => player.Status == "Ended");
         for (int i = 0; i < 10; i++) player.Tick(new Vector3(), false);
+        Check(!player.NamesTrack, "Hover names nothing once the song ends");
         Check(radio.Schedules == schedules && player.Status == "Ended" && player.TrackEnded,
             "Completed non-looping track does not silently restart while queue observes completion");
         state.PositionSeconds = 0;

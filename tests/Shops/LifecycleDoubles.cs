@@ -248,6 +248,8 @@ namespace SailwindRadio.Physical
     public class RadioItemController:UnityEngine.Component
     {
         public RadioState State=new();public bool IsStock;public int InstanceId;
+        public bool IsStackTop=>false;public RadioItemController RecordOwner=>this;
+        public IReadOnlyList<RadioItemController> Stack=>System.Array.Empty<RadioItemController>();
         public void SetShopStock(bool value){IsStock=value;}
         public void RefreshOwnership(){InstanceId=GetComponent<SaveablePrefab>().instanceId;}
         public void ApplyRestoredState(RadioWorldService owner,RadioState state){State=state;RefreshOwnership();}

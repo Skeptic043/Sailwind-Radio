@@ -26,6 +26,14 @@ internal static class Program
             Equal(service.ObstructionAt(new(5),false),1,"outside source inside listener muffled");
             listener.transform.position=new(5); service.Tick();
             Equal(service.ObstructionAt(new(0),false),1,"inside source outside listener muffled");
+            var rig=new UnityEngine.Transform{position=new(4)}; Refs.ovrCameraRig=rig;
+            service.Tick(); Check(!service.HeadKnown,"first-person listener is the head");
+            BoatCamera.on=true; rig.position=new(-.5f); listener.transform.position=new(30); service.Tick();
+            Equal(service.HeadPosition.x,.5f,"boat camera keeps the head at its place in the player's rig");
+            Equal(service.ObstructionAt(new(0),false,true),0,"boat camera head inside the cabin hears its source clear");
+            Equal(service.ObstructionAt(new(0),false),1,"camera listener outside the cabin still hears it muffled");
+            BoatCamera.on=false; Refs.ovrCameraRig=null; listener.transform.position=new(5); service.Tick();
+            Check(!service.HeadKnown,"leaving the boat camera returns to the native listener");
             Equal(service.ListenerPosition.x,5,"actual listener transform read every frame");
             Equal(service.ObstructionAt(new(6),false),0,"both outside clear");
             Equal(service.ObstructionAt(new(0),true),0,"carried and player-inventory source shares listener membership");

@@ -57,6 +57,83 @@ internal static class Program
         Check(!Attempt(77, new[] { 77, 77 }, 40f, false) && warnings == 0, "a new session settles again before reporting");
     }
 
+    private static void StackChecks()
+    {
+        for (int family = 0; family < 4; family++)
+            Check(DeviceKind.CanStack(DeviceKind.Of(family, DeviceRole.Speaker), DeviceKind.Of(family, DeviceRole.Woofer)) &&
+                DeviceKind.CanStack(DeviceKind.Of(family, DeviceRole.Woofer), DeviceKind.Of(family, DeviceRole.Speaker)),
+                "every family stacks a Speaker and a Woofer in either order");
+        Check(DeviceKind.CanStack(DeviceKind.Of(1, DeviceRole.Speaker), DeviceKind.Of(1, DeviceRole.Radio)) &&
+            DeviceKind.CanStack(DeviceKind.Of(1, DeviceRole.Woofer), DeviceKind.Of(1, DeviceRole.Radio)),
+            "a radio sits on its family's Speaker or Woofer");
+        Check(!DeviceKind.CanStack(DeviceKind.Of(0, DeviceRole.Speaker), DeviceKind.Of(1, DeviceRole.Woofer)) &&
+            !DeviceKind.CanStack(DeviceKind.Of(0, DeviceRole.Speaker), DeviceKind.Of(1, DeviceRole.Radio)), "families never mix");
+        Check(DeviceKind.CanStack(DeviceKind.Of(1, DeviceRole.Speaker), DeviceKind.Of(1, DeviceRole.Speaker)) &&
+            DeviceKind.CanStack(DeviceKind.Of(1, DeviceRole.Woofer), DeviceKind.Of(1, DeviceRole.Woofer)),
+            "cabinets stack on their own kind like a stack of speakers");
+        Check(!DeviceKind.CanStack(DeviceKind.Of(1, DeviceRole.Radio), DeviceKind.Of(1, DeviceRole.Woofer)) &&
+            !DeviceKind.CanStack(DeviceKind.Of(1, DeviceRole.Radio), DeviceKind.Of(1, DeviceRole.Speaker)) &&
+            !DeviceKind.CanStack(DeviceKind.Of(1, DeviceRole.Woofer), DeviceKind.Of(1, DeviceRole.SmallSpeaker)) &&
+            !DeviceKind.CanStack(DeviceKind.Of(1, DeviceRole.SmallSpeaker), DeviceKind.Of(1, DeviceRole.Radio)) &&
+            !DeviceKind.CanStack(DeviceKind.Of(1, DeviceRole.Speaker), DeviceKind.Count),
+            "nothing stacks on a radio or a small speaker");
+
+        int woofer = DeviceKind.Of(DeviceKind.Aestrin, DeviceRole.Woofer), speaker = DeviceKind.Of(DeviceKind.Aestrin, DeviceRole.Speaker);
+        var bottom = RadioState.NewDevice(woofer);
+        bottom.Bass = .3f;
+        var top = RadioState.NewDevice(speaker);
+        top.Volume = .4f;
+        top.SpeakerEnabled = false;
+        bottom.Stacked = top;
+        var store = new RadioSaveStore();
+        store.Put(RadioRecord.Capture(9, RadioSaveStore.ItemIndex(woofer), bottom));
+        string json = store.Save();
+        Check(json.Contains("\"Schema\":4"), "a stack marks the save so Radio 1.3 preserves it rather than dropping the top");
+        var reloaded = new RadioSaveStore();
+        RadioRecord record = null;
+        Check(reloaded.Load(json) && reloaded.TryGetAny(9, out record), "a stacked save loads");
+        var state = record.ToState();
+        Check(state.Kind == woofer && state.Bass == .3f && state.Stacked != null && state.Stacked.Kind == speaker &&
+            state.Stacked.Volume == .4f && !state.Stacked.SpeakerEnabled, "a stack keeps both devices' settings across a save");
+        state.Stacked = null;
+        reloaded.Put(RadioRecord.Capture(9, RadioSaveStore.ItemIndex(woofer), state));
+        string plain = reloaded.Save();
+        Check(plain.Contains("\"Schema\":3") && !plain.Contains("Stacked"), "a save without stacks is written as before");
+        const string released = "{\"Radios\":[{\"Bass\":0.5,\"CollectionsInitialized\":false,\"InstanceId\":7,\"Kind\":2,\"LocalVolume\":1," +
+            "\"Paused\":false,\"PositionSeconds\":0,\"Powered\":false,\"PrefabIndex\":43042,\"SelectedCollections\":[],\"Shuffle\":false," +
+            "\"SpeakerEnabled\":true,\"TrackPath\":\"\",\"Volume\":0.75}],\"Schema\":3}";
+        var exact = new RadioSaveStore();
+        Check(exact.Load(released) && exact.Save() == released, "a released-format save without stacks re-saves byte for byte");
+
+        int radio = DeviceKind.Of(DeviceKind.Aestrin, DeviceRole.Radio);
+        var stackedRadio = RadioState.NewDevice(radio);
+        stackedRadio.TrackPath = @"E:\Music\a.ogg";
+        stackedRadio.PositionSeconds = 61;
+        stackedRadio.SelectedCollections = new[] { @"E:\Music" };
+        state.Stacked = stackedRadio;
+        reloaded.Put(RadioRecord.Capture(9, RadioSaveStore.ItemIndex(woofer), state));
+        var radioStack = new RadioSaveStore();
+        Check(radioStack.Load(reloaded.Save()) && radioStack.TryGetAny(9, out record) && record.Stacked.Kind == radio &&
+            record.Stacked.PositionSeconds == 61 && record.Stacked.TrackPath == @"E:\Music\a.ogg" && record.Stacked.SelectedCollections.Length == 1,
+            "a stacked radio keeps its song, position and folders across a save");
+
+        string Stack(int kind, int stacked, string level, string extra = "") => "{\"Schema\":4,\"Radios\":[{\"InstanceId\":5,\"PrefabIndex\":" +
+            RadioSaveStore.ItemIndex(kind) + ",\"Kind\":" + kind + ",\"Volume\":0.5,\"Stacked\":{\"Kind\":" + stacked + ",\"PrefabIndex\":" +
+            RadioSaveStore.ItemIndex(stacked) + ",\"Volume\":" + level + extra + "}}]}";
+        Check(new RadioSaveStore().Load(Stack(woofer, speaker, "0.5")), "a hand-written stack in the documented shape loads");
+        Reject(Stack(radio, speaker, "0.5"), "nothing loads stacked on a radio");
+        Reject(Stack(woofer, DeviceKind.Of(DeviceKind.Emerald, DeviceRole.Speaker), "0.5"), "a stack never mixes families");
+        Reject(Stack(woofer, speaker, "2"), "a stacked device's level stays in range");
+        Reject(Stack(woofer, speaker, "0.5", ",\"InstanceId\":7"), "a stacked device has no native identity of its own");
+        string On(int kind, string above = "") => ",\"Stacked\":{\"Kind\":" + kind + ",\"PrefabIndex\":" + RadioSaveStore.ItemIndex(kind) + above + "}";
+        Check(new RadioSaveStore().Load(Stack(woofer, speaker, "0.5", On(woofer, On(radio)))), "a taller stack crowned by its radio loads");
+        Reject(Stack(woofer, radio, "0.5", On(speaker)), "nothing stands on a stacked radio");
+        string tower = "";
+        for (int i = 0; i < DeviceKind.MaximumStack - 2; i++) tower = On(speaker, tower);
+        Check(new RadioSaveStore().Load(Stack(woofer, speaker, "0.5", tower)), "a stack of the maximum height loads");
+        Reject(Stack(woofer, speaker, "0.5", On(speaker, tower)), "a stack never exceeds the maximum height");
+    }
+
     public static int Main()
     {
         var store = new RadioSaveStore();
@@ -109,6 +186,7 @@ internal static class Program
         Check(!RadioSaveStore.HasUniqueNativeOwner(0, new[] { 0 }, out _),
             "unassigned native identities never own Radio state");
         RestoreDeferralChecks();
+        StackChecks();
         for (int kind = 0; kind < 16; kind++)
         {
             var indexed = RadioRecord.Capture(200 + kind, RadioSaveStore.ItemIndex(kind), new RadioState { Kind = kind, Volume = .5f });
@@ -164,7 +242,7 @@ internal static class Program
             "changed live radio keeps independent state");
         Check(restored.Load(null) && !restored.Records.Any(), "old save with no radio data must clear previous slot records");
         Reject("{", "malformed JSON is isolated");
-        Reject("{\"Schema\":4,\"Radios\":[]}", "future schema is preserved");
+        Reject("{\"Schema\":5,\"Radios\":[]}", "future schema is preserved");
         Reject("{\"Radios\":[]}", "missing schema is rejected");
         Reject("{\"Schema\":1,\"Radios\":null}", "null collection is rejected");
         Reject(json.Replace("\"InstanceId\":91", "\"InstanceId\":42"), "duplicate identity is rejected");

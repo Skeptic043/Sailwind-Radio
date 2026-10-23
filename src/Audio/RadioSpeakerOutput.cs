@@ -5,10 +5,15 @@ namespace SailwindRadio.Audio
 {
     internal sealed class RadioSpeakerProfile
     {
-        internal readonly float Gain, Radius, HighPass, LowPass;
+        internal const float MinimumRadius = 5f, MaximumRadius = 50f;
+        internal readonly float Gain, DefaultRadius, HighPass, LowPass;
         internal readonly bool IsWoofer;
+        // Endpoints compare profiles by reference, so a setting changes the radius in place.
+        internal float Radius { get; private set; }
         private RadioSpeakerProfile(float gain, float radius, float highPass, float lowPass, bool woofer = false)
-        { Gain = gain; Radius = radius; HighPass = highPass; LowPass = lowPass; IsWoofer = woofer; }
+        { Gain = gain; Radius = DefaultRadius = radius; HighPass = highPass; LowPass = lowPass; IsWoofer = woofer; }
+        internal void SetRadius(float radius)
+        { Radius = Single.IsNaN(radius) || Single.IsInfinity(radius) ? DefaultRadius : Math.Min(MaximumRadius, Math.Max(MinimumRadius, radius)); }
         // The two smallest cabinets use a restrained native bandpass that keeps vocals intelligible and sets
         // their character apart from the full-size outputs.
         internal static readonly RadioSpeakerProfile BuiltIn = new RadioSpeakerProfile(.25f, 12f, 900f, 5000f);
@@ -30,7 +35,8 @@ namespace SailwindRadio.Audio
         internal AudioClip StreamClip;
         internal RadioSpeakerProfile Profile;
         internal Vector3 Position;
-        internal bool Carried, Seen, Running, Paused;
+        // Flat outputs play without panning but keep their distance gain, for a listening point away from the native listener.
+        internal bool Carried, Flat, Seen, Running, Paused;
         internal double SettlesAt, StartsAt;
         internal int DriftObservations;
         internal float LocalVolume = 1f, Bass = 1f, Obstruction;
@@ -105,7 +111,7 @@ namespace SailwindRadio.Audio
         {
             if (Emitter == null || Source == null) return;
             Emitter.transform.position = Position;
-            Source.spatialBlend = Carried ? 0f : 1f;
+            Source.spatialBlend = Carried || Flat ? 0f : 1f;
             Source.maxDistance = Profile.Radius;
             float target = Carried ? 0f : Clamp(Obstruction);
             if (!initialized) { smoothedObstruction = target; initialized = true; }

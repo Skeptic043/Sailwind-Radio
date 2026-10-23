@@ -64,6 +64,27 @@ namespace SailwindRadio.Playback
             catch (Exception error) { Record(key, error); }
         }
 
+        // A radio whose controller is replaced, as by stacking or unstacking, keeps its player, timeline and queue, so
+        // its music carries on without a restart. Its state object moves with it. A replacement that could not be built
+        // releases the player, as removal would.
+        internal void Move(TKey from, TKey to)
+        {
+            if (to == null)
+            {
+                Remove(from);
+                return;
+            }
+            if (from == to || !channels.TryGetValue(from, out var channel) || channels.ContainsKey(to)) return;
+            channels.Remove(from);
+            channels.Add(to, channel);
+            try
+            {
+                attach(from, null);
+                attach(to, channel.Engine);
+            }
+            catch (Exception error) { warn("Could not move a radio player: " + error.Message); }
+        }
+
         internal void Remove(TKey key)
         {
             Channel channel;

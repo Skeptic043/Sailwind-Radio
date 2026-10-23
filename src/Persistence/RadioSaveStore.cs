@@ -24,6 +24,9 @@ namespace SailwindRadio.Persistence
         [DataMember] public bool Shuffle;
         [DataMember] public bool CollectionsInitialized;
         [DataMember] public string[] SelectedCollections;
+        // The device stacked on this one, which has no native item while stacked. Its own InstanceId is 0. Omitted
+        // when empty, so saves without stacks stay byte for byte as before.
+        [DataMember(EmitDefaultValue = false)] public RadioRecord Stacked;
 
         [OnDeserializing]
         private void Defaults(StreamingContext context) { Bass = .5f; LocalVolume = 1f; SpeakerEnabled = true; }
@@ -31,20 +34,24 @@ namespace SailwindRadio.Persistence
         public RadioState ToState() => new RadioState { TrackPath = TrackPath ?? "", PositionSeconds = PositionSeconds,
             Powered = Powered, Paused = Paused, Volume = Volume, Kind = Kind, Bass = Bass, LocalVolume = LocalVolume, SpeakerEnabled = SpeakerEnabled,
             Shuffle = Shuffle, CollectionsInitialized = CollectionsInitialized,
-            SelectedCollections = SelectedCollections == null ? Array.Empty<string>() : (string[])SelectedCollections.Clone() };
+            SelectedCollections = SelectedCollections == null ? Array.Empty<string>() : (string[])SelectedCollections.Clone(),
+            Stacked = Stacked?.ToState() };
 
         public static RadioRecord Capture(int id, int prefab, RadioState state) => new RadioRecord {
             InstanceId = id, PrefabIndex = prefab, TrackPath = state.TrackPath ?? "", PositionSeconds = state.PositionSeconds,
             Powered = state.Powered, Paused = state.Paused, Volume = state.Volume, Kind = state.Kind, Bass = state.Bass,
             LocalVolume = state.LocalVolume, SpeakerEnabled = state.SpeakerEnabled,
             Shuffle = state.Shuffle, CollectionsInitialized = state.CollectionsInitialized,
-            SelectedCollections = state.SelectedCollections == null ? Array.Empty<string>() : (string[])state.SelectedCollections.Clone() };
+            SelectedCollections = state.SelectedCollections == null ? Array.Empty<string>() : (string[])state.SelectedCollections.Clone(),
+            Stacked = state.Stacked == null ? null : Capture(0, RadioSaveStore.ItemIndex(state.Stacked.Kind), state.Stacked) };
     }
 
     [DataContract]
     public sealed class RadioSaveDocument
     {
-        [DataMember(IsRequired = true)] public int Schema = 3;
+        // Schema 4 marks a save holding stacks. Radio 1.3 refuses it and preserves the data rather than dropping a speaker.
+        public const int Plain = 3, WithStacks = 4;
+        [DataMember(IsRequired = true)] public int Schema = Plain;
         [DataMember(IsRequired = true)] public List<RadioRecord> Radios = new List<RadioRecord>();
     }
 
@@ -114,7 +121,7 @@ namespace SailwindRadio.Persistence
                 RadioSaveDocument document;
                 using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(json)))
                     document = (RadioSaveDocument)new DataContractJsonSerializer(typeof(RadioSaveDocument)).ReadObject(stream);
-                if (document == null || document.Schema < 1 || document.Schema > 3 || document.Radios == null)
+                if (document == null || document.Schema < 1 || document.Schema > RadioSaveDocument.WithStacks || document.Radios == null)
                     throw new SerializationException("unsupported radio save schema");
                 if (document.Radios.Count > MaximumRecords) throw new SerializationException("too many radio records");
                 foreach (RadioRecord record in document.Radios)
@@ -185,6 +192,7 @@ namespace SailwindRadio.Persistence
             if (!Writable) throw new InvalidOperationException("Unreadable radio data must not be overwritten");
             var document = new RadioSaveDocument { Radios = new List<RadioRecord>(records.Values) };
             document.Radios.Sort((a, b) => a.InstanceId.CompareTo(b.InstanceId));
+            if (document.Radios.Exists(record => record.Stacked != null)) document.Schema = RadioSaveDocument.WithStacks;
             using (var stream = new MemoryStream())
             {
                 new DataContractJsonSerializer(typeof(RadioSaveDocument)).WriteObject(stream, document);
@@ -202,10 +210,23 @@ namespace SailwindRadio.Persistence
             if (record == null || record.InstanceId <= 0 || !DeviceKind.IsValid(record.Kind) ||
                 (record.PrefabIndex != ItemIndex(record.Kind) && !(record.PrefabIndex == DonorIndex && DeviceKind.IsWalnut(record.Kind))))
                 throw new SerializationException("invalid radio identity or donor");
+            ValidateSettings(record);
+            // Each stacked device has no native identity of its own and may stand on the device below it.
+            int devices = 1;
+            for (var below = record; below.Stacked != null; below = below.Stacked)
+            {
+                var stacked = below.Stacked;
+                if (++devices > DeviceKind.MaximumStack || !DeviceKind.CanStack(below.Kind, stacked.Kind) || stacked.InstanceId != 0 ||
+                    stacked.PrefabIndex != ItemIndex(stacked.Kind))
+                    throw new SerializationException("invalid device stack");
+                ValidateSettings(stacked);
+            }
+        }
+
+        private static void ValidateSettings(RadioRecord record)
+        {
             if (Double.IsNaN(record.PositionSeconds) || Double.IsInfinity(record.PositionSeconds) || record.PositionSeconds < 0 ||
-                Single.IsNaN(record.Volume) || Single.IsInfinity(record.Volume) || record.Volume < 0 || record.Volume > 1 ||
-                Single.IsNaN(record.Bass) || Single.IsInfinity(record.Bass) || record.Bass < 0 || record.Bass > 1 ||
-                Single.IsNaN(record.LocalVolume) || Single.IsInfinity(record.LocalVolume) || record.LocalVolume < 0 || record.LocalVolume > 1 ||
+                !Level(record.Volume) || !Level(record.Bass) || !Level(record.LocalVolume) ||
                 (record.TrackPath != null && record.TrackPath.Length > 32768))
                 throw new SerializationException("invalid radio playback state");
             if (record.SelectedCollections != null)
@@ -215,5 +236,7 @@ namespace SailwindRadio.Persistence
                     if (string.IsNullOrWhiteSpace(root) || root.Length > 32768) throw new SerializationException("invalid collection root");
             }
         }
+
+        private static bool Level(float value) => !Single.IsNaN(value) && value >= 0 && value <= 1;
     }
 }

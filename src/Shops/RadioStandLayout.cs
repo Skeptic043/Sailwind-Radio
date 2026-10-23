@@ -32,7 +32,7 @@ namespace SailwindRadio.Shops
                     // to .935 m, and rear +.345 to +.69 at about .965 m. Each Al'Ankh device sits wholly
                     // on one plank: radios centred on the rear about 21 cm apart, large speakers about 9 cm
                     // apart on the middle and small speakers on the front.
-                    if (index == 1 || index == 2) { position.x = index == 1 ? -.545f : .545f; position.y = index == 1 ? .93f : .94f; position.z = .02f; }
+                    if (index == 1 || index == 2) { position.x = index == 1 ? -.545f : .545f; position.y = index == 1 ? .935f : .94f; position.z = .02f; }
                     if (index == 3 || index == 4) { position.x = index == 3 ? -.36f : .36f; position.y = .975f; position.z = .515f; }
                     if (index == 5 || index == 6) { position.x = index == 5 ? -.34f : .34f; position.y = .90f; position.z = -.405f; }
                 }

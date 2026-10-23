@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using SailwindRadio.Persistence;
 using SailwindRadio.Shops;
 using UnityEngine;
@@ -14,6 +15,8 @@ namespace SailwindRadio.Physical
         internal bool EnsureOwned(RadioItemController controller)
         {
             if (disposed || !controller) return false;
+            // A stacked top is owned through its base, whose saved state holds it.
+            if (controller.IsStackTop) return controller.RecordOwner.Stack.Contains(controller) && EnsureOwned(controller.RecordOwner);
             if (manager != SaveLoadManager.instance) Tick();
             try { return BindOwned(controller.GetComponent<SaveablePrefab>()); }
             catch (System.Exception error) { warn("Radio state binding deferred: " + error.Message); return false; }

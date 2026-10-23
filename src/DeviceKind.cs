@@ -17,5 +17,11 @@ namespace SailwindRadio
         public static int Family(int kind) => kind >> 2;
         public static bool IsWalnut(int kind) => Family(kind) == Walnut;
         public static int Of(int family, DeviceRole role) => family * 4 + (int)role;
+        // Within one family, Speakers and Woofers stack in any order, and the Radio sits on either. Nothing stacks on a
+        // Radio. A stack holds at most MaximumStack devices, and its bottom stays the native item.
+        public const int MaximumStack = 6;
+        public static bool CanStack(int bottom, int top) => IsValid(bottom) && IsValid(top) && Family(bottom) == Family(top) &&
+            IsCabinet(bottom) && (IsCabinet(top) || Role(top) == DeviceRole.Radio);
+        private static bool IsCabinet(int kind) => Role(kind) == DeviceRole.Speaker || Role(kind) == DeviceRole.Woofer;
     }
 }

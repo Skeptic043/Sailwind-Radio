@@ -1,5 +1,19 @@
 # Sailwind Radio
 
+## 1.4.0
+
+### New
+- You can now snap large speaker and woofers together to stack them, up to 6 pieces high. Radio's can be stacked at the top as well but cannot have speakers stacked on them.
+- Speakers and Woofers can be collected and moved using the cargo system, free of charge.
+- Added `RadioFalloff`, `SmallSpeakerFalloff`, `SpeakerFalloff` and `WooferFalloff` settings for how far each output can be heard.
+- Added a `ShowSongOnHover` setting that shows the song a radio is playing in hover text. Defaults to off.
+### Changed
+- Brightened up regional displays for better readability in the dark
+- Made the Al'Ankh large speaker a bit bigger
+### Fixed
+- Radios and speakers on your boat stay audible in the boat camera
+- The regional Speakers and Woofers colliders match their models better
+
 ## 1.3.0
 
 ### New

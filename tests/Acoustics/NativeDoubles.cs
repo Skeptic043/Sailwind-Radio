@@ -107,4 +107,5 @@ public class BoatEmbarkCollider : UnityEngine.Component
     public UnityEngine.Transform GetMeshParent()=>Model;
     public UnityEngine.Transform GetTopmostBoatParent()=>Root;
 }
-public static class Refs { public static UnityEngine.Collider charController; }
+public static class Refs { public static UnityEngine.Collider charController; public static UnityEngine.Transform ovrCameraRig; }
+public static class BoatCamera { public static bool on; }
