@@ -86,6 +86,17 @@ try {
         }
     }
 
+    # Crate insertion sets inStove, and FixedUpdate returns before updating subcollider triggers. Radio sets its own.
+    $insert = Find-HookMethod $game 'CrateInventory' 'InsertItem'
+    Assert-HookReference $insert 'ItemRigidbody::inStove'
+    Assert-HookReference (Find-HookMethod $game 'ItemRigidbody' 'FixedUpdate') 'ItemRigidbody::SetSubcollidersTriggers'
+    $crateInstaller = Get-InstallerInstructions $radio 'SailwindRadio.Physical.RadioWorldService' 'TryPatchCrates'
+    foreach ($name in @('InsertItem', 'CrateInsertPostfix')) {
+        if (-not @($crateInstaller | Where-Object { $_.OpCode.Name -eq 'ldstr' -and $_.Operand -eq $name }).Count) {
+            throw "Crate installer is missing $name"
+        }
+    }
+
     if ($HooksHangMore) {
         $hhm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($HooksHangMore)
         try {

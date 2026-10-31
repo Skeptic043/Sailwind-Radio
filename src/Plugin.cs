@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
@@ -20,7 +21,7 @@ namespace SailwindRadio
     public sealed class Plugin : BaseUnityPlugin
     {
         public const string Id = "local.sailwind.radio";
-        public const string Version = "1.4.0";
+        public const string Version = "1.5.5";
         private static Plugin instance;
         private Harmony harmony;
         private RadioWorldService world;
@@ -33,6 +34,7 @@ namespace SailwindRadio
         private ConfigEntry<bool> logDisplayTiming;
         private LibraryScanner library;
         private RadioMenus menus;
+        private Task<List<AudioApplication>> applicationList;
         private RadioPlaybackSet<RadioItemController> radios;
         private readonly HashSet<RadioItemController> seen = new HashSet<RadioItemController>();
         private readonly List<RadioItemController> removed = new List<RadioItemController>();
@@ -65,6 +67,8 @@ namespace SailwindRadio
                 MediaFoundationSupport.Detect();
                 LibraryPaths.MediaFoundationFormats = MediaFoundationSupport.Enabled;
                 Logger.LogInfo(MediaFoundationSupport.Summary);
+                ApplicationAudioSupport.Detect(System.IO.Path.Combine(Paths.ConfigPath, "SailwindRadio.held-volumes.txt"), Warn);
+                Logger.LogInfo(ApplicationAudioSupport.Summary);
                 acoustics = new RadioAcousticsService();
                 library = new LibraryScanner();
                 radios = new RadioPlaybackSet<RadioItemController>(
@@ -78,6 +82,7 @@ namespace SailwindRadio
                 world.RadioReplaced += (from, to) => radios.Move(from, to);
                 shops = new RadioShopService(world, Warn);
                 menus.CollectionsChanged += SelectCollections;
+                menus.ApplicationChosen += ChooseApplication;
                 library.RequestScan(musicFolders.Value);
                 InstallSuspendBoundary(typeof(StartMenu), "GameToSettings");
                 InstallSuspendBoundary(typeof(Sleep), "FallAsleep");
@@ -176,6 +181,7 @@ namespace SailwindRadio
                     if (menus.CollectionRadio) ShowCollections(menus.CollectionRadio);
                 }
                 menus.Tick();
+                PollApplications();
                 bool suspended = Suspended;
                 // Each radio's playback failure is contained by the set. Anything else stops the mod below.
                 radios.Tick(Time.realtimeSinceStartup, world.ActiveRadioId, item => item ? item.InstanceId : 0,
@@ -265,8 +271,20 @@ namespace SailwindRadio
             }
             engine.PreloadTrack(item.InstanceId == world.ActiveRadioId && item.State.Powered
                 ? queue.PeekNext() : "");
-            var info = library.Snapshot.GetTrackInfo(item.State.TrackPath);
-            item.SetTrackInfo(info.Title, info.Artist, info.Album, engine.NamesTrack && songHover.Value);
+            var application = engine.PlayingApplication;
+            if (application != null)
+            {
+                // The application's own track when its media session names one, otherwise the application.
+                var track = engine.ApplicationTrack;
+                bool named = track != null && track.Title.Length > 0;
+                item.SetTrackInfo(named ? track.Title : application.Label, named ? track.Artist : "", named ? track.Album : "",
+                    item.State.Powered && songHover.Value);
+            }
+            else
+            {
+                var info = library.Snapshot.GetTrackInfo(item.State.TrackPath);
+                item.SetTrackInfo(info.Title, info.Artist, info.Album, engine.NamesTrack && songHover.Value);
+            }
         }
 
         private void ConnectSpeakers(DeviceVessel sourceVessel, RadioPlayback engine, Vector3 devicePosition, bool fromHead)
@@ -293,21 +311,35 @@ namespace SailwindRadio
                 if (item.State.Powered) library.RequestScan(musicFolders.Value);
                 return;
             }
-            if (action == RadioAction.Collections) { ShowCollections(item); return; }
+            if (action == RadioAction.Collections)
+            {
+                ShowCollections(item);
+                ListApplications(item);
+                return;
+            }
             // Only the power button turns a radio on.
             if (action == RadioAction.PlayPause && !item.State.Powered) return;
             radios.Run(item, (engine, queue) =>
             {
                 bool changed = false;
+                // An application's own media session takes the playback buttons. One without a session can still be paused by the radio.
+                bool application = engine.PlayingApplication != null;
                 switch (action)
                 {
                     case RadioAction.PlayPause:
+                        if (application && !item.State.Paused && engine.SendToApplication(MediaControls.Command.PlayPause)) break;
                         engine.CapturePosition();
                         item.State.Paused = !item.State.Paused;
                         if (item.State.Paused) item.SuspendPlayback?.Invoke();
                         break;
-                    case RadioAction.Previous: changed = queue.Previous(); break;
-                    case RadioAction.Next: changed = queue.Next(); break;
+                    case RadioAction.Previous:
+                        if (application) engine.SendToApplication(MediaControls.Command.Previous);
+                        else changed = queue.Previous();
+                        break;
+                    case RadioAction.Next:
+                        if (application) engine.SendToApplication(MediaControls.Command.Next);
+                        else changed = queue.Next();
+                        break;
                     case RadioAction.Shuffle: changed = queue.SetShuffle(!item.State.Shuffle); break;
                 }
                 if (changed) engine.SetTrack(item.State.TrackPath);
@@ -328,6 +360,47 @@ namespace SailwindRadio
         {
             if (!item) return;
             radios.Run(item, (engine, queue) => { if (queue.SetCollections(library.Snapshot, selected)) engine.SetTrack(item.State.TrackPath); });
+        }
+
+        // Listing touches Windows audio and every process, so it runs off the Unity thread.
+        private void ListApplications(RadioItemController item)
+        {
+            if (!ApplicationAudioSupport.Enabled)
+            {
+                menus.ShowApplications(PlayingApplication(item), null, ApplicationAudioSupport.Summary);
+                return;
+            }
+            menus.ShowApplications(PlayingApplication(item), null, "Looking for applications playing sound");
+            if (applicationList == null)
+                applicationList = Task.Run(() => { using (new ComCalls.Apartment()) return AudioApplications.List(); });
+        }
+
+        private void PollApplications()
+        {
+            if (applicationList == null || !applicationList.IsCompleted) return;
+            var finished = applicationList;
+            applicationList = null;
+            var item = menus.CollectionRadio;
+            if (finished.IsFaulted)
+            {
+                Warn("Could not list applications: " + finished.Exception.GetBaseException().Message);
+                if (item) menus.ShowApplications(PlayingApplication(item), null, "Could not list applications");
+            }
+            else if (item)
+                menus.ShowApplications(PlayingApplication(item), finished.Result, finished.Result.Count == 0
+                    ? "No other application is playing sound. Start your music app and open this menu again." : null);
+        }
+
+        private AudioApplication PlayingApplication(RadioItemController item)
+        {
+            AudioApplication playing = null;
+            radios.Run(item, (engine, queue) => playing = engine.PlayingApplication);
+            return playing;
+        }
+
+        private void ChooseApplication(RadioItemController item, AudioApplication application)
+        {
+            if (item) radios.Run(item, (engine, queue) => engine.SetApplication(application));
         }
 
         private void OnGUI() { if (ready) menus?.Draw(); }

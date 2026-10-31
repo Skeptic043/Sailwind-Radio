@@ -1,5 +1,15 @@
 # Sailwind Radio
 
+## 1.5.5
+
+### New
+- Radios can play another app, such as Spotify or a YouTube playlist in your browser, chooseable from the Radio's collection menu. The radio's buttons control the app and its display shows what's playing. Note: The shuffle button only functions when playing local audio files
+
+### Fixed
+- Speaker stacks (should) no longer go flying when they tip over an edge
+- Crates holding a radio or speaker no longer occasionally fly away when opened
+- The Al'Ankh woofer's power button now works when it is stacked with a speaker
+
 ## 1.4.0
 
 ### New

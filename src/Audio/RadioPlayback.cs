@@ -72,6 +72,8 @@ namespace SailwindRadio.Audio
             if (!String.Equals(state.TrackPath, path, StringComparison.Ordinal))
                 state.PositionSeconds = 0;
             state.TrackPath = path;
+            // An application keeps playing. The new track opens when music returns.
+            if (application != null) return;
             ReleaseTrack();
             failure = null;
             FailedPath = null;
@@ -153,6 +155,11 @@ namespace SailwindRadio.Audio
                 resetRequested = false;
             }
             lastDsp = dsp;
+            if (application != null)
+            {
+                TickApplication(state.Powered && !state.Paused && !suspended && !AudioListener.pause, suspended || AudioListener.pause);
+                return;
+            }
 
             if (!String.Equals(requestedPath, state.TrackPath ?? "", StringComparison.Ordinal))
             {
@@ -577,8 +584,12 @@ namespace SailwindRadio.Audio
                 AudioSettings.OnAudioConfigurationChanged -= OnAudioConfigurationChanged;
                 try
                 {
-                    try { ReleaseTrack(); }
-                    finally { ReleasePreload(); }
+                    try { DisposeApplication(); }
+                    finally
+                    {
+                        try { ReleaseTrack(); }
+                        finally { ReleasePreload(); }
+                    }
                 }
                 finally
                 {

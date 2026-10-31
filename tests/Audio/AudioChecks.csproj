@@ -16,6 +16,7 @@
     <Compile Include="M4aChecks.cs" />
     <Compile Include="StreamingChecks.cs" />
     <Compile Include="OggChecks.cs" />
+    <Compile Include="ApplicationRingChecks.cs" />
     <Content Include="Fixtures/stereo-noise.mp3" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Fixtures/sine-stereo.ogg" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

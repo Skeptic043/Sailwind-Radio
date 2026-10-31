@@ -176,6 +176,7 @@ namespace UnityEngine
             if (Destroyed) throw new InvalidOperationException("Destroyed native AudioSource");
             cursor = 0; isPlaying = false; paused = false;
         }
+        public void Play() { isPlaying = true; paused = false; }
         public void PlayScheduled(double value)
         {
             Schedules++; ScheduledAt=value; isPlaying = true; paused = false;

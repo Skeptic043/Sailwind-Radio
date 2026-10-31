@@ -32,6 +32,7 @@ namespace SailwindRadio.Audio
     {
         internal readonly GameObject Emitter;
         internal readonly AudioSource Source;
+        internal readonly RadioApplicationInput Input;
         internal AudioClip StreamClip;
         internal RadioSpeakerProfile Profile;
         internal Vector3 Position;
@@ -68,6 +69,8 @@ namespace SailwindRadio.Audio
             // Native pause retains the voice, while a modded port's global reverb can
             // keep sounding after it. Keep Radio's own signal out of reverb zones.
             Source.bypassReverbZones = true;
+            // Added before the filters, so they also shape application audio.
+            Input = Emitter.AddComponent<RadioApplicationInput>();
             try
             {
                 highPass = Emitter.AddComponent<AudioHighPassFilter>();
@@ -112,6 +115,7 @@ namespace SailwindRadio.Audio
             if (Emitter == null || Source == null) return;
             Emitter.transform.position = Position;
             Source.spatialBlend = Carried || Flat ? 0f : 1f;
+            if (Input != null) Input.Spatial = !(Carried || Flat);
             Source.maxDistance = Profile.Radius;
             float target = Carried ? 0f : Clamp(Obstruction);
             if (!initialized) { smoothedObstruction = target; initialized = true; }

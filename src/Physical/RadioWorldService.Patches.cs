@@ -29,6 +29,7 @@ namespace SailwindRadio.Physical
             TryPatchInventoryControls();
             TryPatchCargo();
             TryPatchStacks();
+            TryPatchCrates();
         }
 
         private void Patch(Type type, string name, string callback, bool prefix)
@@ -254,6 +255,12 @@ namespace SailwindRadio.Physical
             });
         }
 
+        private void TryPatchCrates()
+        {
+            InstallGroup("Radio crate cleanup unavailable. A device packed while not held may push its crate.", () =>
+                PatchNativeHook(typeof(CrateInventory), "InsertItem", new[] { typeof(ShipItem) }, nameof(CrateInsertPostfix), false));
+        }
+
         private void TryPatchInventoryControls()
         {
             InstallGroup("Radio inventory control cleanup unavailable. Slotted devices may join boats.", () =>
@@ -329,6 +336,10 @@ namespace SailwindRadio.Physical
 
         private static void HookReleasePostfix(ShipItem __instance) => Guard(() => { RadioNativeHooks.Release(__instance); });
         private static void HookInventoryPostfix(ShipItem __instance) => Guard(() => RadioNativeHooks.EnterInventory(__instance));
+        private static void CrateInsertPostfix(ShipItem item) => Guard(() =>
+        {
+            if (item && item.GetComponent<RadioItemController>()) NativeSubcolliders.MakeTriggers(item.itemRigidbodyC);
+        });
         private static void InventoryEnterPostfix(ItemRigidbody __instance) => Guard(() => RadioNativeHooks.InventorySlotChanged(__instance, true));
         private static void InventoryExitPostfix(ItemRigidbody __instance) => Guard(() => RadioNativeHooks.InventorySlotChanged(__instance, false));
         private static void HookPositionPrefix(HangableItem __instance) => Guard(() => RadioNativeHooks.RejectPhantomHook(__instance));

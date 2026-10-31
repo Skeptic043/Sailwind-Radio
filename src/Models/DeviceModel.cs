@@ -355,6 +355,33 @@ namespace SailwindRadio.Models
             return boxes;
         }
 
+        // A stack's pointer box from each cabinet's kind and contact box at its height in the stack, base first. It
+        // spans the whole stack, but its front stops at the shallowest front, behind every front control. A side
+        // stops at a cabinet's contact box only where that box was authored short of the model to keep side controls
+        // clear, as on the Al'Ankh woofer's right panel, so other stacks stay grabbable across their full width.
+        internal static (Vector3 Min, Vector3 Max) StackPointerBox(IReadOnlyList<int> kinds, IReadOnlyList<(Vector3 Min, Vector3 Max)> contacts)
+        {
+            Vector3 min = contacts[0].Min, max = contacts[0].Max;
+            float front = min.z;
+            foreach (var contact in contacts)
+            {
+                min = Vector3.Min(min, contact.Min);
+                max = Vector3.Max(max, contact.Max);
+                front = Mathf.Max(front, contact.Min.z);
+            }
+            float left = min.x, right = max.x;
+            for (int i = 0; i < kinds.Count; i++)
+            {
+                if (!TryGetBounds(kinds[i], out var bounds, out var boundsMax)) continue;
+                if (contacts[i].Min.x > bounds.x + .001f) left = Mathf.Max(left, contacts[i].Min.x);
+                if (contacts[i].Max.x < boundsMax.x - .001f) right = Mathf.Min(right, contacts[i].Max.x);
+            }
+            min.z = front;
+            min.x = left;
+            max.x = right;
+            return (min, max);
+        }
+
         // How far above the base's origin a stacked top's origin sits: its lowest box rests on the highest base box
         // beneath it. Overhanging parts, such as feet beyond a narrow top, never hold it up.
         internal static float StackSeat(List<(Vector3 Min, Vector3 Max)> bottom, List<(Vector3 Min, Vector3 Max)> top)

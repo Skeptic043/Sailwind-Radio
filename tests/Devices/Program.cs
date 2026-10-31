@@ -174,6 +174,13 @@ internal static class Program
             Check(radio.Releases==1&&menus.CollectionRadio==radio,"scan refresh keeps same lease and collection target");
             string[] roots=null;menus.CollectionsChanged+=(target,selection)=>{Check(target==radio&&!menus.IsOpen,"apply closes before callback");roots=selection;};
             GUILayout.Click="Apply";menus.Draw();Check(roots.Length==2,"scan refresh preserves user checkbox edits");
+            var spotify=new SailwindRadio.Audio.AudioApplication("Spotify",@"C:\Apps\Spotify.exe");
+            SailwindRadio.Audio.AudioApplication chosen=null;bool chose=false;
+            menus.ApplicationChosen+=(target,application)=>{Check(target==radio&&!menus.IsOpen,"application choice closes before callback");chosen=application;chose=true;};
+            menus.ShowCollections(radio,Array.Empty<CollectionChoice>());menus.ShowApplications(null,new[]{spotify},null);
+            GUILayout.Click="Spotify";menus.Draw();Check(chose&&chosen==spotify,"choosing an application reports it");
+            chose=false;menus.ShowCollections(radio,Array.Empty<CollectionChoice>());menus.ShowApplications(spotify,new[]{spotify},null);
+            GUILayout.Click="Back to music";menus.Draw();Check(chose&&chosen==null,"back to music reports no application");
             menus.ShowCollections(radio,Array.Empty<CollectionChoice>());radio.Destroyed=true;menus.Tick();
             Check(!menus.IsOpen,"destroyed collection target closes menu");
             radio=new RadioItemController();menus.ShowCollections(radio,Array.Empty<CollectionChoice>());radio.WithinMenuReach=false;menus.Tick();

@@ -22,6 +22,15 @@ namespace SailwindRadio.Physical
                 Create.Invoke(body, new object[] { box });
         }
 
+        // Crate insertion stops FixedUpdate before it updates these copies, so they keep their current state. A held
+        // insertion leaves triggers. A load or scripted pack leaves solid boxes that push the crate.
+        internal static void MakeTriggers(ItemRigidbody body)
+        {
+            if (!Compatible || !body || !(Copies.GetValue(body) is List<Collider> copies)) return;
+            foreach (var copy in copies)
+                if (copy) copy.isTrigger = true;
+        }
+
         // The copy is the instantiated box, a direct child of the body named after it.
         internal static void Remove(ItemRigidbody body, Transform box)
         {

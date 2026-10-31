@@ -42,7 +42,7 @@ namespace SailwindRadio.Audio
             exactTimestamps = !adts;
             int adtsRate = 0;
             long adtsFrames = adts ? AdtsInfo.CountFrames(path, token, out adtsRate) : 0;
-            using (new MediaFoundation.Apartment())
+            using (new ComCalls.Apartment())
             {
                 try
                 {
@@ -52,7 +52,7 @@ namespace SailwindRadio.Audio
                     if (result < 0) throw OpenError(result);
                     Guid codec = Configure();
                     IntPtr current;
-                    Check(MediaFoundation.Method<MediaFoundation.GetCurrentMediaTypeMethod>(reader, MediaFoundation.SlotGetCurrentMediaType)(
+                    Check(ComCalls.Method<MediaFoundation.GetCurrentMediaTypeMethod>(reader, MediaFoundation.SlotGetCurrentMediaType)(
                         reader, MediaFoundation.FirstAudioStream, out current), "read the decoded audio format");
                     int mask;
                     try
@@ -61,7 +61,7 @@ namespace SailwindRadio.Audio
                         SampleRate = MediaFoundation.GetUInt32(current, MediaFoundation.SamplesPerSecond, 0);
                         mask = MediaFoundation.GetUInt32(current, MediaFoundation.ChannelMask, 0);
                     }
-                    finally { MediaFoundation.Release(ref current); }
+                    finally { ComCalls.Release(ref current); }
                     if (sourceChannels < 1 || sourceChannels > MaximumSourceChannels) throw new IOException("The audio channel count is unsupported");
                     AudioFiles.CheckPlayableRate(SampleRate);
                     Channels = Math.Min(2, sourceChannels);
@@ -78,16 +78,16 @@ namespace SailwindRadio.Audio
         // Selects the first audio stream, requests float output and returns the source codec.
         private Guid Configure()
         {
-            var select = MediaFoundation.Method<MediaFoundation.SetStreamSelectionMethod>(reader, MediaFoundation.SlotSetStreamSelection);
+            var select = ComCalls.Method<MediaFoundation.SetStreamSelectionMethod>(reader, MediaFoundation.SlotSetStreamSelection);
             select(reader, MediaFoundation.AllStreams, 0);
             if (select(reader, MediaFoundation.FirstAudioStream, 1) < 0) throw new IOException("The file has no audio track");
             if (StreamFlag(MediaFoundation.Protected)) throw new IOException("The file is copy-protected");
             IntPtr native;
             Guid codec = Guid.Empty;
-            Check(MediaFoundation.Method<MediaFoundation.GetNativeMediaTypeMethod>(reader, MediaFoundation.SlotGetNativeMediaType)(
+            Check(ComCalls.Method<MediaFoundation.GetNativeMediaTypeMethod>(reader, MediaFoundation.SlotGetNativeMediaType)(
                 reader, MediaFoundation.FirstAudioStream, 0, out native), "read the audio format");
             try { MediaFoundation.GetGuid(native, MediaFoundation.Subtype, out codec); }
-            finally { MediaFoundation.Release(ref native); }
+            finally { ComCalls.Release(ref native); }
             bool alac = codec == MediaFoundation.Alac || codec == MediaFoundation.AlacFourCc;
             if (codec != MediaFoundation.Aac && !alac)
                 throw new IOException("The audio is copy-protected or not AAC or Apple Lossless");
@@ -95,25 +95,25 @@ namespace SailwindRadio.Audio
             Check(MediaFoundation.MFCreateMediaType(out type), "create the output format");
             try
             {
-                var set = MediaFoundation.Method<MediaFoundation.SetGuidMethod>(type, MediaFoundation.SlotSetGuid);
+                var set = ComCalls.Method<MediaFoundation.SetGuidMethod>(type, MediaFoundation.SlotSetGuid);
                 Guid major = MediaFoundation.MajorType, audio = MediaFoundation.Audio, subtype = MediaFoundation.Subtype, sampleFormat = MediaFoundation.Float;
                 Check(set(type, ref major, ref audio), "set the output format");
                 Check(set(type, ref subtype, ref sampleFormat), "set the output format");
-                int result = MediaFoundation.Method<MediaFoundation.SetCurrentMediaTypeMethod>(reader, MediaFoundation.SlotSetCurrentMediaType)(
+                int result = ComCalls.Method<MediaFoundation.SetCurrentMediaTypeMethod>(reader, MediaFoundation.SlotSetCurrentMediaType)(
                     reader, MediaFoundation.FirstAudioStream, IntPtr.Zero, type);
                 if (result < 0)
                     throw new IOException((alac ? "Apple Lossless" : "AAC") + " decoding is unavailable on this system (error 0x" + result.ToString("X8") + ")");
             }
-            finally { MediaFoundation.Release(ref type); }
+            finally { ComCalls.Release(ref type); }
             return alac ? MediaFoundation.Alac : codec;
         }
 
         private bool StreamFlag(Guid key)
         {
-            IntPtr variant = MediaFoundation.NewVariant();
+            IntPtr variant = ComCalls.NewVariant();
             try
             {
-                if (MediaFoundation.Method<MediaFoundation.GetPresentationAttributeMethod>(reader, MediaFoundation.SlotGetPresentationAttribute)(
+                if (ComCalls.Method<MediaFoundation.GetPresentationAttributeMethod>(reader, MediaFoundation.SlotGetPresentationAttribute)(
                     reader, MediaFoundation.FirstAudioStream, ref key, variant) < 0) return false;
                 bool set = Marshal.ReadInt16(variant) == 19 && Marshal.ReadInt32(variant, 8) != 0; // VT_UI4
                 MediaFoundation.PropVariantClear(variant);
@@ -124,11 +124,11 @@ namespace SailwindRadio.Audio
 
         private long ReadDurationFrames()
         {
-            IntPtr variant = MediaFoundation.NewVariant();
+            IntPtr variant = ComCalls.NewVariant();
             try
             {
                 Guid key = MediaFoundation.Duration;
-                Check(MediaFoundation.Method<MediaFoundation.GetPresentationAttributeMethod>(reader, MediaFoundation.SlotGetPresentationAttribute)(
+                Check(ComCalls.Method<MediaFoundation.GetPresentationAttributeMethod>(reader, MediaFoundation.SlotGetPresentationAttribute)(
                     reader, MediaFoundation.MediaSource, ref key, variant), "read the track duration");
                 long ticks = Marshal.ReadInt16(variant) == 21 ? Marshal.ReadInt64(variant, 8) : 0; // VT_UI8
                 MediaFoundation.PropVariantClear(variant);
@@ -146,7 +146,7 @@ namespace SailwindRadio.Audio
             if (pendingCount > 0 && frame >= pendingStart && frame < pendingStart + pendingCount) return;
             // Short forward jumps decode through the gap.
             if (synced && !endOfStream && frame >= decodedEnd && frame - decodedEnd < SampleRate * 2L) return;
-            using (new MediaFoundation.Apartment())
+            using (new ComCalls.Apartment())
             {
                 if (!exactTimestamps)
                 {
@@ -175,7 +175,7 @@ namespace SailwindRadio.Audio
             int wanted = (int)Math.Min(count / Channels, Frames - Position);
             if (wanted <= 0) return 0;
             int written = 0;
-            using (new MediaFoundation.Apartment())
+            using (new ComCalls.Apartment())
             {
                 while (written < wanted)
                 {
@@ -217,7 +217,7 @@ namespace SailwindRadio.Audio
             int actual, flags;
             long time;
             IntPtr sample;
-            int result = MediaFoundation.Method<MediaFoundation.ReadSampleMethod>(reader, MediaFoundation.SlotReadSample)(
+            int result = ComCalls.Method<MediaFoundation.ReadSampleMethod>(reader, MediaFoundation.SlotReadSample)(
                 reader, MediaFoundation.FirstAudioStream, 0, out actual, out flags, out time, out sample);
             try
             {
@@ -234,19 +234,19 @@ namespace SailwindRadio.Audio
                 pendingCount = frames;
                 decodedEnd = start + frames;
             }
-            finally { MediaFoundation.Release(ref sample); }
+            finally { ComCalls.Release(ref sample); }
         }
 
         private int Convert(IntPtr sample)
         {
             IntPtr buffer;
-            Check(MediaFoundation.Method<MediaFoundation.GetPointerMethod>(sample, MediaFoundation.SlotConvertToContiguousBuffer)(sample, out buffer),
+            Check(ComCalls.Method<MediaFoundation.GetPointerMethod>(sample, MediaFoundation.SlotConvertToContiguousBuffer)(sample, out buffer),
                 "read decoded audio");
             try
             {
                 IntPtr data;
                 int maximum, bytes;
-                Check(MediaFoundation.Method<MediaFoundation.LockMethod>(buffer, MediaFoundation.SlotLock)(buffer, out data, out maximum, out bytes),
+                Check(ComCalls.Method<MediaFoundation.LockMethod>(buffer, MediaFoundation.SlotLock)(buffer, out data, out maximum, out bytes),
                     "read decoded audio");
                 int frames = bytes / (4 * sourceChannels);
                 try
@@ -254,19 +254,19 @@ namespace SailwindRadio.Audio
                     if (raw.Length < frames * sourceChannels) raw = new float[frames * sourceChannels];
                     Marshal.Copy(data, raw, 0, frames * sourceChannels);
                 }
-                finally { MediaFoundation.Method<MediaFoundation.UnlockMethod>(buffer, MediaFoundation.SlotUnlock)(buffer); }
+                finally { ComCalls.Method<MediaFoundation.UnlockMethod>(buffer, MediaFoundation.SlotUnlock)(buffer); }
                 if (pending.Length < frames * Channels) pending = new float[frames * Channels];
                 if (toLeft == null) Array.Copy(raw, pending, frames * Channels);
                 else ChannelDownmix.Mix(raw, sourceChannels, toLeft, toRight, frames, pending, 0);
                 return frames;
             }
-            finally { MediaFoundation.Release(ref buffer); }
+            finally { ComCalls.Release(ref buffer); }
         }
 
         private void CheckFormatUnchanged()
         {
             IntPtr current;
-            Check(MediaFoundation.Method<MediaFoundation.GetCurrentMediaTypeMethod>(reader, MediaFoundation.SlotGetCurrentMediaType)(
+            Check(ComCalls.Method<MediaFoundation.GetCurrentMediaTypeMethod>(reader, MediaFoundation.SlotGetCurrentMediaType)(
                 reader, MediaFoundation.FirstAudioStream, out current), "read the decoded audio format");
             try
             {
@@ -274,18 +274,18 @@ namespace SailwindRadio.Audio
                     MediaFoundation.GetUInt32(current, MediaFoundation.SamplesPerSecond, 0) != SampleRate)
                     throw new IOException("The audio format changed during decoding");
             }
-            finally { MediaFoundation.Release(ref current); }
+            finally { ComCalls.Release(ref current); }
         }
 
         private void SetReaderPosition(long frame)
         {
-            IntPtr variant = MediaFoundation.NewVariant();
+            IntPtr variant = ComCalls.NewVariant();
             try
             {
                 Marshal.WriteInt16(variant, 20); // VT_I8, in 100 nanosecond units
                 Marshal.WriteInt64(variant, 8, (long)(frame * TicksPerSecond / SampleRate));
                 Guid format = Guid.Empty;
-                Check(MediaFoundation.Method<MediaFoundation.SetCurrentPositionMethod>(reader, MediaFoundation.SlotSetCurrentPosition)(
+                Check(ComCalls.Method<MediaFoundation.SetCurrentPositionMethod>(reader, MediaFoundation.SlotSetCurrentPosition)(
                     reader, ref format, variant), "seek");
             }
             finally { Marshal.FreeHGlobal(variant); }
@@ -318,9 +318,9 @@ namespace SailwindRadio.Audio
         {
             if (disposed) return;
             disposed = true;
-            using (new MediaFoundation.Apartment())
+            using (new ComCalls.Apartment())
             {
-                try { MediaFoundation.Release(ref reader); }
+                try { ComCalls.Release(ref reader); }
                 finally
                 {
                     if (started) MediaFoundation.MFShutdown();

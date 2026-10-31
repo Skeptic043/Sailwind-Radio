@@ -195,6 +195,7 @@ static partial class AudioChecks
         CheckDownmixPolicy();
         CheckOgg();
         CheckFlacRouting();
+        CheckApplicationRing();
         CheckM4a();
         CheckPreloadAdoption(path);
         CheckShortTracks();

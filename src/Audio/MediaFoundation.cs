@@ -1,17 +1,14 @@
 using System;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace SailwindRadio.Audio
 {
-    // Windows Media Foundation through P/Invoke and manual vtable calls. The Unity 2019.1 Mono
-    // spike crashed on a [ComImport] interface out-parameter, so no runtime callable wrappers
-    // exist here. Every pointer is released explicitly by its owner.
+    // Windows Media Foundation through P/Invoke and ComCalls vtable calls. Every pointer is released
+    // explicitly by its owner.
     internal static class MediaFoundation
     {
         private const int Version = 0x20070;
         private const int StartupNoSockets = 1;
-        private const int MultiThreaded = 0;
         private const int EnumSync = 0x1, EnumLocal = 0x10, EnumSortAndFilter = 0x40;
         internal const int FirstAudioStream = unchecked((int)0xFFFFFFFD);
         internal const int AllStreams = unchecked((int)0xFFFFFFFE);
@@ -40,14 +37,11 @@ namespace SailwindRadio.Audio
         private static extern int MFTEnumEx(Guid category, int flags, IntPtr input, IntPtr output, out IntPtr activates, out int count);
         [DllImport("mfreadwrite.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
         internal static extern int MFCreateSourceReaderFromURL(string url, IntPtr attributes, out IntPtr reader);
-        [DllImport("ole32.dll", ExactSpelling = true)] private static extern int CoInitializeEx(IntPtr reserved, int flags);
-        [DllImport("ole32.dll", ExactSpelling = true)] private static extern void CoUninitialize();
         [DllImport("ole32.dll", ExactSpelling = true)] private static extern void CoTaskMemFree(IntPtr memory);
         [DllImport("ole32.dll", ExactSpelling = true)] internal static extern int PropVariantClear(IntPtr variant);
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr GetModuleHandle(string name);
         [DllImport("kernel32.dll", CharSet = CharSet.Ansi, ExactSpelling = true)] private static extern IntPtr GetProcAddress(IntPtr module, string name);
 
-        [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int ReleaseMethod(IntPtr self);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int SetStreamSelectionMethod(IntPtr self, int stream, int selected);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int GetNativeMediaTypeMethod(IntPtr self, int stream, int index, out IntPtr type);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int GetCurrentMediaTypeMethod(IntPtr self, int stream, out IntPtr type);
@@ -64,69 +58,20 @@ namespace SailwindRadio.Audio
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int UnlockMethod(IntPtr self);
 
         // Vtable slots. IUnknown owns 0 to 2 and IMFAttributes 3 to 32.
-        internal const int SlotRelease = 2, SlotGetUInt32 = 7, SlotGetGuid = 10, SlotSetGuid = 24;
+        internal const int SlotGetUInt32 = 7, SlotGetGuid = 10, SlotSetGuid = 24;
         internal const int SlotSetStreamSelection = 4, SlotGetNativeMediaType = 5, SlotGetCurrentMediaType = 6,
             SlotSetCurrentMediaType = 7, SlotSetCurrentPosition = 8, SlotReadSample = 9, SlotGetPresentationAttribute = 12;
         internal const int SlotConvertToContiguousBuffer = 41, SlotLock = 3, SlotUnlock = 4;
 
-        private static class Delegates<T> where T : class
-        {
-            internal static readonly Dictionary<IntPtr, T> ByFunction = new Dictionary<IntPtr, T>();
-        }
-
-        internal static T Method<T>(IntPtr self, int slot) where T : class
-        {
-            IntPtr function = Marshal.ReadIntPtr(Marshal.ReadIntPtr(self), slot * IntPtr.Size);
-            lock (Delegates<T>.ByFunction)
-            {
-                T method;
-                if (!Delegates<T>.ByFunction.TryGetValue(function, out method))
-                {
-                    method = (T)(object)Marshal.GetDelegateForFunctionPointer(function, typeof(T));
-                    Delegates<T>.ByFunction.Add(function, method);
-                }
-                return method;
-            }
-        }
-
-        internal static void Release(ref IntPtr pointer)
-        {
-            IntPtr owned = pointer;
-            pointer = IntPtr.Zero;
-            if (owned != IntPtr.Zero) Method<ReleaseMethod>(owned, SlotRelease)(owned);
-        }
-
         internal static int GetUInt32(IntPtr attributes, Guid key, int fallback)
         {
             int value;
-            return Method<GetUInt32Method>(attributes, SlotGetUInt32)(attributes, ref key, out value) >= 0 ? value : fallback;
+            return ComCalls.Method<GetUInt32Method>(attributes, SlotGetUInt32)(attributes, ref key, out value) >= 0 ? value : fallback;
         }
 
         internal static bool GetGuid(IntPtr attributes, Guid key, out Guid value)
         {
-            return Method<GetGuidMethod>(attributes, SlotGetGuid)(attributes, ref key, out value) >= 0;
-        }
-
-        // PROPVARIANT is 16 bytes on x86 and 24 on x64. The value union starts at offset 8 on both.
-        internal static IntPtr NewVariant()
-        {
-            IntPtr variant = Marshal.AllocHGlobal(32);
-            for (int i = 0; i < 32; i += 8) Marshal.WriteInt64(variant, i, 0);
-            return variant;
-        }
-
-        // Joins the multithreaded apartment for one call. A single-threaded caller such as the
-        // Unity main thread gets RPC_E_CHANGED_MODE and keeps its apartment, which MF also accepts.
-        internal sealed class Apartment : IDisposable
-        {
-            private bool joined;
-            internal Apartment() { joined = CoInitializeEx(IntPtr.Zero, MultiThreaded) >= 0; }
-            public void Dispose()
-            {
-                if (!joined) return;
-                joined = false;
-                CoUninitialize();
-            }
+            return ComCalls.Method<GetGuidMethod>(attributes, SlotGetGuid)(attributes, ref key, out value) >= 0;
         }
 
         internal static bool WineDetected()
@@ -138,7 +83,7 @@ namespace SailwindRadio.Audio
         // True when Media Foundation starts and lists at least one local AAC decoder.
         internal static bool AacDecoderAvailable()
         {
-            using (new Apartment())
+            using (new ComCalls.Apartment())
             {
                 if (MFStartup(Version, StartupNoSockets) < 0) return false;
                 try { return DecoderCount(Aac) > 0; }
@@ -159,7 +104,7 @@ namespace SailwindRadio.Audio
                 for (int i = 0; i < count; i++)
                 {
                     IntPtr activate = Marshal.ReadIntPtr(list, i * IntPtr.Size);
-                    Release(ref activate);
+                    ComCalls.Release(ref activate);
                 }
                 if (list != IntPtr.Zero) CoTaskMemFree(list);
                 return count;

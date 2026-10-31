@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using SailwindRadio.Models;
 using SailwindRadio;
 using SailwindRadio.Physical;
+using UnityEngine;
 
 internal static class Program
 {
@@ -73,23 +75,11 @@ internal static class Program
                 if(role==DeviceRole.SmallSpeaker)Check(Math.Abs(model.contact.max[2])<.0001f,"regional small speaker contact box ends on the wall attachment plane");
                 // Native GoPointer takes the first collider hit, so a pointer ray aimed into each control's face
                 // must meet its padded trigger before the contact box. Sloped decks rule out a whole-box comparison.
-                foreach(var name in model.parts.Select(p=>p.name).Where(n=>n.StartsWith("control_")).Distinct())
+                foreach(var control in ControlTriggers(model))
                 {
-                    var pieces=model.parts.Where(p=>p.name==name).ToArray();
-                    var glyph=model.parts.SingleOrDefault(p=>p.name=="icon_"+name.Substring(8));
-                    float[] face=pieces[0].axis??glyph?.normals.Take(3).ToArray();
-                    Check(face!=null,"regional control "+name+" has a face direction");
-                    float[] min=new float[3],max=new float[3];
-                    for(int a=0;a<3;a++)
-                    {
-                        int axis=a;
-                        float half=(axis==2?.018f:.012f)*.5f;
-                        min[a]=pieces.Min(p=>p.vertices.Where((_,i)=>i%3==axis).Min())-half;
-                        max[a]=pieces.Max(p=>p.vertices.Where((_,i)=>i%3==axis).Max())+half;
-                    }
-                    var centre=Enumerable.Range(0,3).Select(a=>(min[a]+max[a])*.5f).ToArray();
-                    float trigger=FarthestAlong(centre,face,min,max),box=FarthestAlong(centre,face,model.contact.min,model.contact.max);
-                    Check(trigger>box,"regional control "+name+" on kind "+model.kind+" reaches past the contact box by "+(trigger-box)*1000+" mm");
+                    Check(control.Face!=null,"regional control "+control.Name+" has a face direction");
+                    float trigger=FarthestAlong(control.Centre,control.Face,control.Min,control.Max),box=FarthestAlong(control.Centre,control.Face,model.contact.min,model.contact.max);
+                    Check(trigger>box,"regional control "+control.Name+" on kind "+model.kind+" reaches past the contact box by "+(trigger-box)*1000+" mm");
                 }
                 var icon=model.parts.Single(p=>p.name=="icon_power");
                 Check(Enumerable.Range(0,icon.normals.Length/3).All(i=>icon.normals[i*3]==icon.normals[0]&&icon.normals[i*3+1]==icon.normals[1]&&icon.normals[i*3+2]==icon.normals[2]),
@@ -365,6 +355,52 @@ internal static class Program
         TextFit.Glyph(25,30,scale,room,vertical,TextFit.FlapFloor,out glyphScale,out squeeze);
         Check(glyphScale<scale&&Math.Abs(30*glyphScale-vertical)<1e-6f,"a glyph reaching past its cell above or below the capital centre is drawn smaller so it stays inside");
         Check(Math.Abs(TextFit.ScrollScale(40,.02f)*40-.0124f)<1e-6f&&Math.Abs(TextFit.ScrollRoom(.3f,.02f)-.288f)<1e-6f,"scroll capitals stand at 62% of the row inside its margins");
+        // Every control of every device in a stack must still be reached before the stack's shared pointer box,
+        // including the Al'Ankh woofer's side-panel power button beside a wider speaker.
+        ModelDefinition[] stackModels;
+        using(var stackStream=typeof(DeviceModel).Assembly.GetManifestResourceStream("SailwindRadio.Models.devices.json"))
+            stackModels=DeviceModel.Read(stackStream).models;
+        foreach(int family in new[]{1,2,3})
+        {
+            int radio=family*4,speaker=radio+2,woofer=radio+3;
+            var stacks=new List<int[]>();
+            foreach(int lower in new[]{speaker,woofer})
+                foreach(int upper in new[]{speaker,woofer})
+                {
+                    stacks.Add(new[]{lower,upper});
+                    stacks.Add(new[]{lower,upper,radio});
+                }
+            foreach(var kinds in stacks)
+            {
+                var contacts=new List<(Vector3 Min,Vector3 Max)>();
+                var seats=new List<float>();
+                float seat=0;
+                for(int i=0;i<kinds.Length;i++)
+                {
+                    if(i>0)seat+=DeviceModel.StackSeat(DeviceModel.CollisionBoxes(kinds[i-1]),DeviceModel.CollisionBoxes(kinds[i]));
+                    seats.Add(seat);
+                    DeviceModel.TryGetContact(kinds[i],out var min,out var max);
+                    var up=new Vector3(0,seat,0);
+                    contacts.Add((min+up,max+up));
+                }
+                var pointer=DeviceModel.StackPointerBox(kinds,contacts);
+                // Only a side kept clear for controls narrows the box. Every other side stays grabbable to the widest cabinet.
+                bool clearRight=kinds.Any(k=>k==7);
+                Check(Math.Abs(pointer.Min.x-contacts.Min(c=>c.Min.x))<1e-5f,"stack "+string.Join("/",kinds)+" keeps its full left side grabbable");
+                Check(clearRight?pointer.Max.x<.401f:Math.Abs(pointer.Max.x-contacts.Max(c=>c.Max.x))<1e-5f,
+                    "stack "+string.Join("/",kinds)+(clearRight?" stops its right side at the Al'Ankh woofer's control panel":" keeps its full right side grabbable"));
+                float[] boxMin={pointer.Min.x,pointer.Min.y,pointer.Min.z},boxMax={pointer.Max.x,pointer.Max.y,pointer.Max.z};
+                for(int i=0;i<kinds.Length;i++)
+                    foreach(var control in ControlTriggers(stackModels.Single(m=>m.kind==kinds[i])))
+                    {
+                        var lift=new[]{0f,seats[i],0f};
+                        float[] centre=Enumerable.Range(0,3).Select(a=>control.Centre[a]+lift[a]).ToArray();
+                        float[] min=Enumerable.Range(0,3).Select(a=>control.Min[a]+lift[a]).ToArray(),max=Enumerable.Range(0,3).Select(a=>control.Max[a]+lift[a]).ToArray();
+                        float trigger=FarthestAlong(centre,control.Face,min,max),box=FarthestAlong(centre,control.Face,boxMin,boxMax);
+                        Check(trigger>box,"stack "+string.Join("/",kinds)+": control "+control.Name+" of kind "+kinds[i]+" is covered by the stack box by "+(box-trigger)*1000+" mm");
+                    }
+            }
+        }
         // The Al'Ankh large speaker is a wide box on end feet with corner caps on top. The woofer is an octagon whose
         // flat top is narrower, standing on corner feet. The speaker is deep enough for its caps to reach the front feet.
         float onWoofer=DeviceModel.StackSeat(DeviceModel.CollisionBoxes(7),DeviceModel.CollisionBoxes(6));
@@ -618,6 +654,26 @@ internal static class Program
     }
 
     // Farthest point of a box along the ray centre+t*face, or -infinity when the ray misses it.
+    // Each regional control's padded pointer trigger, as DeviceModel.FitControl pads it, and the direction its face looks.
+    private static IEnumerable<(string Name,float[] Face,float[] Centre,float[] Min,float[] Max)> ControlTriggers(ModelDefinition model)
+    {
+        foreach(var name in model.parts.Select(p=>p.name).Where(n=>n.StartsWith("control_")).Distinct())
+        {
+            var pieces=model.parts.Where(p=>p.name==name).ToArray();
+            var glyph=model.parts.SingleOrDefault(p=>p.name=="icon_"+name.Substring(8));
+            float[] face=pieces[0].axis??glyph?.normals.Take(3).ToArray();
+            float[] min=new float[3],max=new float[3];
+            for(int a=0;a<3;a++)
+            {
+                int axis=a;
+                float half=(axis==2?.018f:.012f)*.5f;
+                min[a]=pieces.Min(p=>p.vertices.Where((_,i)=>i%3==axis).Min())-half;
+                max[a]=pieces.Max(p=>p.vertices.Where((_,i)=>i%3==axis).Max())+half;
+            }
+            yield return (name,face,Enumerable.Range(0,3).Select(a=>(min[a]+max[a])*.5f).ToArray(),min,max);
+        }
+    }
+
     private static float FarthestAlong(float[] centre,float[] face,float[] min,float[] max)
     {
         float near=float.NegativeInfinity,far=float.PositiveInfinity;

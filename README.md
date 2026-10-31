@@ -50,6 +50,20 @@ Supported formats:
 
 Sample rates up to 192 kHz are supported, and surround files are mixed down to stereo.
 
+## External application audio
+
+A radio can play another app's sound instead of your music files, such as Spotify, a YouTube playlist in your browser or VLC.
+
+1. Open the application you want to hear audio from. In the case of browsers, navigate to the page you wish to hear audio from.
+2. In Sailwind, press the radio's Collections button and pick the app under "Or play an application through the radio".
+3. Upon selecting the application, the desktop volume will drop to an imperceptible level while the audio begins to play through the speakers.
+
+- Previous, Pause and Next control the app and the radio shows its song when the selected application supports Windows media controls. Spotify, web browsers and most music players are all supported.
+- Choose "Back to music" in the Collections menu to return to local music. Turning the radio off or quitting Sailwind restores the application's normal volume.
+- The radio plays everything the application plays. In the case of internet browsers, all tabs will be captured if playing audio.
+- If Sailwind crashes while an application is playing through the radio, the application's audio remains low. Starting Sailwind will restore the volume to normal levels. Alternatively, you can adjust the volume back to your preferred level in the Windows Volume Mixer.
+- Currently, only Windows 11 is fully supported in application capture, while recent versions of Windows 10 may also work.
+
 ## Shop Locations
 
 There are added shop stalls in Gold Rock City, Dragon Cliffs, Fort Aestrin and Chronos. Gold Rock City sells the Al'Ankh set, Dragon Cliffs sells the Emerald set, Fort Aestrin sells the Aestrin set and Chronos sells the original walnut set. GRC's stall is between the shipyard and port office, DC's is near the boxed food seller, FA's is near the Inn and Chronos's is under the empty tent in the main market square.

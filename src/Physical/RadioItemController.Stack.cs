@@ -23,6 +23,7 @@ namespace SailwindRadio.Physical
         private int stackedSpeakerId;
         private static int nextStackBoxId;
         private bool physicsFitted;
+        private const float MaxDepenetration = 1f;
         internal IReadOnlyList<RadioItemController> Stack => stack;
         internal RadioItemController StackTop => stack.Count > 0 ? stack[stack.Count - 1] : null;
         internal bool IsStackTop => stackBase;
@@ -172,23 +173,22 @@ namespace SailwindRadio.Physical
             return core;
         }
 
-        // The pointer box covers the whole stack, but its front stops at the shallowest front so it never covers any
-        // device's controls. Native physics copies a separate box, which must stay inside the base so nothing rests
-        // on empty space. The stacked devices' own boxes hold them up. Native ItemRigidbody adds that box some frames
-        // after a spawn or load, copying the pointer box, so Tick fits it once it exists.
+        // The pointer box covers the stack without covering any device's controls, see DeviceModel.StackPointerBox.
+        // Native physics copies a separate box, which must stay inside the base so nothing rests on empty space. The
+        // stacked devices' own boxes hold them up. Native ItemRigidbody adds that box some frames after a spawn or
+        // load, copying the pointer box, so Tick fits it once it exists.
         private void ApplyBoxes()
         {
-            Vector3 min = contactCenter - contactSize * .5f, max = contactCenter + contactSize * .5f;
-            float front = min.z;
+            var kinds = new List<int> { State.Kind };
+            var contacts = new List<(Vector3 Min, Vector3 Max)> { (contactCenter - contactSize * .5f, contactCenter + contactSize * .5f) };
             foreach (var top in stack)
             {
                 Contact(top.State.Kind, out var center, out var size);
                 Vector3 offset = top.transform.localPosition;
-                min = Vector3.Min(min, center - size * .5f + offset);
-                max = Vector3.Max(max, center + size * .5f + offset);
-                front = Mathf.Max(front, center.z - size.z * .5f);
+                kinds.Add(top.State.Kind);
+                contacts.Add((center - size * .5f + offset, center + size * .5f + offset));
             }
-            min.z = front;
+            var (min, max) = DeviceModel.StackPointerBox(kinds, contacts);
             var box = GetComponent<BoxCollider>();
             box.center = (min + max) * .5f;
             box.size = max - min;
@@ -198,6 +198,9 @@ namespace SailwindRadio.Physical
             var core = Core(State.Kind);
             physicsBox.center = (core.Min + core.Max) * .5f;
             physicsBox.size = core.Max - core.Min;
+            // Unity 2019.1 pushes overlapping bodies apart at any speed. A tall stack tipping over an edge swings its
+            // far end deep into it within one step and is flung away, so every device body caps that push near walking speed.
+            item.itemRigidbodyC.GetBody().maxDepenetrationVelocity = MaxDepenetration;
             physicsFitted = true;
         }
     }
