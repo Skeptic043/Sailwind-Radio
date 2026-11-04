@@ -21,7 +21,7 @@ namespace SailwindRadio
     public sealed class Plugin : BaseUnityPlugin
     {
         public const string Id = "local.sailwind.radio";
-        public const string Version = "1.5.5";
+        public const string Version = "1.5.7";
         private static Plugin instance;
         private Harmony harmony;
         private RadioWorldService world;
@@ -41,6 +41,7 @@ namespace SailwindRadio
         private bool ready;
         private bool applicationPaused;
         private bool focused = true;
+        private bool onlyLoading;
 
         private void Awake()
         {
@@ -159,8 +160,12 @@ namespace SailwindRadio
             if (instance && instance.ready && instance.Suspended) instance.SuspendNow();
         }
 
-        private bool Suspended => !GameState.playing || GameState.currentlyLoading || GameState.loadingScenes > 0 ||
-            (GameState.sleeping && !continueWhileSleeping.Value) ||
+        private bool Suspended => Loading || Paused;
+
+        // Islands load while the player sails, so loading only silences a radio. Only a pause also pauses an application.
+        private static bool Loading => !GameState.playing || GameState.currentlyLoading || GameState.loadingScenes > 0;
+
+        private bool Paused => (GameState.sleeping && !continueWhileSleeping.Value) ||
             (Time.timeScale <= 0f && !(GameState.sleeping && continueWhileSleeping.Value)) ||
             AudioListener.pause || applicationPaused || (!focused && !Application.runInBackground);
 
@@ -182,7 +187,9 @@ namespace SailwindRadio
                 }
                 menus.Tick();
                 PollApplications();
-                bool suspended = Suspended;
+                bool paused = Paused;
+                onlyLoading = !paused && Loading;
+                bool suspended = paused || onlyLoading;
                 // Each radio's playback failure is contained by the set. Anything else stops the mod below.
                 radios.Tick(Time.realtimeSinceStartup, world.ActiveRadioId, item => item ? item.InstanceId : 0,
                     TickPlayback, suspended);
@@ -262,7 +269,7 @@ namespace SailwindRadio
             if (item.InstanceId == world.ActiveRadioId && item.State.Powered)
                 ConnectSpeakers(vessel, engine, devicePosition, fromHead);
             engine.EndEndpoints();
-            engine.Tick(position, suspended);
+            engine.Tick(position, suspended, suspended && !onlyLoading);
             if (!suspended && item.State.Powered && !item.State.Paused)
             {
                 bool changed = engine.LoadFailed ? queue.TrackFailed(engine.FailedPath) :
@@ -412,7 +419,8 @@ namespace SailwindRadio
 
         private void SuspendNow()
         {
-            radios?.ForEachEngine((item, engine) => { if (item) engine.Tick(item.VisualAudioPosition, true); }, "Could not suspend a radio");
+            bool paused = Paused;
+            radios?.ForEachEngine((item, engine) => { if (item) engine.Tick(item.VisualAudioPosition, true, paused); }, "Could not suspend a radio");
         }
 
         private void ReleaseRadioControls()

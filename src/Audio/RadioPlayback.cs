@@ -130,7 +130,10 @@ namespace SailwindRadio.Audio
             builtIn.Obstruction = obstruction;
         }
 
-        public void Tick(Vector3 worldPosition, bool suspended)
+        public void Tick(Vector3 worldPosition, bool suspended) => Tick(worldPosition, suspended, suspended);
+
+        // A suspended radio is silent. Only a paused game also pauses its application.
+        public void Tick(Vector3 worldPosition, bool suspended, bool paused)
         {
             if (disposed) return;
             if (host == null) { Dispose(); return; }
@@ -157,7 +160,7 @@ namespace SailwindRadio.Audio
             lastDsp = dsp;
             if (application != null)
             {
-                TickApplication(state.Powered && !state.Paused && !suspended && !AudioListener.pause, suspended || AudioListener.pause);
+                TickApplication(state.Powered && !state.Paused && !suspended && !AudioListener.pause, paused || AudioListener.pause);
                 return;
             }
 

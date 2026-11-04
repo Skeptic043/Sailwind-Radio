@@ -9,12 +9,12 @@ namespace SailwindRadio.Audio
     // main thread only starts and stops it, and the outputs' audio threads read the ring without waiting.
     internal sealed class ApplicationAudio
     {
-        private const int PollMilliseconds = 5, PacketMilliseconds = 20, HoldMilliseconds = 1000, JoinMilliseconds = 1000;
+        private const int PollMilliseconds = 5, PacketMilliseconds = 20, HoldMilliseconds = 1000, JoinMilliseconds = 1000, PauseMilliseconds = 250;
         internal readonly AudioApplication Application;
         internal readonly ApplicationRing Ring;
         internal readonly MediaControls Media;
         private readonly Thread worker;
-        private volatile bool stopping, holdNow, found;
+        private volatile bool stopping, holdNow, found, pausing;
         private Exception fault;
 
         // The application has a running process being captured.
@@ -31,11 +31,12 @@ namespace SailwindRadio.Audio
         }
 
         // Stops capture and restores the application's volume on the worker. Waiting is for shutdown, where
-        // Unity may end the worker before it restores.
-        internal void Stop(bool wait)
+        // Unity may end the worker before it restores. Pausing pauses the application before its volume returns.
+        internal void Stop(bool wait, bool pause = false)
         {
+            pausing = pause;
             stopping = true;
-            Media.Stop();
+            Media.Stop(pause ? MediaControls.Command.Pause : MediaControls.Command.None);
             if (wait) worker.Join(JoinMilliseconds);
         }
 
@@ -92,6 +93,7 @@ namespace SailwindRadio.Audio
                     finally
                     {
                         if (capture != null) capture.Dispose();
+                        if (pausing) Media.Join(PauseMilliseconds);
                         HeldVolumes.Release(this);
                     }
                 }

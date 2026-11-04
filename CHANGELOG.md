@@ -1,5 +1,14 @@
 # Sailwind Radio
 
+## 1.5.7
+
+### Changed
+- An app playing through a radio now pauses when that radio is sold, destroyed or the game closes
+
+### Fixed
+- Apps such as Spotify no longer pause when islands load while sailing
+- Speakers no longer echo their radio when playing an app
+
 ## 1.5.5
 
 ### New

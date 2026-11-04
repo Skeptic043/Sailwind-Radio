@@ -4,7 +4,8 @@ using System.Threading;
 namespace SailwindRadio.Audio
 {
     // One second of held application audio. One writer adds captured stereo packets, and each output's audio
-    // thread reads through its own Reader 40 ms behind the newest audio, never waiting for it.
+    // thread reads through its own Reader 40 ms behind the newest audio, never waiting for it. Every reader plays
+    // the same captured frame at the same output frame, so a radio and its speakers never echo each other.
     internal sealed class ApplicationRing
     {
         internal const int Channels = ProcessLoopback.Channels;
@@ -17,6 +18,9 @@ namespace SailwindRadio.Audio
         private readonly float[] samples;
         private readonly int frames, margin, maximumLag;
         private long written;
+        // The captured frame minus the output frame that plays it, shared by every reader. Unaligned until first read.
+        private const long Unaligned = long.MinValue;
+        private long offset = Unaligned;
         // Milliseconds tick of the last sound. It starts a minute ago, so a new ring is silent.
         private int soundAt = unchecked(Environment.TickCount - 60000);
 
@@ -59,43 +63,46 @@ namespace SailwindRadio.Audio
             return held;
         }
 
-        // Copies count frames from cursor, moving it to just behind the newest audio when it falls out of range.
-        // Audio not captured yet plays as silence.
-        private void Copy(ref long cursor, float[] destination, int count)
+        // Copies the count frames that play at output frame, realigning every reader to just behind the newest
+        // audio when the shared position falls out of range. Audio not captured yet plays as silence.
+        private void Copy(long frame, float[] destination, int count)
         {
-            long end = Volatile.Read(ref written);
-            if (cursor < 0 || cursor + count > end || end - cursor > maximumLag + count) cursor = end - count - margin;
+            long end = Volatile.Read(ref written), shift = Volatile.Read(ref offset);
+            long cursor = shift == Unaligned ? -1 : frame + shift;
+            if (shift == Unaligned || cursor < 0 || cursor + count > end || end - cursor > maximumLag + count)
+            {
+                cursor = end - count - margin;
+                Volatile.Write(ref offset, cursor - frame);
+            }
             if (cursor < 0)
             {
-                cursor = -1;
                 Array.Clear(destination, 0, count * Channels);
                 return;
             }
             int at = (int)(cursor % frames), first = Math.Min(count, frames - at);
             Array.Copy(samples, at * Channels, destination, 0, first * Channels);
             Array.Copy(samples, 0, destination, first * Channels, (count - first) * Channels);
-            cursor += count;
         }
 
         private static float Clip(float value) { return value > 1f ? 1f : value < -1f ? -1f : value; }
 
-        // One output's position. Used only on that output's audio thread.
+        // One output's mixing buffer. Used only on that output's audio thread.
         internal sealed class Reader
         {
             internal readonly ApplicationRing Ring;
-            private long cursor = -1;
             private float[] stereo = new float[0];
             internal Reader(ApplicationRing ring) { Ring = ring; }
 
             // Replaces the carrier in data with application audio. A 3D output's carrier holds Unity's pan gain
             // for each channel, applied to the sum of both input channels as Unity does for a stereo clip. A flat
-            // output keeps left and right, and its carrier of one half per channel is doubled back.
-            internal void Mix(float[] data, int channels, bool spatial)
+            // output keeps left and right, and its carrier of one half per channel is doubled back. Start is the
+            // output frame the block begins at, the same for every output in one Unity mix.
+            internal void Mix(float[] data, int channels, bool spatial, long start)
             {
                 if (channels <= 0) return;
                 int count = data.Length / channels;
                 if (stereo.Length < count * Channels) stereo = new float[count * Channels];
-                Ring.Copy(ref cursor, stereo, count);
+                Ring.Copy(start, stereo, count);
                 for (int frame = 0; frame < count; frame++)
                 {
                     float left = Clip(stereo[frame * 2] * Gain), right = Clip(stereo[frame * 2 + 1] * Gain);

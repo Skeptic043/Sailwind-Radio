@@ -63,7 +63,14 @@ namespace SailwindRadio.Audio
             return true;
         }
 
-        internal void Stop() { stopping = true; }
+        // Last is sent before the worker ends, such as the pause for a radio that is gone.
+        internal void Stop(Command last)
+        {
+            if (last != Command.None && current != null) Interlocked.Exchange(ref pending, (int)last);
+            stopping = true;
+        }
+
+        internal bool Join(int milliseconds) => worker.Join(milliseconds);
 
         // Names Windows may know the application by. Win32 programs usually report their file name, and Firefox
         // reports a hash of its install folder, which it records under TaskBarIDs.
@@ -124,6 +131,9 @@ namespace SailwindRadio.Audio
                         }
                         Thread.Sleep(CommandMilliseconds);
                     }
+                    var last = (Command)Interlocked.Exchange(ref pending, 0);
+                    if (last != Command.None && session != IntPtr.Zero) Fire(session, last);
+                    else if (last != Command.None && window != IntPtr.Zero) AppWindows.Send(window, last);
                 }
             }
             // Track names and buttons are extras. Without them the application still plays.

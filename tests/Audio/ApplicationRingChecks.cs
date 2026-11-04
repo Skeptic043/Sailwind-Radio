@@ -17,7 +17,7 @@ static partial class AudioChecks
         Check(!ring.Write(packet, 2048), "an unheld packet is reported");
         var reader = new ApplicationRing.Reader(ring);
         var data = Carrier(1024, 2, .5f);
-        reader.Mix(data, 2, false);
+        reader.Mix(data, 2, false, 0);
         Check(MaxAbs(data) == 0, "an unheld packet plays as silence");
         var nan = Packet(2048, held);
         nan[7] = Single.NaN;
@@ -29,7 +29,7 @@ static partial class AudioChecks
         ring = new ApplicationRing(rate);
         ring.Write(Stereo(4096, ApplicationRing.HeldPeak * .999f, -ApplicationRing.HeldPeak * .999f), 4096);
         data = Carrier(1024, 2, .5f);
-        new ApplicationRing.Reader(ring).Mix(data, 2, false);
+        new ApplicationRing.Reader(ring).Mix(data, 2, false, 0);
         Check(Near(data[0], 1f) && Near(data[1], -1f), "audio past full scale is clipped to it");
 
         // A flat output restores each channel to full level from its carrier of one half per channel.
@@ -37,7 +37,7 @@ static partial class AudioChecks
         ring.Write(Stereo(4096, held, -held), 4096);
         reader = new ApplicationRing.Reader(ring);
         data = Carrier(1024, 2, .5f);
-        reader.Mix(data, 2, false);
+        reader.Mix(data, 2, false, 0);
         Check(Near(data[0], .5f) && Near(data[1], -.5f), "a flat output keeps left and right at full level");
 
         // A 3D output applies each channel's pan gain to the sum of both inputs, as Unity does for a stereo clip.
@@ -45,13 +45,13 @@ static partial class AudioChecks
         for (int i = 0; i < data.Length; i += 2) { data[i] = .259f; data[i + 1] = .966f; }
         ring = new ApplicationRing(rate);
         ring.Write(Stereo(4096, held, held), 4096);
-        new ApplicationRing.Reader(ring).Mix(data, 2, true);
+        new ApplicationRing.Reader(ring).Mix(data, 2, true, 0);
         Check(Near(data[0], .259f) && Near(data[1], .966f), "a 3D output pans the summed application audio");
 
         // Unused channels of a wider speaker layout carry no gain and stay silent.
         data = Carrier(256, 6, 0f);
         for (int i = 0; i < data.Length; i += 6) { data[i] = .5f; data[i + 1] = .5f; }
-        new ApplicationRing.Reader(ring).Mix(data, 6, false);
+        new ApplicationRing.Reader(ring).Mix(data, 6, false, 0);
         Check(Near(data[0], .5f) && data[2] == 0 && data[5] == 0, "a flat 5.1 output fills only the front pair");
 
         // A reader stays a short margin behind the newest audio and catches up when it falls far behind.
@@ -61,13 +61,30 @@ static partial class AudioChecks
         for (int frame = 0; frame < 4800; frame++) ramp[frame * 2] = ramp[frame * 2 + 1] = held * frame / 4800f;
         ring.Write(ramp, 4800);
         data = Carrier(1024, 2, .5f);
-        reader.Mix(data, 2, false);
+        reader.Mix(data, 2, false, 0);
         float first = data[0];
         Check(first > 0 && first < .5f, "a new reader starts just behind the newest audio");
         for (int i = 0; i < 20; i++) ring.Write(Stereo(4800, held, held), 4800);
         data = Carrier(1024, 2, .5f);
-        reader.Mix(data, 2, false);
+        reader.Mix(data, 2, false, 1024);
         Check(Near(data[0], .5f), "a reader far behind jumps to recent audio");
+
+        // A speaker that joins later plays the same moment as the radio, not its own point behind the newest audio.
+        ring = new ApplicationRing(rate);
+        ramp = new float[48000 * 2];
+        for (int frame = 0; frame < 48000; frame++) ramp[frame * 2] = ramp[frame * 2 + 1] = held * frame / 48000f;
+        ring.Write(ramp, 2400);
+        var radio = new ApplicationRing.Reader(ring);
+        radio.Mix(Carrier(1024, 2, .5f), 2, false, 0);
+        var rest = new float[(48000 - 2400) * 2];
+        Array.Copy(ramp, 2400 * 2, rest, 0, rest.Length);
+        ring.Write(rest, 2400);
+        var fromRadio = Carrier(1024, 2, .5f);
+        var fromSpeaker = Carrier(1024, 2, .5f);
+        radio.Mix(fromRadio, 2, false, 1024);
+        new ApplicationRing.Reader(ring).Mix(fromSpeaker, 2, false, 1024);
+        Check(fromRadio[0] > 0 && Near(fromRadio[0], fromSpeaker[0]) && Near(fromRadio[2046], fromSpeaker[2046]),
+            "a speaker joining later plays in step with its radio");
 
         // Sound marks the application as playing, and a paused player's digital silence does not.
         ring = new ApplicationRing(rate);
@@ -78,7 +95,7 @@ static partial class AudioChecks
 
         // Nothing captured yet is silence, never stale or uninitialized samples.
         data = Carrier(1024, 2, .5f);
-        new ApplicationRing.Reader(new ApplicationRing(rate)).Mix(data, 2, false);
+        new ApplicationRing.Reader(new ApplicationRing(rate)).Mix(data, 2, false, 0);
         Check(MaxAbs(data) == 0, "an empty ring plays silence");
     }
 

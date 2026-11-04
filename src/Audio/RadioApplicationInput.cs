@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace SailwindRadio.Audio
@@ -14,7 +15,8 @@ namespace SailwindRadio.Audio
         private void OnAudioFilterRead(float[] data, int channels)
         {
             ApplicationRing.Reader reader = Reader;
-            if (reader != null) reader.Mix(data, channels, Spatial);
+            // Unity's DSP clock names the same frame to every output's filter in one mix.
+            if (reader != null) reader.Mix(data, channels, Spatial, (long)Math.Round(AudioSettings.dspTime * reader.Ring.SampleRate));
         }
     }
 }

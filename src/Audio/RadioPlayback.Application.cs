@@ -43,6 +43,7 @@ namespace SailwindRadio.Audio
 
         // Capture runs only while the radio is on, so turning it off gives the application its volume back. While the
         // game is paused the application is paused too, as music is, so nothing plays on unheard and the radio resumes in step.
+        // Loading only silences the radio, because islands load while the player sails.
         private void TickApplication(bool shouldPlay, bool gamePaused)
         {
             int rate = AudioSettings.outputSampleRate;
@@ -96,9 +97,9 @@ namespace SailwindRadio.Audio
             return carrier;
         }
 
-        private void StopApplication(bool wait)
+        private void StopApplication(bool wait, bool pause = false)
         {
-            if (live != null) live.Stop(wait);
+            if (live != null) live.Stop(wait, pause);
             live = null;
             pausedForGame = false;
             ReleaseCarrier(builtIn);
@@ -113,9 +114,10 @@ namespace SailwindRadio.Audio
             if (output.Input != null) output.Input.Reader = null;
         }
 
+        // A radio sold, destroyed or closed with the game takes the application's signal with it, so it pauses.
         private void DisposeApplication()
         {
-            StopApplication(true);
+            StopApplication(true, true);
             application = null;
             if (carrier != null) UnityEngine.Object.Destroy(carrier);
             carrier = null;
