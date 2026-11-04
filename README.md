@@ -6,7 +6,7 @@ Play your own music in Sailwind through a physical radio and speakers with 3D au
 
 ### Mod managers
 
-Install [Sailwind Radio on Thunderstore](https://thunderstore.io/c/sailwind/p/Skeptic043/Sailwind_Radio/) through r2modman or Thunderstore Mod Manager, then launch Sailwind through your manager. Dependencies are installed automatically.
+Install Sailwind Radio through [Sailwind Mod Synchronizer](https://github.com/foxyv/SailwindModSynchronizer/releases/latest), r2modman or Thunderstore Mod Manager, then launch Sailwind through your manager. Dependencies are installed automatically.
 
 ### Manual installation
 
