@@ -33,6 +33,7 @@ namespace SailwindRadio.Audio
         internal readonly GameObject Emitter;
         internal readonly AudioSource Source;
         internal readonly RadioApplicationInput Input;
+        internal readonly RadioOutputLimiter Limiter;
         internal AudioClip StreamClip;
         internal RadioSpeakerProfile Profile;
         internal Vector3 Position;
@@ -108,6 +109,9 @@ namespace SailwindRadio.Audio
                 bassFilter = null;
                 warning("Radio bass filter unavailable: " + ex.Message);
             }
+            // Added last, so it holds the output after every filter.
+            Limiter = Emitter.AddComponent<RadioOutputLimiter>();
+            Limiter.Input = Input;
         }
 
         internal void Update(float masterVolume, Vector3 listener, bool listenerKnown)
@@ -130,9 +134,26 @@ namespace SailwindRadio.Audio
             float distanceGain = !listenerKnown ? 0f : Carried ? 1f : DistanceGain(Vector3.Distance(Position, listener), Profile.Radius);
             float local = Profile.IsWoofer ? 1f : Clamp(LocalVolume);
             float bassGain = Profile.IsWoofer ? (float)Math.Sqrt(Clamp(Bass)) : 1f;
-            Source.volume = Profile.Gain * masterVolume * masterVolume * local * local * bassGain * distanceGain *
+            float volume = Profile.Gain * masterVolume * masterVolume * local * local * bassGain * distanceGain *
                 (1f - (Profile.IsWoofer ? .4f : .65f) * effectiveObstruction);
-            if (bassFilter != null) bassFilter.SetProfile(AudioSettings.outputSampleRate, Profile.IsWoofer);
+            // Unity applies volume after every filter, so boosted application audio and bass emphasis can rise until
+            // volume makes them full scale. Near silence the bound only keeps samples finite. Lower headroom is published before a
+            // louder volume and higher headroom after a quieter one, so the audio thread never pairs a louder
+            // volume with the old headroom.
+            float headroom = volume > .01f ? 1f / volume : 100f;
+            if (headroom < Input.Headroom)
+            {
+                Input.Headroom = headroom;
+                Source.volume = volume;
+            }
+            else
+            {
+                Source.volume = volume;
+                Input.Headroom = headroom;
+            }
+            int sampleRate = AudioSettings.outputSampleRate;
+            if (Limiter != null) Limiter.SampleRate = sampleRate;
+            if (bassFilter != null) bassFilter.SetProfile(sampleRate, Profile.IsWoofer);
         }
 
         internal void Stop(bool clearClip = false)

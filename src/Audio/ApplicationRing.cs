@@ -11,7 +11,7 @@ namespace SailwindRadio.Audio
         internal const int Channels = ProcessLoopback.Channels;
         // Held audio stays far below this before the radio's gain, even with the overs of heavily limited music. A
         // louder packet comes from a session not held yet, such as a new browser tab or a moved Volume Mixer slider,
-        // and plays as silence. Mix clips everything to full scale, so audio below it is never louder than music.
+        // and plays as silence. Each output's RadioOutputLimiter keeps what passes from clipping.
         internal const float HeldPeak = HeldVolumes.Level * 4;
         internal const float Gain = 1f / HeldVolumes.Level;
         internal readonly int SampleRate;
@@ -84,7 +84,15 @@ namespace SailwindRadio.Audio
             Array.Copy(samples, 0, destination, first * Channels, (count - first) * Channels);
         }
 
-        private static float Clip(float value) { return value > 1f ? 1f : value < -1f ? -1f : value; }
+        // The player's AppVolume setting, applied on top of the held gain so an app left at a normal volume of its
+        // own can still match music. Read by every output's audio thread.
+        internal const float MinimumBoost = .1f, MaximumBoost = 50f;
+        private static volatile float boost = 1f;
+        internal static float Boost
+        {
+            get { return boost; }
+            set { boost = Single.IsNaN(value) ? 1f : Math.Min(MaximumBoost, Math.Max(MinimumBoost, value)); }
+        }
 
         // One output's mixing buffer. Used only on that output's audio thread.
         internal sealed class Reader
@@ -96,16 +104,18 @@ namespace SailwindRadio.Audio
             // Replaces the carrier in data with application audio. A 3D output's carrier holds Unity's pan gain
             // for each channel, applied to the sum of both input channels as Unity does for a stereo clip. A flat
             // output keeps left and right, and its carrier of one half per channel is doubled back. Start is the
-            // output frame the block begins at, the same for every output in one Unity mix.
+            // output frame the block begins at, the same for every output in one Unity mix. Boosted audio may pass
+            // full scale here, and the output's own RadioOutputLimiter holds it after every filter.
             internal void Mix(float[] data, int channels, bool spatial, long start)
             {
                 if (channels <= 0) return;
                 int count = data.Length / channels;
                 if (stereo.Length < count * Channels) stereo = new float[count * Channels];
                 Ring.Copy(start, stereo, count);
+                float gain = Gain * Boost;
                 for (int frame = 0; frame < count; frame++)
                 {
-                    float left = Clip(stereo[frame * 2] * Gain), right = Clip(stereo[frame * 2 + 1] * Gain);
+                    float left = stereo[frame * 2] * gain, right = stereo[frame * 2 + 1] * gain;
                     for (int channel = 0, at = frame * channels; channel < channels; channel++, at++)
                         data[at] = spatial ? data[at] * (left + right) : 2 * data[at] * ((channel & 1) == 0 ? left : right);
                 }

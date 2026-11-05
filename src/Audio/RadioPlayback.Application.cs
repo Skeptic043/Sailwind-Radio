@@ -20,7 +20,8 @@ namespace SailwindRadio.Audio
         // Sends a button press to the application. False when it has no media session to receive it.
         internal bool SendToApplication(MediaControls.Command command) => live != null && live.Media.Send(command);
 
-        /// <summary>Play an application instead of music, or music again for null. The music position is kept.</summary>
+        /// <summary>Play an application instead of music, or music again for null. The music position is kept, and
+        /// an application switched away from is paused so it does not carry on at its own volume.</summary>
         public void SetApplication(AudioApplication chosen)
         {
             if (disposed || (chosen == null ? application == null : chosen.Same(application))) return;
@@ -30,7 +31,7 @@ namespace SailwindRadio.Audio
                 ReleaseTrack();
                 ReleasePreload();
             }
-            StopApplication(false);
+            StopApplication(false, true);
             application = chosen;
             applicationWarned = false;
             failure = null;

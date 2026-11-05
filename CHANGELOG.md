@@ -1,5 +1,14 @@
 # Sailwind Radio
 
+## 1.5.8
+
+### New
+- Added a new `AppVolume` setting that multiplies external app audio to allow increasing the volume without fighting volume sliders in other applications (highly recommend [BepInEx Configuration Manager](https://github.com/BepInEx/BepInEx.ConfigurationManager) for adjusting on the fly)
+
+### Changed
+- Loud app audio and woofer bass are now smoothly limited at the game's normal max volume instead of clipping if the volume gets too high.
+- Switching a radio to another app or back to music now pauses the app it was playing if the app supports media controls
+
 ## 1.5.7
 
 ### Changed

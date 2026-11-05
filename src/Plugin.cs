@@ -21,7 +21,7 @@ namespace SailwindRadio
     public sealed class Plugin : BaseUnityPlugin
     {
         public const string Id = "local.sailwind.radio";
-        public const string Version = "1.5.7";
+        public const string Version = "1.5.8";
         private static Plugin instance;
         private Harmony harmony;
         private RadioWorldService world;
@@ -52,6 +52,11 @@ namespace SailwindRadio
                     "Music folders separated by |. Each folder is one collection including all its subfolders. Example: D:\\Music | E:\\Sailing Music");
                 continueWhileSleeping = Config.Bind("Audio", "ContinueWhileSleeping", false,
                     "Keep music playing while the player sleeps. Loading still suspends playback.");
+                var appVolume = Config.Bind("Audio", "AppVolume", 1f, new ConfigDescription(
+                    "Volume multiplier for apps playing through a radio, such as Spotify or a browser. 1 plays an app as loud as its own volume allows. Raise it to bring an app up to your music without turning the app itself up. Loud peaks are smoothly limited instead of clipping.",
+                    new AcceptableValueRange<float>(ApplicationRing.MinimumBoost, ApplicationRing.MaximumBoost)));
+                ApplicationRing.Boost = appVolume.Value;
+                appVolume.SettingChanged += (sender, args) => ApplicationRing.Boost = appVolume.Value;
                 BindFalloff("RadioFalloff", "the radio's built-in speaker", RadioSpeakerProfile.BuiltIn);
                 BindFalloff("SmallSpeakerFalloff", "Small Speakers", RadioSpeakerProfile.Small);
                 BindFalloff("SpeakerFalloff", "Speakers", RadioSpeakerProfile.Normal);

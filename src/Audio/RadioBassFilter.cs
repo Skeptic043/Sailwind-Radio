@@ -58,12 +58,13 @@ namespace SailwindRadio.Audio
         {
             BassFilter filter = bass;
             if (channels <= 0 || filter == null) return;
+            // The output's RadioOutputLimiter bounds the emphasis after every filter.
             for (int i = 0; i < data.Length; i += channels)
             {
                 for (int channel = 0; channel < channels && i + channel < data.Length; channel++)
                 {
                     float value = filter.Apply(data[i + channel], channel);
-                    data[i + channel] = RadioSpeakerOutput.Finite(value) ? Math.Max(-1f, Math.Min(1f, value)) : 0f;
+                    data[i + channel] = RadioSpeakerOutput.Finite(value) ? value : 0f;
                 }
             }
         }

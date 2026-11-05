@@ -602,8 +602,9 @@ static partial class AudioChecks
             Check(Array.TrueForAll(signal, value => value == 0), "Sample-rate change replaces coefficient bank and clears old delay state");
             for (int i = 0; i < signal.Length; i++) signal[i] = i % 10 == 0 ? Single.NaN : 1000;
             filter.Process(signal, 2);
-            Check(Array.TrueForAll(signal, value => !Single.IsNaN(value) && !Single.IsInfinity(value) && Math.Abs(value) <= 1),
-                "Woofer output limiter remains finite and bounded for over-range PCM");
+            // The output's RadioOutputLimiter bounds the level after every filter.
+            Check(Array.TrueForAll(signal, value => !Single.IsNaN(value) && !Single.IsInfinity(value)),
+                "Woofer filter output remains finite for over-range and damaged PCM");
         }
         var mono = new RadioBassFilter();
         mono.SetProfile(48000, true);

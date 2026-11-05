@@ -11,6 +11,9 @@ namespace SailwindRadio.Audio
     {
         internal volatile ApplicationRing.Reader Reader;
         internal volatile bool Spatial;
+        // The level the output's volume turns into full scale, set with that volume on the main thread and read by
+        // the output's RadioOutputLimiter.
+        internal volatile float Headroom = 1f;
 
         private void OnAudioFilterRead(float[] data, int channels)
         {

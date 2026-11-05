@@ -23,14 +23,28 @@ static partial class AudioChecks
         nan[7] = Single.NaN;
         Check(!ring.Write(nan, 2048) && Finite(nan), "a packet with NaN is silenced");
 
-        // A held full-scale peak passes, and anything the gain lifts past full scale is clipped to it.
+        // A held full-scale peak passes, and the gain carries it past full scale for the output's limiter to hold.
         ring = new ApplicationRing(rate);
         Check(ring.Write(Packet(2048, HeldVolumes.Level), 2048), "a held full-scale packet passes the guard");
         ring = new ApplicationRing(rate);
         ring.Write(Stereo(4096, ApplicationRing.HeldPeak * .999f, -ApplicationRing.HeldPeak * .999f), 4096);
         data = Carrier(1024, 2, .5f);
         new ApplicationRing.Reader(ring).Mix(data, 2, false, 0);
-        Check(Near(data[0], 1f) && Near(data[1], -1f), "audio past full scale is clipped to it");
+        Check(Math.Abs(data[0] - 3.996f) < 1e-3f && Math.Abs(data[1] + 3.996f) < 1e-3f, "mixing leaves audio past full scale to the output limiter");
+
+        // AppVolume lifts a quiet app.
+        try
+        {
+            ApplicationRing.Boost = 4f;
+            ring = new ApplicationRing(rate);
+            ring.Write(Stereo(4096, held * .2f, -held * .2f), 4096);
+            data = Carrier(1024, 2, .5f);
+            new ApplicationRing.Reader(ring).Mix(data, 2, false, 0);
+            Check(Near(data[0], .4f) && Near(data[1], -.4f), "AppVolume lifts a quiet app");
+            CheckBoostedWoofer(rate, held);
+        }
+        finally { ApplicationRing.Boost = 1f; }
+        CheckPeakLimiter(rate);
 
         // A flat output restores each channel to full level from its carrier of one half per channel.
         ring = new ApplicationRing(rate);
@@ -97,6 +111,95 @@ static partial class AudioChecks
         data = Carrier(1024, 2, .5f);
         new ApplicationRing.Reader(new ApplicationRing(rate)).Mix(data, 2, false, 0);
         Check(MaxAbs(data) == 0, "an empty ring plays silence");
+    }
+
+    // The whole chain of a Turbo Wolfer at half master volume, with AppVolume at 10 on a 70 Hz app tone: mixing,
+    // the bass filter's emphasis, the final limiter and then the output's volume, as Unity applies it last.
+    static void CheckBoostedWoofer(int rate, float held)
+    {
+        ApplicationRing.Boost = 10f;
+        var output = new RadioSpeakerOutput("Boost check", RadioSpeakerProfile.TurboWoofer, message => { });
+        output.Carried = true;
+        output.Update(.5f, new UnityEngine.Vector3(), true);
+        Check(Near(output.Source.volume, .25f) && Near(output.Input.Headroom, 4f), "an output's headroom is the level its volume turns into full scale");
+        output.Update(.5f, new UnityEngine.Vector3(), false);
+        Check(output.Source.volume == 0 && output.Input.Headroom == 100f, "a silent output keeps a finite headroom");
+        output.Update(.5f, new UnityEngine.Vector3(), true);
+
+        var ring = new ApplicationRing(rate);
+        var reader = new ApplicationRing.Reader(ring);
+        output.Input.Reader = reader;
+        var bass = new RadioBassFilter();
+        bass.SetProfile(rate, true);
+        var tone = new float[1024 * 2];
+        float loudPeak = 0, quietPeak = 0;
+        // Written a block ahead of each read, as capture runs, so the reader plays the whole passage in order.
+        for (int block = 0; block < rate / 1024; block++)
+        {
+            for (int frame = 0; frame < 1024; frame++)
+            {
+                int at = block * 1024 + frame;
+                tone[frame * 2] = tone[frame * 2 + 1] = (at < rate / 2 ? held : held * .1f) * (float)Math.Sin(2 * Math.PI * 70 * at / rate);
+            }
+            ring.Write(tone, 1024);
+            var data = Carrier(1024, 2, .5f);
+            reader.Mix(data, 2, false, block * 1024);
+            bass.Process(data, 2);
+            output.Limiter.Process(data, 2);
+            for (int i = 0; i < data.Length; i++) data[i] *= output.Source.volume;
+            if (block > 6 && block < 20) loudPeak = Math.Max(loudPeak, MaxAbs(data));
+            if (block > 40) quietPeak = Math.Max(quietPeak, MaxAbs(data));
+        }
+        Check(loudPeak <= 1f + 1e-3f && loudPeak > .9f, "a boosted Wolfer reaches full scale after volume, never past it");
+        Check(quietPeak > .2f, "a boosted Wolfer recovers once the app is quiet again");
+
+        // Another app starts at full gain, not at the last app's limited level.
+        output.Input.Reader = new ApplicationRing.Reader(new ApplicationRing(rate));
+        var block2 = Stereo(1, 2f, 2f);
+        output.Limiter.Process(block2, 2);
+        Check(Near(block2[0], 2f), "a new app starts at full gain");
+
+        // Music's bass emphasis may pass full scale before volume, as the bass knob sets it, and is held at the
+        // level volume turns into full scale whatever Reader the main thread has just set.
+        output.Input.Reader = null;
+        block2 = Stereo(1, 3f, 3f);
+        output.Limiter.Process(block2, 2);
+        Check(Near(block2[0], 3f), "Wolfer bass emphasis within its headroom is not clipped");
+        block2 = Stereo(1024, 40f, 40f);
+        output.Limiter.Process(block2, 2);
+        Check(MaxAbs(block2) <= 4f + 1e-3f, "music is held at the level volume turns into full scale");
+        output.Dispose();
+    }
+
+    static void CheckPeakLimiter(int rate)
+    {
+        // Audio under the ceiling passes untouched.
+        var limiter = new PeakLimiter();
+        var data = Stereo(1024, .9f, -.5f);
+        limiter.Process(data, 2, 1f, rate);
+        Check(data[0] == .9f && data[1] == -.5f, "the limiter leaves audio under its ceiling untouched");
+
+        // A loud frame is turned down whole, so its channels keep their balance where a clip would flatten them.
+        data = Stereo(1024, 8f, 2f);
+        limiter.Process(data, 2, 4f, rate);
+        Check(Near(data[2046], 4f) && Near(data[2047], 1f), "the limiter turns a whole frame down, keeping its channel balance");
+
+        // Quieter audio right after a peak stays turned down for a moment, then recovers.
+        data = Stereo(1, 2f, 2f);
+        limiter.Process(data, 2, 4f, rate);
+        Check(data[0] < 1.1f, "audio right after a peak stays turned down");
+        data = Stereo(rate / 5, 2f, 2f);
+        limiter.Process(data, 2, 4f, rate);
+        // From half gain, a 200 ms release has recovered 1 - e^-1 of the way: 2 x (1 - .5 / e).
+        Check(Math.Abs(data[data.Length - 1] - 1.632f) < .02f, "the limiter recovers over about 200 ms");
+        data = Stereo(rate, 2f, 2f);
+        limiter.Process(data, 2, 4f, rate);
+        Check(data[data.Length - 1] > 1.98f, "the limiter recovers over time");
+
+        // Damaged samples become silence instead of reaching Unity's mixer.
+        data = new[] { Single.NaN, Single.PositiveInfinity, 1f, 1f };
+        limiter.Process(data, 2, 4f, rate);
+        Check(Finite(data) && data[0] == 0 && data[1] == 0, "the limiter silences damaged samples");
     }
 
     static float[] Packet(int frames, float value) => Stereo(frames, value, value);

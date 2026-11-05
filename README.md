@@ -33,6 +33,7 @@ After the first launch, close the game and edit `BepInEx/config/local.sailwind.r
 | --- | --- | --- | --- |
 | Music | `MusicFolders` | Blank | Music folders separated by `\|`. |
 | Audio | `ContinueWhileSleeping` | `false` | Keep music playing while the player sleeps. |
+| Audio | `AppVolume` | `1` | Volume multiplier for apps playing through a radio, from 0.1 to 50. |
 | Audio | `RadioFalloff` | `12` | How far the radio's built-in speaker can be heard, from 5 to 50 m. |
 | Audio | `SmallSpeakerFalloff` | `15` | How far Small Speakers can be heard, from 5 to 50 m. |
 | Audio | `SpeakerFalloff` | `20` | How far Speakers can be heard, from 5 to 50 m. |
