@@ -11,7 +11,7 @@ Install Sailwind Radio through [Sailwind Mod Synchronizer](https://github.com/fo
 ### Manual installation
 
 1. Install [BepInEx 5](https://github.com/BepInEx/BepInEx/releases) in your Sailwind game folder, following its installation instructions.
-2. Download and extract the Sailwind Radio ZIP. Copy its `BepInEx/plugins/SailwindRadio` folder into `BepInEx/plugins` in your Sailwind folder.
+2. Download and extract the [Sailwind Radio ZIP](https://github.com/Skeptic043/Sailwind-Radio/releases/latest). Copy its `BepInEx/plugins/SailwindRadio` folder into `BepInEx/plugins` in your Sailwind folder.
 3. Launch Sailwind normally.
 
 ## Controls
@@ -103,8 +103,6 @@ The source code, documentation, original audio, shaders and walnut device models
 
 AI was used to write all of the code in this project. The original concept, design direction, testing, debugging, and release decisions are my own. If you prefer not to use mods developed with AI assistance, I understand and respect that choice.
 
-## Issues and links
+## Links
 
-[Report an issue](https://github.com/Skeptic043/Sailwind-Radio/issues) with your settings and `BepInEx/LogOutput.log`. Redact personal file paths and other private information before posting either one.
-
-[Source code](https://github.com/Skeptic043/Sailwind-Radio) · [Licenses](https://github.com/Skeptic043/Sailwind-Radio/blob/main/ASSET_LICENSES.md) · [Build instructions](https://github.com/Skeptic043/Sailwind-Radio/blob/main/docs/BUILDING.md) · [Source attribution and dependencies](https://github.com/Skeptic043/Sailwind-Radio/blob/main/THIRD_PARTY_NOTICES.md) · [Support on Ko-fi](https://ko-fi.com/skeptic043) · skeptic043
+[Report an issue](https://github.com/Skeptic043/Sailwind-Radio/issues) · [Source code](https://github.com/Skeptic043/Sailwind-Radio) · [Release notes](https://github.com/Skeptic043/Sailwind-Radio/blob/main/CHANGELOG.md) · [Build instructions](https://github.com/Skeptic043/Sailwind-Radio/blob/main/BUILDING.md) · [Licenses](https://github.com/Skeptic043/Sailwind-Radio/blob/main/ASSET_LICENSES.md) · [Source attribution and dependencies](https://github.com/Skeptic043/Sailwind-Radio/blob/main/THIRD_PARTY_NOTICES.md) · [Support on Ko-fi](https://ko-fi.com/skeptic043) · skeptic043

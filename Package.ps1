@@ -40,7 +40,7 @@ $radioBinaryFiles = [ordered]@{
     'THIRD_PARTY_NOTICES.md' = "$PSScriptRoot\THIRD_PARTY_NOTICES.md"
     'licenses/CC-BY-NC-4.0.txt' = "$PSScriptRoot\licenses\CC-BY-NC-4.0.txt"
     'licenses/NLayer.txt' = "$PSScriptRoot\licenses\NLayer.txt"
-    'docs/BUILDING.md' = "$PSScriptRoot\docs\BUILDING.md"
+    'BUILDING.md' = "$PSScriptRoot\BUILDING.md"
     'docs/SHOPS.md' = "$PSScriptRoot\docs\SHOPS.md"
     'tests/Audio/UNITY-PROBE.md' = "$PSScriptRoot\tests\Audio\UNITY-PROBE.md"
 }
