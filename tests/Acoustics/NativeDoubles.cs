@@ -10,10 +10,14 @@ namespace UnityEngine
     {
         public static readonly List<Object> Registry = new();
         public static int Searches;
+        public static int CabinSearches;
+        private static int nextId;
+        private readonly int id = ++nextId;
         public bool Destroyed;
+        public int GetInstanceID() => id;
         public static implicit operator bool(Object value) => value != null && !value.Destroyed;
         public static T[] FindObjectsOfType<T>() where T : Component
-        { Searches++; return Registry.OfType<T>().Where(x => x && x.gameObject.activeInHierarchy).ToArray(); }
+        { Searches++; if (typeof(T) == typeof(InteriorEffectsTrigger)) CabinSearches++; return Registry.OfType<T>().Where(x => x && x.gameObject.activeInHierarchy).ToArray(); }
     }
     public class GameObject : Object { public bool activeInHierarchy = true; }
     public class Transform : Object

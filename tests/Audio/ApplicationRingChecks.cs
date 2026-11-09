@@ -120,6 +120,7 @@ static partial class AudioChecks
         ApplicationRing.Boost = 10f;
         var output = new RadioSpeakerOutput("Boost check", RadioSpeakerProfile.TurboWoofer, message => { });
         output.Carried = true;
+        output.Running = true; // A playing output. A stopped one writes nothing to its source.
         output.Update(.5f, new UnityEngine.Vector3(), true);
         Check(Near(output.Source.volume, .25f) && Near(output.Input.Headroom, 4f), "an output's headroom is the level its volume turns into full scale");
         output.Update(.5f, new UnityEngine.Vector3(), false);

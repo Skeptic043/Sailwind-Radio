@@ -21,7 +21,7 @@ namespace SailwindRadio
     public sealed class Plugin : BaseUnityPlugin
     {
         public const string Id = "local.sailwind.radio";
-        public const string Version = "1.5.8";
+        public const string Version = "1.5.11";
         private static Plugin instance;
         private Harmony harmony;
         private RadioWorldService world;
@@ -257,22 +257,38 @@ namespace SailwindRadio
         // heard from the player's head. They play flat because the moving camera listener cannot pan them.
         private bool HeardFromHead(DeviceVessel vessel) => acoustics.HeadKnown && DeviceVessels.OnPlayerBoat(vessel);
 
+        // An output that can't be heard keeps its last cabin muffling instead of asking again. It is silent
+        // when its radio isn't playing, its volume is zero, or it is beyond its falloff distance.
+        private bool ShouldMuffle(bool audible, float volume, Vector3 position, RadioSpeakerProfile profile, bool fromHead)
+        {
+            if (!audible || volume <= 0 || profile == null) return false;
+            Vector3 listening = fromHead && acoustics.HeadKnown ? acoustics.HeadPosition : acoustics.ListenerPosition;
+            return (position - listening).sqrMagnitude <= profile.Radius * profile.Radius;
+        }
+
+        // Without a known listening point nothing is muffled, as the acoustics service rules.
+        private float Muffling(RadioItemController device, bool audible, float volume, Vector3 position, bool carried,
+            RadioSpeakerProfile profile, bool fromHead) =>
+            !acoustics.ListenerKnown ? 0
+                : ShouldMuffle(audible, volume, position, profile, fromHead) ? acoustics.ObstructionAt(device, position, carried, fromHead)
+                : acoustics.LastObstruction(device);
+
         private void TickPlayback(RadioItemController item, RadioPlayback engine, RadioQueue queue, bool suspended)
         {
             if (!item) return;
-            Vector3 devicePosition = item.VisualAudioPosition;
-            Vector3 position = item.SoundPosition;
-            bool carried = item.UsesPlayerPosition;
-            var vessel = item.Vessel;
-            bool fromHead = HeardFromHead(vessel);
-            if (carried && acoustics.ListenerKnown) position = acoustics.ListenerPosition;
-            float obstruction = item.State.Powered ? acoustics.ObstructionAt(position, carried, fromHead) : 0;
+            var place = item.Place();
+            Vector3 position = place.SoundPosition;
+            bool fromHead = HeardFromHead(place.Vessel);
+            if (place.Carried && acoustics.ListenerKnown) position = acoustics.ListenerPosition;
+            bool audible = engine.Audible(suspended);
+            float obstruction = Muffling(item, audible, item.State.Volume * item.State.LocalVolume, position, place.Carried,
+                RadioSpeakerProfile.BuiltIn, fromHead);
             item.HearFromHead(fromHead, acoustics.HeadPosition);
             engine.SetAcoustics(fromHead ? acoustics.HeadPosition : acoustics.ListenerPosition, acoustics.ListenerKnown, obstruction, fromHead);
-            engine.SetCarried(carried);
+            engine.SetCarried(place.Carried);
             engine.BeginEndpoints();
             if (item.InstanceId == world.ActiveRadioId && item.State.Powered)
-                ConnectSpeakers(vessel, engine, devicePosition, fromHead);
+                ConnectSpeakers(place.Vessel, engine, place.VisualPosition, fromHead, audible, item.State.Volume);
             engine.EndEndpoints();
             engine.Tick(position, suspended, suspended && !onlyLoading);
             if (!suspended && item.State.Powered && !item.State.Paused)
@@ -299,19 +315,20 @@ namespace SailwindRadio
             }
         }
 
-        private void ConnectSpeakers(DeviceVessel sourceVessel, RadioPlayback engine, Vector3 devicePosition, bool fromHead)
+        private void ConnectSpeakers(DeviceVessel sourceVessel, RadioPlayback engine, Vector3 devicePosition, bool fromHead,
+            bool audible, float masterVolume)
         {
             foreach (var speaker in world.Items)
             {
                 if (!speaker || speaker.State.Role == DeviceRole.Radio || !speaker.State.SpeakerEnabled) continue;
-                var speakerVessel = speaker.Vessel;
-                bool speakerCarried = speaker.UsesPlayerPosition;
-                Vector3 speakerDevicePosition = speaker.VisualAudioPosition;
-                if (!DeviceVessels.CanConnect(sourceVessel, speakerVessel, devicePosition, speakerDevicePosition)) continue;
-                Vector3 speakerPosition = speakerCarried && acoustics.ListenerKnown ? acoustics.ListenerPosition : speaker.SoundPosition;
-                float obstruction = acoustics.ObstructionAt(speakerPosition, speakerCarried, fromHead);
-                engine.SetEndpoint(speaker.InstanceId, speakerPosition, speakerCarried, speaker.State.Kind,
-                    speaker.State.Role == DeviceRole.Woofer ? 1f : speaker.State.Volume, speaker.State.Bass, obstruction);
+                var place = speaker.Place();
+                if (!DeviceVessels.CanConnect(sourceVessel, place.Vessel, devicePosition, place.VisualPosition)) continue;
+                Vector3 speakerPosition = place.Carried && acoustics.ListenerKnown ? acoustics.ListenerPosition : place.SoundPosition;
+                float localVolume = speaker.State.Role == DeviceRole.Woofer ? 1f : speaker.State.Volume;
+                float obstruction = Muffling(speaker, audible, masterVolume * localVolume, speakerPosition, place.Carried,
+                    RadioSpeakerProfile.ForKind(speaker.State.Kind), fromHead);
+                engine.SetEndpoint(speaker.InstanceId, speakerPosition, place.Carried, speaker.State.Kind,
+                    localVolume, speaker.State.Bass, obstruction);
             }
         }
 

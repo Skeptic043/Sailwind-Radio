@@ -74,31 +74,49 @@ namespace SailwindRadio.Physical
             menuControl = control;
         }
         public bool UsesPlayerPosition => DeviceVessels.IsPlayerOwned(item);
-
-        public Vector3 VisualAudioPosition
+        public Vector3 VisualAudioPosition => VisualPosition(UsesPlayerPosition, CurrentBox());
+        public Vector3 SoundPosition
         {
             get
             {
-                if (UsesPlayerPosition && Refs.observerMirror)
-                    return Refs.observerMirror.transform.position;
-                if (item && item.itemRigidbodyC)
-                {
-                    Transform box = item.itemRigidbodyC.GetCurrentBox();
-                    if (box)
-                    {
-                        var body = box.GetComponentInParent<ItemRigidbody>();
-                        if (body && body.GetShipItem())
-                            return body.GetShipItem().transform.position;
-                        return box.position;
-                    }
-                }
-                return transform.position;
+                bool carried = UsesPlayerPosition;
+                var box = CurrentBox();
+                return SoundPositionFor(carried, box, VisualPosition(carried, box));
             }
         }
 
-        // Placed sound originates at the cone rather than the floor-level native item pivot.
-        public Vector3 SoundPosition => UsesPlayerPosition || (item && item.itemRigidbodyC && item.itemRigidbodyC.GetCurrentBox())
-            ? VisualAudioPosition : transform.TransformPoint(soundOrigin);
+        // A playback pass reads all of these for every device. They check the inventory and the crate
+        // the device may be in, so the pass works them out once. The properties above stay live for
+        // hooks that run outside it.
+        internal DevicePlacement Place()
+        {
+            bool carried = UsesPlayerPosition;
+            var box = CurrentBox();
+            Vector3 visual = VisualPosition(carried, box);
+            return new DevicePlacement(carried, visual, SoundPositionFor(carried, box, visual), DeviceVessels.Resolve(item, carried));
+        }
+
+        // The crate or box holding this device, if any.
+        private Transform CurrentBox() => item && item.itemRigidbodyC ? item.itemRigidbodyC.GetCurrentBox() : null;
+
+        private Vector3 VisualPosition(bool carried, Transform box)
+        {
+            if (carried && Refs.observerMirror)
+                return Refs.observerMirror.transform.position;
+            if (box)
+            {
+                var body = box.GetComponentInParent<ItemRigidbody>();
+                if (body && body.GetShipItem())
+                    return body.GetShipItem().transform.position;
+                return box.position;
+            }
+            return transform.position;
+        }
+
+        // Placed sound originates at the cone rather than the floor-level native item pivot. Carried and boxed
+        // devices sound from where they are seen.
+        private Vector3 SoundPositionFor(bool carried, Transform box, Vector3 visual) =>
+            carried || box ? visual : transform.TransformPoint(soundOrigin);
 
         internal void Initialize(RadioWorldService service, RadioState state)
         {

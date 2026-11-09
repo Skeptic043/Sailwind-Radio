@@ -342,8 +342,20 @@ namespace SailwindRadio.Physical
         });
         private static void InventoryEnterPostfix(ItemRigidbody __instance) => Guard(() => RadioNativeHooks.InventorySlotChanged(__instance, true));
         private static void InventoryExitPostfix(ItemRigidbody __instance) => Guard(() => RadioNativeHooks.InventorySlotChanged(__instance, false));
-        private static void HookPositionPrefix(HangableItem __instance) => Guard(() => RadioNativeHooks.RejectPhantomHook(__instance));
-        private static void HookPositionPostfix(HangableItem __instance) => Guard(() => RadioNativeHooks.PositionBelowHook(__instance));
+        // Every hanging item runs these each frame, so they catch directly instead of building a Guard closure.
+        private static void HookPositionPrefix(HangableItem __instance)
+        {
+            if (active == null || active.disposed) return;
+            try { RadioNativeHooks.RejectPhantomHook(__instance); }
+            catch (Exception ex) { active.warn("Radio native integration failed: " + ex.Message); }
+        }
+
+        private static void HookPositionPostfix(HangableItem __instance)
+        {
+            if (active == null || active.disposed) return;
+            try { RadioNativeHooks.PositionBelowHook(__instance); }
+            catch (Exception ex) { active.warn("Radio native integration failed: " + ex.Message); }
+        }
         private static bool HouseTriggerPrefix(ShipItem __instance, Collider other)
         {
             if (active == null || active.disposed) return true;
@@ -376,7 +388,12 @@ namespace SailwindRadio.Physical
         });
         private static void PrefabPostfix(SaveablePrefab __instance) => Guard(() => { active.loadingPrefabs.Remove(__instance); active.Restore(__instance); });
         private static void CapturePrefix(SaveablePrefab __instance) => Guard(() => active.Capture(__instance));
-        private static void HoverTextPostfix(LookUI __instance, GoPointerButton button) => Guard(() => RadioHoverText.Show(__instance, button));
+        private static void HoverTextPostfix(LookUI __instance, GoPointerButton button)
+        {
+            if (active == null || active.disposed) return;
+            try { RadioHoverText.Show(__instance, button); }
+            catch (Exception ex) { active.warn("Radio native integration failed: " + ex.Message); }
+        }
         private static void HeldItemControlClearPrefix(GoPointer __instance,
             ref GoPointerButton ___pointedAtButton, ref float ___currentLookDistance)
         {

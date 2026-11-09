@@ -47,6 +47,10 @@ namespace SailwindRadio.Audio
         private RadioBassFilter bassFilter;
         private float smoothedObstruction;
         private bool initialized;
+        // The inputs of the latest Update, so a start can apply them without waiting for the next frame.
+        private float masterVolume;
+        private Vector3 listener;
+        private bool listenerKnown;
 
         internal RadioSpeakerOutput(string name, RadioSpeakerProfile profile, Action<string> warning)
         {
@@ -114,18 +118,30 @@ namespace SailwindRadio.Audio
             Limiter.Input = Input;
         }
 
+        // Runs every frame. A stopped output only keeps its muffling eased, and writes nothing to its source.
         internal void Update(float masterVolume, Vector3 listener, bool listenerKnown)
+        {
+            this.masterVolume = masterVolume;
+            this.listener = listener;
+            this.listenerKnown = listenerKnown;
+            float target = Carried ? 0f : Clamp(Obstruction);
+            if (!initialized) { smoothedObstruction = target; initialized = true; }
+            float elapsed = Time.unscaledDeltaTime;
+            if (!Finite(elapsed) || elapsed < 0) elapsed = 0;
+            smoothedObstruction += (target - smoothedObstruction) * (float)(1 - Math.Exp(-elapsed / .25));
+            if (Running || Paused) Apply();
+        }
+
+        // Writes position, spatialization, filters and volume to the native source. Every path that starts
+        // this output calls it immediately before the start (PlayScheduled, UnPause and the application
+        // carrier's Play), so a stopped output never starts with stale settings.
+        internal void Apply()
         {
             if (Emitter == null || Source == null) return;
             Emitter.transform.position = Position;
             Source.spatialBlend = Carried || Flat ? 0f : 1f;
             if (Input != null) Input.Spatial = !(Carried || Flat);
             Source.maxDistance = Profile.Radius;
-            float target = Carried ? 0f : Clamp(Obstruction);
-            if (!initialized) { smoothedObstruction = target; initialized = true; }
-            float elapsed = Time.unscaledDeltaTime;
-            if (!Finite(elapsed) || elapsed < 0) elapsed = 0;
-            smoothedObstruction += (target - smoothedObstruction) * (float)(1 - Math.Exp(-elapsed / .25));
             float effectiveObstruction = Carried ? 0f : smoothedObstruction;
             if (highPass != null) highPass.cutoffFrequency = Profile.HighPass;
             float closedCutoff = Math.Min(1500f, Profile.LowPass);
@@ -175,6 +191,7 @@ namespace SailwindRadio.Audio
         internal void Resume(int sample, double now)
         {
             if (Source == null) return;
+            Apply();
             Source.timeSamples = sample;
             Source.UnPause();
             Running = true;

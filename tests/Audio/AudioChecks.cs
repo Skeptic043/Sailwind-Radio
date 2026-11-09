@@ -31,9 +31,10 @@ static partial class AudioChecks
         player.Tick(new Vector3(1,2,3), false);
         Check(player.Status == "Loading" && source.Schedules == 0, "Async load does not start output");
         Check(player.NamesTrack, "Hover names a song while it opens");
+        Check(!player.Audible(false), "A radio still opening its track is not audible");
         Check(source.pitch == 1 && source.dopplerLevel == 0 && source.spatialBlend == 1 && !source.ignoreListenerPause && source.bypassReverbZones,
             "Real time positional source keeps listener pause and bypasses external reverb zones");
-        Check(emitter.transform.position.x == 1 && emitter.transform.position.z == 3, "Independent emitter follows requested position");
+        Check(emitter.transform.position.x == 0 && emitter.transform.position.z == 0, "A stopped output writes nothing to its emitter while loading");
         var firstStream = (StreamedAudio)Field(player, "streamed");
         Settle(player);
         MakeResident(player);
@@ -41,8 +42,9 @@ static partial class AudioChecks
         Check(firstClip != null && firstClip.Streaming && Field(player, "streamed") == firstStream && source.Schedules == 0 && player.Status == "Suspended",
             "Load finishing during suspension stays silent, and a file name with # and % opens as a local path: status=" + player.Status + " schedules=" + source.Schedules + " same=" + (Field(player, "streamed") == firstStream));
         WaitStream(player);
-        player.Tick(new Vector3(), false);
+        player.Tick(new Vector3(1,2,3), false);
         Check(source.Schedules == 1 && source.timeSamples == 96000 && source.ScheduledAt > AudioSettings.dspTime, "Resume schedules saved sample on DSP clock");
+        Check(emitter.transform.position.x == 1 && emitter.transform.position.z == 3, "Independent emitter is placed before its scheduled start");
         source.timeSamples = 0;
         player.CapturePosition();
         Check(state.PositionSeconds == 2, "Saving before scheduled start preserves intended sample");
@@ -50,6 +52,8 @@ static partial class AudioChecks
         source.timeSamples = 144000;
         player.Tick(new Vector3(), false);
         Check(state.PositionSeconds == 3, "Position follows shared DSP clock");
+        Check(player.Audible(false), "A playing radio is audible, so its outputs ask for cabin muffling");
+        Check(!player.Audible(true), "A suspended radio is not audible");
         Check(source.volume == 0 && source.Schedules == 1 && player.Status == "Playing" && !state.Paused && state.Powered,
             "Unknown listener mutes output while preserving desired playback and advancing timeline");
         player.SetAcoustics(new Vector3(), true, 0);
@@ -59,6 +63,7 @@ static partial class AudioChecks
         state.Paused = true;
         player.Tick(new Vector3(), false);
         Check(state.PositionSeconds == 3 && player.Status == "Paused", "Manual pause captures shared position while retaining native voice");
+        Check(!player.Audible(false), "A paused radio is not audible");
         Check(player.NamesTrack, "Hover keeps naming a paused song");
         player.Tick(new Vector3(), true);
         player.Tick(new Vector3(), false);
@@ -72,6 +77,7 @@ static partial class AudioChecks
         state.Powered = false;
         player.Tick(new Vector3(), false);
         Check(state.PositionSeconds == 4 && source.clip == firstClip && player.Status == "Off", "Power off preserves cursor and the open stream");
+        Check(!player.Audible(false), "A radio that is off is not audible");
         Check(!player.NamesTrack, "Hover names nothing while the radio is off");
         state.Powered = true;
         AudioListener.pause = true;
@@ -228,6 +234,7 @@ static partial class AudioChecks
         state.Volume = 1;
         player.Tick(new Vector3(), false);
         Check(source.volume == 0, "No listener provided defaults to silent output");
+        ((RadioSpeakerOutput)Field(player, "builtIn")).Running = true; // See Playing.
         player.SetAcoustics(new Vector3(), true, 0);
         Check(highPass.cutoffFrequency == 900 && highPass.highpassResonanceQ == 1 &&
             lowPass.cutoffFrequency == 5000 && lowPass.lowpassResonanceQ == 1,
@@ -335,6 +342,7 @@ static partial class AudioChecks
             player = new RadioPlayback(new MonoBehaviour(), state, _ => warnings++);
             source = AudioSource.Last;
             player.SetAcoustics(new Vector3(), true, 0);
+            Playing(player);
             for (int i = 0; i < 20; i++) player.Tick(new Vector3(), false);
             Check(warnings == 2 && source.volume == 0.25f, "Unavailable optional filters warn once each without breaking distance-controlled output");
             player.Dispose();
@@ -1423,6 +1431,14 @@ static partial class AudioChecks
             "Shutdown releases the current and the upcoming stream");
         DeleteClosed(corrupt);
         DeleteClosed(slow);
+    }
+
+    // Output checks that describe a playing built-in speaker. The first tick releases an empty track, and a
+    // stopped output writes nothing to its source until it starts.
+    static void Playing(RadioPlayback player)
+    {
+        player.Tick(new Vector3(), false);
+        ((RadioSpeakerOutput)Field(player, "builtIn")).Running = true;
     }
 
     static object Field(RadioPlayback player, string name)

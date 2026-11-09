@@ -33,6 +33,8 @@ namespace SailwindRadio.Physical
         private readonly HashSet<SaveablePrefab> pendingRestores = new HashSet<SaveablePrefab>();
         private readonly RestoreDeferrals deferrals = new RestoreDeferrals();
         private PrefabsDirectory templateDirectory;
+        private bool templatesIntact;
+        private float nextTemplateCheck;
         private static readonly FieldInfo BusyField = AccessTools.Field(typeof(SaveLoadManager), "busy");
         private SaveLoadManager manager;
         private bool loading;
@@ -183,10 +185,16 @@ namespace SailwindRadio.Physical
 
         private bool EnsureTemplates(PrefabsDirectory directory = null)
         {
+            bool fromHook = directory;
             if (!directory) directory = PrefabsDirectory.instance;
             if (disposed || !directory || directory.directory == null) return false;
             if (templateDirectory == directory && templates[0] && directory.directory.Length >= RadioSaveStore.DirectoryLength(registeredKinds))
             {
+                // Tick runs this every frame. The native directory hook is checked at once, and an
+                // unchanged directory only needs its entries confirmed about once a second.
+                if (!fromHook && Time.unscaledTime < nextTemplateCheck) return templatesIntact;
+                nextTemplateCheck = Time.unscaledTime + 1f;
+                templatesIntact = false;
                 bool intact = true;
                 for (int i = 0; i < registeredKinds.Length; i++)
                 {
@@ -195,7 +203,7 @@ namespace SailwindRadio.Physical
                         directory.shipItems != null && directory.shipItems.Length > RadioSaveStore.ItemIndex(kind) &&
                         directory.shipItems[RadioSaveStore.ItemIndex(kind)] == templates[kind].GetComponent<ShipItem>();
                 }
-                if (intact) return true;
+                if (intact) return templatesIntact = true;
                 ReportTemplateProblem("Radio item directory entries were replaced after registration");
                 return false;
             }
@@ -253,6 +261,8 @@ namespace SailwindRadio.Physical
                 directory.directory = newDirectory;
                 directory.shipItems = newShipItems;
                 templateDirectory = directory;
+                templatesIntact = true;
+                nextTemplateCheck = Time.unscaledTime + 1f;
                 foreach (string message in skipped) warn(message);
                 return true;
             }

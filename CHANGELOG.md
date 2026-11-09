@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.5.11
+
+### Changed
+
+- Optimization work was done, Radio now does much less work every frame, especially while no radio is playing or in earshot
+- Removed small stutters from Radio searching the world for cabins and radio stalls
+- Radio stalls appear with the rest of the port instead of popping in when you get close
+
+## Changed
+
+- Radio does much less work every frame, especially while no radio is playing or in earshot
+- Removed small stutters from Radio searching the world for cabins and radio stalls
+- Radio stalls appear with the rest of the port instead of popping in when you get close, and their stock arrives along with the other shops' stock
+
 ## 1.5.8
 
 ### Added

@@ -4,6 +4,7 @@ using System.Reflection;
 using HarmonyLib;
 using SailwindRadio.Physical;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace SailwindRadio.Shops
 {
@@ -31,6 +32,9 @@ namespace SailwindRadio.Shops
             internal bool InitialStockAttempted;
             internal float StageReadyAt = -1f;
             internal float NextStockAttempt;
+            internal float NextBuildAttempt;
+            // Found while the game was just starting, when native stock spawns at any distance.
+            internal bool FoundWhileStarting;
             internal readonly HashSet<string> ReportedReasons = new HashSet<string>();
         }
         private static RadioShopService active;
@@ -39,8 +43,16 @@ namespace SailwindRadio.Shops
         private readonly Harmony harmony = new Harmony("local.sailwind.radio.shops");
         private readonly List<Vendor> vendors = new List<Vendor>();
         private SaveLoadManager session;
-        private float nextScan;
-        private float sessionBeganAt;
+        // Stalls come with their island's scenery scene. A scene load reports it at once. The scan when
+        // a session begins finds scenery already loaded, and the slow rescan is only a safety net.
+        private const float SafetyScanSeconds = 30f;
+        private const float BuildRetrySeconds = .5f;
+        // Native scenery takes its island's exact position, so a few centimetres only absorbs rounding.
+        private const float InPlaceDistance = .03f;
+        // Native ShopItemSpawner spawns stock while the camera is under this distance from it.
+        private const float NativeStockDistance = 500f;
+        private bool sessionScanned;
+        private float nextSafetyScan;
         private bool disposed;
         private bool supported;
 
@@ -50,6 +62,7 @@ namespace SailwindRadio.Shops
             this.world = world;
             this.warn = warn ?? (_ => { });
             active = this;
+            SceneManager.sceneLoaded += SceneLoaded;
             try
             {
                 var enterBoat = typeof(ShipItem).GetMethod("EnterBoat", BindingFlags.Instance | BindingFlags.NonPublic, null, new[] { typeof(Collider) }, null);
@@ -79,47 +92,76 @@ namespace SailwindRadio.Shops
             {
                 Clear();
                 session = SaveLoadManager.instance;
-                sessionBeganAt = Time.unscaledTime;
             }
             if (GameState.currentlyLoading || !session || !GameState.playing || GameState.loadingScenes > 0) return;
-            // Build the hidden display as soon as the native scenery is present.
-            // Save/economy readiness can follow several seconds later, especially
-            // when loading a save while looking directly at the stall.
+            // Scenery seen while a save loads is cleared with it, so each session looks once for what is already loaded.
+            if (!sessionScanned || Time.unscaledTime >= nextSafetyScan) ScanScenery();
             for (int i = vendors.Count - 1; i >= 0; i--)
             {
-                if (!vendors[i].Scenery) { Clear(vendors[i]); vendors.RemoveAt(i); }
-                else
-                {
-                    if (world.ReadyToStageShop && vendors[i].StageReadyAt < 0f)
-                        vendors[i].StageReadyAt = Time.unscaledTime;
-                    if (vendors[i].Stand && vendors[i].Area && (world.ReadyToStageShop || !vendors[i].DisplayShown))
-                        Update(vendors[i]);
-                }
+                var vendor = vendors[i];
+                if (!vendor.Scenery) { Clear(vendor); vendors.RemoveAt(i); continue; }
+                if (world.ReadyToStageShop && vendor.StageReadyAt < 0f)
+                    vendor.StageReadyAt = Time.unscaledTime;
+                if (!vendor.Stand || !vendor.Area) Build(vendor);
+                // Build the hidden display as soon as the native scenery is in place. Save/economy readiness
+                // can follow several seconds later, especially when loading a save while looking at the stall.
+                if (vendor.Stand && vendor.Area && (world.ReadyToStageShop || !vendor.DisplayShown))
+                    Update(vendor);
             }
-            if (Time.unscaledTime < nextScan) return;
+        }
+
+        private void SceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            if (disposed) return;
+            foreach (var root in scene.GetRootGameObjects())
+                if (root)
+                    foreach (var scenery in root.GetComponentsInChildren<IslandSceneryScene>())
+                        ObserveScenery(scenery);
+        }
+
+        private void ScanScenery()
+        {
+            sessionScanned = true;
+            nextSafetyScan = Time.unscaledTime + SafetyScanSeconds;
             foreach (var scenery in UnityEngine.Object.FindObjectsOfType<IslandSceneryScene>())
+                ObserveScenery(scenery);
+        }
+
+        // Every way of finding scenery comes through here. Only the stall islands become vendors, once each.
+        private void ObserveScenery(IslandSceneryScene scenery)
+        {
+            if (!scenery || !RadioStandLayout.TryAnchor(scenery.parentIslandIndex, out _, out _)) return;
+            foreach (var known in vendors)
+                if (known.Scenery == scenery) return;
+            var vendor = new Vendor
             {
-                if (!RadioStandLayout.TryAnchor(scenery.parentIslandIndex, out var local, out _) ||
-                    !Camera.main || Vector3.Distance(Camera.main.transform.position, scenery.transform.TransformPoint(local)) > 100f) continue;
-                var existing = vendors.Find(v => v.Scenery == scenery);
-                if (existing != null)
-                {
-                    if (!existing.Stand) TryDisplay(existing);
-                    else if (!existing.Area) TryMerchant(existing);
-                    continue;
-                }
-                var vendor = new Vendor { Scenery = scenery, Slots = new Slot[RadioShopCatalog.StockRoles.Length] };
-                for (int i = 0; i < vendor.Slots.Length; i++) vendor.Slots[i] = new Slot { Kind = RadioShopCatalog.StockKind(vendor.Scenery.parentIslandIndex, i), Index = i };
-                vendors.Add(vendor);
-                TryDisplay(vendor);
-            }
-            // Native scenery and merchant templates may stream in after the
-            // loading flag clears. Retry briefly during that transition, then
-            // return to the inexpensive steady-state scan interval.
-            bool incomplete = false;
-            foreach (var vendor in vendors)
-                if (!vendor.Stand || !vendor.Area) { incomplete = true; break; }
-            nextScan = Time.unscaledTime + (incomplete || Time.unscaledTime - sessionBeganAt < 10f ? .5f : 5f);
+                Scenery = scenery,
+                Slots = new Slot[RadioShopCatalog.StockRoles.Length],
+                FoundWhileStarting = GameState.justStarted
+            };
+            for (int i = 0; i < vendor.Slots.Length; i++)
+                vendor.Slots[i] = new Slot { Kind = RadioShopCatalog.StockKind(scenery.parentIslandIndex, i), Index = i };
+            vendors.Add(vendor);
+        }
+
+        // The stand is placed once its scenery sits on its island, and each vendor retries on its own, so
+        // a placement that misses never waits for a rescan. A merchant template can stream in later.
+        private void Build(Vendor vendor)
+        {
+            if (Time.unscaledTime < vendor.NextBuildAttempt) return;
+            vendor.NextBuildAttempt = Time.unscaledTime + BuildRetrySeconds;
+            if (vendor.Stand) TryMerchant(vendor);
+            else if (InPlace(vendor.Scenery)) TryDisplay(vendor);
+        }
+
+        // Native IslandSceneryScene.Update moves its scenery onto its island. Until then the stand's
+        // support ray would look in the wrong place.
+        private static bool InPlace(IslandSceneryScene scenery)
+        {
+            var islands = Refs.islands;
+            int index = scenery.parentIslandIndex;
+            if (islands == null || index < 0 || index >= islands.Length || !islands[index]) return false;
+            return (scenery.transform.position - islands[index].position).sqrMagnitude < InPlaceDistance * InPlaceDistance;
         }
 
         private void Update(Vendor vendor)
@@ -150,7 +192,7 @@ namespace SailwindRadio.Shops
                     slot.Stock.gameObject.SetActive(StockVisible(vendor, slot.Stock, open, saleReady));
                     continue;
                 }
-                if (!merchantReady || !slot.Clock.Ready || !Camera.main || Vector3.Distance(Camera.main.transform.position, vendor.Area.transform.position) > 100f) continue;
+                if (!merchantReady || !slot.Clock.Ready || !SpawnsHere(vendor, SlotPosition(vendor, slot))) continue;
                 // Failed stock creation is retried separately from simulation-time restocking.
                 if (vendor.InitialStockAttempted && Time.unscaledTime < vendor.NextStockAttempt) continue;
                 attemptedStock = true;
@@ -352,10 +394,20 @@ namespace SailwindRadio.Shops
             if (vendor.ReportedReasons.Add(reason)) warn("Radio shop at " + vendor.Scenery.name + " could not be set up: " + reason);
         }
 
+        private static Vector3 SlotPosition(Vendor vendor, Slot slot) =>
+            vendor.Stand.transform.TransformPoint(RadioStandLayout.Slot(vendor.Scenery.parentIslandIndex, slot.Index, vendor.Stand.UsesNativeGoldRockCounter));
+
+        // Native ShopItemSpawner: stock spawns while the game has just started, or while the camera is under
+        // 500 m from it. Radio's keeper can become ready after the native start window, so a stall found
+        // during it keeps that exemption for its first stock.
+        private static bool SpawnsHere(Vendor vendor, Vector3 position) =>
+            GameState.justStarted || (vendor.FoundWhileStarting && !vendor.InitialStockAttempted) ||
+            (Camera.main && Vector3.Distance(Camera.main.transform.position, position) < NativeStockDistance);
+
         private void TryStock(Vendor vendor, Slot slot)
         {
             if (!ReadyToStock(vendor)) return;
-            var position = vendor.Stand.transform.TransformPoint(RadioStandLayout.Slot(vendor.Scenery.parentIslandIndex, slot.Index, vendor.Stand.UsesNativeGoldRockCounter));
+            var position = SlotPosition(vendor, slot);
             var rotation = vendor.Stand.transform.rotation;
             GameObject anchor = null;
             RadioItemController controller = null;
@@ -536,11 +588,12 @@ namespace SailwindRadio.Shops
             vendor.StageReadyAt = -1f;
             vendor.NextStockAttempt = 0f;
         }
-        private void Clear() { foreach (var vendor in vendors) Clear(vendor); vendors.Clear(); nextScan = 0; }
+        private void Clear() { foreach (var vendor in vendors) Clear(vendor); vendors.Clear(); sessionScanned = false; }
         public void Dispose()
         {
             if (disposed) return;
             disposed = true;
+            SceneManager.sceneLoaded -= SceneLoaded;
             Clear();
             harmony.UnpatchSelf();
             if (active == this) active = null;

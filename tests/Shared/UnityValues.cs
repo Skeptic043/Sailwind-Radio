@@ -24,6 +24,11 @@ namespace UnityEngine
         public static Vector3 Scale(Vector3 a, Vector3 b) => new(a.x * b.x, a.y * b.y, a.z * b.z);
         public static Vector3 ProjectOnPlane(Vector3 vector, Vector3 normal) => vector - normal * Dot(vector, normal);
         public static float Distance(Vector3 a, Vector3 b) => MathF.Sqrt((a - b).sqrMagnitude);
+        // Unity compares vectors approximately, within about 1e-5 per unit.
+        public static bool operator ==(Vector3 a, Vector3 b) => (a - b).sqrMagnitude < 9.99999944E-11f;
+        public static bool operator !=(Vector3 a, Vector3 b) => !(a == b);
+        public override bool Equals(object other) => other is Vector3 v && this == v;
+        public override int GetHashCode() => x.GetHashCode() ^ y.GetHashCode() << 2 ^ z.GetHashCode() >> 2;
     }
     public static class Mathf
     {
@@ -40,5 +45,6 @@ namespace UnityEngine
     {
         public static float realtimeSinceStartup, unscaledTime, deltaTime;
         public static float timeScale = 1;
+        public static int frameCount;
     }
 }

@@ -116,6 +116,23 @@ namespace UnityEngine
     }
     public static class Random { public static int Next=10; public static Func<int> Source; public static int Range(int min,int max)=>Source!=null?Source():Next++; }
 }
+namespace UnityEngine.SceneManagement
+{
+    public enum LoadSceneMode { Single, Additive }
+    public struct Scene
+    {
+        public UnityEngine.GameObject[] Roots;
+        public UnityEngine.GameObject[] GetRootGameObjects() => Roots ?? new UnityEngine.GameObject[0];
+    }
+    public static class SceneManager
+    {
+        public static event System.Action<Scene, LoadSceneMode> sceneLoaded;
+        public static void Load(params UnityEngine.GameObject[] roots) => sceneLoaded?.Invoke(new Scene { Roots = roots }, LoadSceneMode.Additive);
+        public static int Subscribers => sceneLoaded?.GetInvocationList().Length ?? 0;
+    }
+}
+// Native island transforms, which each island's scenery follows.
+public static class Refs { public static UnityEngine.Transform[] islands = new UnityEngine.Transform[64]; }
 namespace HarmonyLib
 {
     public class Harmony
@@ -142,7 +159,7 @@ public class LocalItems:UnityEngine.Object
     public List<SaveablePrefab> GetCachedItems()=>Cached;
 }
 public class IslandSceneryScene:UnityEngine.Component { public int parentIslandIndex; }
-public static class GameState { public static bool currentlyLoading,playing=true; public static int loadingScenes; public static UnityEngine.Transform World=new UnityEngine.GameObject("world").transform; }
+public static class GameState { public static bool currentlyLoading,playing=true,justStarted; public static int loadingScenes; public static UnityEngine.Transform World=new UnityEngine.GameObject("world").transform; }
 public class Sun:UnityEngine.Object { public static Sun sun=new();public float localTime=12; }
 public class SaveablePrefab:UnityEngine.Component
 {

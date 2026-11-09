@@ -24,6 +24,8 @@ namespace SailwindRadio.Physical
 
         private void BindPending()
         {
+            // Runs every frame. Nothing is usually pending, so copy only when there is.
+            if (pendingBindings.Count == 0) return;
             foreach (var controller in new List<RadioItemController>(pendingBindings))
                 if (!controller) pendingBindings.Remove(controller);
                 else EnsureOwned(controller);

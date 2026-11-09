@@ -31,6 +31,7 @@ static partial class Program
         Check((bool)nativeName.Invoke(null,new object[]{"shopkeeper (12)"}),"serialized built-in NPC name accepted");
         Check(!(bool)nativeName.Invoke(null,new object[]{"shopkeeper (12)(Clone)"}),"another mod's cloned NPC name is not used as native template");
         Lifecycle();
+        Discovery();
         Console.WriteLine(checks+" production native ownership, shop callback and restock checks passed. Native physics and buying UI remain live checks.");
     }
     static object Call(string method,params object[] args)=>typeof(RadioShopService).GetMethod(method,BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,args);
@@ -58,6 +59,7 @@ static partial class Program
             Check(!failedStock.Purchased&&failedItem.sold&&!failed.gameObject.Destroyed,"incomplete sold object preserved without fake ownership");
             Region.DefaultPortRegion=PortRegion.none;
             var scenery = root.AddComponent<IslandSceneryScene>();scenery.parentIslandIndex=9;
+            Refs.islands[9]=new GameObject("island 9").transform;Refs.islands[9].position=scenery.transform.position;
             var template=new GameObject("shopkeeper (3)");template.transform.SetParent(scenery.transform,false);
             var templateKeeper=template.AddComponent<Shopkeeper>();template.AddComponent<Renderer>();template.AddComponent<SphereCollider>().isTrigger=true;
             var templateChild=new GameObject("Modular NPC");templateChild.transform.SetParent(template.transform,false);templateChild.AddComponent<Collider>().isTrigger=true;
@@ -237,7 +239,8 @@ static partial class Program
             warnings.Clear();
             UnityEngine.Object.Found.Clear();
             var refusedScene=new GameObject("refused scenery").AddComponent<IslandSceneryScene>();
-            refusedScene.parentIslandIndex=9;UnityEngine.Object.Found.Add(refusedScene);
+            refusedScene.parentIslandIndex=9;UnityEngine.Object.Found.Add(refusedScene);refusedScene.transform.position=Refs.islands[9].position;
+            UnityEngine.SceneManagement.SceneManager.Load(refusedScene.gameObject);
             RadioShopPlacement.Clear=false;
             Time.unscaledTime=96;service.Tick();Time.unscaledTime=102;service.Tick();
             RadioShopPlacement.Clear=true;
@@ -245,5 +248,76 @@ static partial class Program
                 "a real setup failure is reported once with the shop name: "+string.Join(" | ",warnings));
             UnityEngine.Object.Found.Clear();
         }
+    }
+    // Stalls come with their island's scenery: a scene load reports it, it is built once it sits on its
+    // island, each vendor retries on its own, and a scan when a session begins or every 30 s is a safety net.
+    static void Discovery()
+    {
+        UnityEngine.Object.Found.Clear();
+        GameState.currentlyLoading=false;GameState.playing=true;GameState.loadingScenes=0;GameState.justStarted=false;
+        RadioShopPlacement.Clear=true;
+        var world=new RadioWorldService();
+        using(var service=new RadioShopService(world,_=>{}))
+        {
+            Check(UnityEngine.SceneManagement.SceneManager.Subscribers==1,"the shop service listens for scene loads");
+            Time.unscaledTime=1000;service.Tick();
+            var island=new GameObject("island 15").transform;island.position=new Vector3(300,0,0);Refs.islands[15]=island;
+            var root=new GameObject("fort scenery");var scenery=root.AddComponent<IslandSceneryScene>();scenery.parentIslandIndex=15;
+            var other=new GameObject("other scenery").AddComponent<IslandSceneryScene>();other.parentIslandIndex=4;
+            int created=RadioShopStand.Created;
+            UnityEngine.SceneManagement.SceneManager.Load(root,other.gameObject);
+            service.Tick();
+            Check(RadioShopStand.Created==created,"a loaded stall island waits until its scenery sits on its island");
+            scenery.transform.position=island.position;Time.unscaledTime+=.6f;service.Tick();
+            Check(RadioShopStand.Created==created+1,"the stall is built once its scenery is in place, without a scan");
+            Time.unscaledTime+=.6f;service.Tick();
+            Check(RadioShopStand.Created==created+1,"another island's scenery and a repeat tick build nothing more");
+            var stand=GameObject.All.Last(g=>g.name=="test stand");
+            scenery.Destroyed=true;service.Tick();
+            Check(stand.GetComponent<RadioShopStand>().Destroyed||stand.transform.Destroyed,"destroyed scenery removes its stall");
+
+            var reload=new GameObject("fort scenery again").AddComponent<IslandSceneryScene>();reload.parentIslandIndex=15;
+            reload.transform.position=island.position;
+            RadioShopPlacement.Clear=false;
+            UnityEngine.SceneManagement.SceneManager.Load(reload.gameObject);Time.unscaledTime+=.6f;service.Tick();
+            Check(RadioShopStand.Created==created+1,"a refused placement builds nothing");
+            RadioShopPlacement.Clear=true;service.Tick();
+            Check(RadioShopStand.Created==created+1,"a vendor does not retry before half a second");
+            Time.unscaledTime+=.6f;service.Tick();
+            Check(RadioShopStand.Created==created+2,"a new scene for the same island becomes a new stall, and a failed build retries on its own");
+            reload.Destroyed=true;service.Tick();
+
+            var loaded=new GameObject("already loaded scenery").AddComponent<IslandSceneryScene>();loaded.parentIslandIndex=15;
+            loaded.transform.position=island.position;
+            GameState.currentlyLoading=true;service.Tick();
+            UnityEngine.SceneManagement.SceneManager.Load(loaded.gameObject);service.Tick();
+            UnityEngine.Object.Found.Add(loaded);
+            GameState.currentlyLoading=false;Time.unscaledTime+=.6f;service.Tick();
+            Check(RadioShopStand.Created==created+3,"scenery seen while a save loads is found by the scan when the session begins");
+            loaded.Destroyed=true;service.Tick();UnityEngine.Object.Found.Clear();
+
+            var missed=new GameObject("missed scenery").AddComponent<IslandSceneryScene>();missed.parentIslandIndex=15;
+            missed.transform.position=island.position;UnityEngine.Object.Found.Add(missed);
+            Time.unscaledTime+=10;service.Tick();
+            Check(RadioShopStand.Created==created+3,"steady frames do not search for scenery");
+            Time.unscaledTime+=25;service.Tick();Time.unscaledTime+=.6f;service.Tick();
+            Check(RadioShopStand.Created==created+4,"the 30-second safety rescan finds a missed scenery");
+            missed.Destroyed=true;service.Tick();UnityEngine.Object.Found.Clear();
+        }
+        Check(UnityEngine.SceneManagement.SceneManager.Subscribers==0,"a disposed shop service stops listening for scene loads");
+
+        var vendorType=typeof(RadioShopService).GetNestedType("Vendor",BindingFlags.NonPublic);
+        var vendor=Activator.CreateInstance(vendorType,true);
+        var spawns=typeof(RadioShopService).GetMethod("SpawnsHere",BindingFlags.Static|BindingFlags.NonPublic);
+        bool Spawns(float distance)=>(bool)spawns.Invoke(null,new object[]{vendor,new Vector3(distance,0,0)});
+        Camera.main=new GameObject().AddComponent<Camera>();Camera.main.transform.position=new Vector3(0,0,0);
+        Check(Spawns(499.9f),"stock spawns under 500 m, as native shop items do");
+        Check(!Spawns(500f)&&!Spawns(800f),"stock does not spawn at 500 m or beyond");
+        GameState.justStarted=true;Check(Spawns(800f),"stock spawns at any distance while the game has just started");
+        GameState.justStarted=false;
+        vendorType.GetField("FoundWhileStarting",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(vendor,true);
+        Check(Spawns(800f),"a stall found while the game was starting keeps that for its first stock");
+        vendorType.GetField("InitialStockAttempted",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(vendor,true);
+        Check(!Spawns(800f),"after its first stock it follows the distance rule");
     }
 }

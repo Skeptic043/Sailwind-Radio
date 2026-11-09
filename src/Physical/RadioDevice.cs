@@ -18,6 +18,22 @@ namespace SailwindRadio.Physical
         }
     }
 
+    // Where a device is for one playback pass, worked out once instead of on every read.
+    public readonly struct DevicePlacement
+    {
+        public readonly bool Carried;
+        public readonly Vector3 VisualPosition;
+        public readonly Vector3 SoundPosition;
+        public readonly DeviceVessel Vessel;
+        public DevicePlacement(bool carried, Vector3 visualPosition, Vector3 soundPosition, DeviceVessel vessel)
+        {
+            Carried = carried;
+            VisualPosition = visualPosition;
+            SoundPosition = soundPosition;
+            Vessel = vessel;
+        }
+    }
+
     public static class RadioDevice
     {
         public const float InventoryYaw = 180f;

@@ -160,7 +160,7 @@ namespace SailwindRadio.Audio
             lastDsp = dsp;
             if (application != null)
             {
-                TickApplication(state.Powered && !state.Paused && !suspended && !AudioListener.pause, paused || AudioListener.pause);
+                TickApplication(WantsToPlay(suspended), paused || AudioListener.pause);
                 return;
             }
 
@@ -193,8 +193,8 @@ namespace SailwindRadio.Audio
                 Fail("Unable to load music", "Audio loading timed out after 60 seconds");
 
             FinishIfEnded();
-            FinishIfDamaged(dsp, state.Powered && !state.Paused && !suspended && !AudioListener.pause);
-            bool shouldPlay = state.Powered && !state.Paused && !suspended && !AudioListener.pause && !TrackEnded;
+            FinishIfDamaged(dsp, WantsToPlay(suspended));
+            bool shouldPlay = WantsToPlay(suspended) && !TrackEnded;
             int wantedFrame = SafeSavedFrame();
             bool streamReady = streamed == null || (clip != null && streamed.Ready(running ? SampleAt(dsp) : wantedFrame));
             if (streamed != null && shouldPlay && !streamReady)
@@ -224,6 +224,14 @@ namespace SailwindRadio.Audio
             // The selected track keeps priority. The next one opens only once this one can play.
             PollPreload(state.Powered && failure == null && clip != null && !loading);
         }
+
+        // The player wants sound from this radio now: on, not paused, and the game neither suspended nor paused.
+        private bool WantsToPlay(bool suspended) => state.Powered && !state.Paused && !suspended && !AudioListener.pause;
+
+        // Whether this radio's outputs are making sound or about to: an open track that hasn't ended or
+        // failed, or an application. Only then do they need cabin muffling.
+        internal bool Audible(bool suspended) =>
+            !disposed && WantsToPlay(suspended) && (application != null || (clip != null && failure == null && !TrackEnded));
 
         // True while the current track's stream is still opening.
         private bool Loading { get { return streamed != null && clip == null; } }
@@ -405,6 +413,7 @@ namespace SailwindRadio.Audio
             // Unity alone positions the reader. It seeks it on PlayScheduled to a nonzero sample and, at sample 0,
             // plays the opening it pre-read. Moving the reader here would desynchronize it from that buffered audio.
             endpoint.Source.timeSamples = sample;
+            endpoint.Apply();
             endpoint.Source.PlayScheduled(start);
             endpoint.Running = true;
             endpoint.Paused = false;

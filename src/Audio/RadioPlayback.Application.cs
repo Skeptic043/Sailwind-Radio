@@ -84,7 +84,11 @@ namespace SailwindRadio.Audio
             }
             var reader = output.Input.Reader;
             if (reader == null || reader.Ring != live.Ring) output.Input.Reader = new ApplicationRing.Reader(live.Ring);
-            if (!output.Source.isPlaying) output.Source.Play();
+            if (!output.Source.isPlaying)
+            {
+                output.Apply();
+                output.Source.Play();
+            }
             output.Running = true;
         }
 
