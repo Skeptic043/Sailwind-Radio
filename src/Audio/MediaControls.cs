@@ -21,6 +21,8 @@ namespace SailwindRadio.Audio
         private readonly Thread worker;
         private volatile bool stopping;
         private int pending;
+        // Kept apart from pending, so the worker's loop never takes it before it can be delivered.
+        private volatile Command final;
         private volatile Track current;
 
         // The application's current track, or null when it has no matching media session.
@@ -63,10 +65,11 @@ namespace SailwindRadio.Audio
             return true;
         }
 
-        // Last is sent before the worker ends, such as the pause for a radio that is gone.
+        // Last is sent before the worker ends, such as the pause for a radio that is gone. It is sent even before the
+        // first refresh, when the worker looks for the application once more to deliver it.
         internal void Stop(Command last)
         {
-            if (last != Command.None && current != null) Interlocked.Exchange(ref pending, (int)last);
+            final = last;
             stopping = true;
         }
 
@@ -115,25 +118,20 @@ namespace SailwindRadio.Audio
                     IntPtr window = IntPtr.Zero;
                     while (!stopping)
                     {
-                        var command = (Command)Interlocked.Exchange(ref pending, 0);
-                        if (command != Command.None && session != IntPtr.Zero) Fire(session, command);
-                        else if (command != Command.None && window != IntPtr.Zero) AppWindows.Send(window, command);
+                        Deliver(session, window, (Command)Interlocked.Exchange(ref pending, 0));
                         if (clock.ElapsedMilliseconds >= nextRefresh)
                         {
                             nextRefresh = clock.ElapsedMilliseconds + RefreshMilliseconds;
-                            ComCalls.Release(ref session);
-                            session = manager == IntPtr.Zero ? IntPtr.Zero : Find(manager);
-                            // Without a media session, such as Spotify with its media controls setting off, the
-                            // application's window takes the buttons and its title names the track.
-                            window = session == IntPtr.Zero ? AppWindows.Find(program) : IntPtr.Zero;
+                            Locate(manager, ref session, ref window);
+                            // Without a media session, the application's window title names the track.
                             current = session != IntPtr.Zero ? Read(session) :
                                 window != IntPtr.Zero ? new Track(AppWindows.Title(window), "", "") : null;
                         }
                         Thread.Sleep(CommandMilliseconds);
                     }
-                    var last = (Command)Interlocked.Exchange(ref pending, 0);
-                    if (last != Command.None && session != IntPtr.Zero) Fire(session, last);
-                    else if (last != Command.None && window != IntPtr.Zero) AppWindows.Send(window, last);
+                    // A radio gone before the first refresh still pauses its application.
+                    if (final != Command.None && session == IntPtr.Zero && window == IntPtr.Zero) Locate(manager, ref session, ref window);
+                    Deliver(session, window, final);
                 }
             }
             // Track names and buttons are extras. Without them the application still plays.
@@ -143,6 +141,22 @@ namespace SailwindRadio.Audio
                 ComCalls.Release(ref session);
                 ComCalls.Release(ref manager);
             }
+        }
+
+        // The application's media session, or without one, such as Spotify with its media controls setting off, its
+        // window, which takes the buttons instead.
+        private void Locate(IntPtr manager, ref IntPtr session, ref IntPtr window)
+        {
+            ComCalls.Release(ref session);
+            session = manager == IntPtr.Zero ? IntPtr.Zero : Find(manager);
+            window = session == IntPtr.Zero ? AppWindows.Find(program) : IntPtr.Zero;
+        }
+
+        private static void Deliver(IntPtr session, IntPtr window, Command command)
+        {
+            if (command == Command.None) return;
+            if (session != IntPtr.Zero) Fire(session, command);
+            else if (window != IntPtr.Zero) AppWindows.Send(window, command);
         }
 
         private static IntPtr RequestManager()

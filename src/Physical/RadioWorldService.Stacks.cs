@@ -17,6 +17,14 @@ namespace SailwindRadio.Physical
         // Native GoPointer.DoRaycast's layer mask. It leaves out the item physics copies on layer 2, which sit on a
         // placed item ashore and belong to no ShipItem.
         private const int PointerMask = -604165;
+        // Far more than a 3 m look can cross. Only the main thread asks.
+        private static readonly RaycastHit[] stackHits = new RaycastHit[32];
+        // The game redraws the hold prompt every frame, but the look behind it is checked a few times a second.
+        // Right click checks again before stacking, so only the prompt can lag.
+        private const float HoldHintInterval = 0.1f;
+        private static ShipItem hintItem;
+        private static bool hintShown;
+        private static float hintRecheck;
         internal static bool StacksCompatible { get; private set; }
 
         // The look prompt on a placed stack.
@@ -34,8 +42,14 @@ namespace SailwindRadio.Physical
         {
             // Native ShowHoldText leaves its prompts out when the player turns control text off.
             if (active == null || active.disposed || !StacksCompatible || !Settings.controlsTextEnabled || !(held is ShipItem item) || !item.held) return "";
-            var top = item.GetComponent<RadioItemController>();
-            return top && active.CanStack(StackTarget(item.held, item), top) ? "right click to stack" : "";
+            if (item != hintItem || Time.unscaledTime >= hintRecheck)
+            {
+                var top = item.GetComponent<RadioItemController>();
+                hintItem = item;
+                hintShown = top && active.CanStack(StackTarget(item.held, item), top);
+                hintRecheck = Time.unscaledTime + HoldHintInterval;
+            }
+            return hintShown ? "right click to stack" : "";
         }
 
         internal void AddStackTop(RadioItemController top)
@@ -72,22 +86,27 @@ namespace SailwindRadio.Physical
             return null;
         }
 
-        // The first item along the player's look past the held one, if it is a device.
+        // The first item along the player's look past the held one, if it is a device. The hold prompt asks several
+        // times a second, so the hits go into a reused buffer and the nearest is picked without sorting.
         private static RadioItemController StackTarget(GoPointer pointer, ShipItem held)
         {
-            var hits = Physics.RaycastAll(pointer.transform.position, pointer.transform.forward, StackReach, PointerMask, QueryTriggerInteraction.Collide);
-            Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
-            foreach (var hit in hits)
+            int count = Physics.RaycastNonAlloc(pointer.transform.position, pointer.transform.forward, stackHits, StackReach, PointerMask, QueryTriggerInteraction.Collide);
+            if (count >= stackHits.Length) return null; // A full buffer may have dropped the nearest hit.
+            ShipItem nearest = null;
+            float nearestDistance = float.PositiveInfinity;
+            for (int i = 0; i < count; i++)
             {
-                var collider = hit.collider;
-                if (!collider || collider == Refs.charController || (held.itemRigidbodyC && collider.transform.IsChildOf(held.itemRigidbodyC.transform)))
+                var collider = stackHits[i].collider;
+                if (!collider || stackHits[i].distance >= nearestDistance || collider == Refs.charController ||
+                    (held.itemRigidbodyC && collider.transform.IsChildOf(held.itemRigidbodyC.transform)))
                     continue;
                 var item = collider.GetComponentInParent<ShipItem>();
                 if (item == held)
                     continue;
-                return item ? item.GetComponent<RadioItemController>() : null;
+                nearest = item;
+                nearestDistance = stackHits[i].distance;
             }
-            return null;
+            return nearest ? nearest.GetComponent<RadioItemController>() : null;
         }
 
         internal bool TryStack(ShipItem heldItem, GoPointer pointer)

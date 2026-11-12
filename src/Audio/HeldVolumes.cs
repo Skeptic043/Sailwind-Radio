@@ -57,14 +57,16 @@ namespace SailwindRadio.Audio
                     {
                         lock (gate)
                         {
-                            RestoreLeftovers();
+                            // A failed check, such as while Windows audio restarts, is tried again on the next pass.
+                            try { RestoreLeftovers(); }
+                            catch (Exception) { }
                             // Cleared under the same lock, so a leftover added after this check starts a new watch.
                             if (leftovers.Count == 0) { watcher = null; return; }
                         }
                         Thread.Sleep(WatchMilliseconds);
                     }
             }
-            // A failed check ends the watch. The next release or start begins another.
+            // Without a COM apartment the watch cannot run. The next release or start begins another.
             catch (Exception) { lock (gate) watcher = null; }
         }
 
@@ -120,8 +122,9 @@ namespace SailwindRadio.Audio
                     owners.Remove(identifier);
                     leftovers[identifier] = released[identifier];
                 }
-                RestoreLeftovers();
-                if (leftovers.Count > 0) Watch();
+                // A restore that fails, such as while Windows audio restarts, is retried by the watch.
+                try { RestoreLeftovers(); }
+                finally { if (leftovers.Count > 0) Watch(); }
             }
         }
 

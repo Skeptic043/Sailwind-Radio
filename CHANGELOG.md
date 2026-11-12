@@ -1,14 +1,18 @@
 # Changelog
 
+## 1.5.13
+
+### Changed
+- Holding a radio or speaker does a little less work every frame
+
+### Fixed
+- Fixed an app sometimes continuing to play when its radio was sold, destroyed or switched right after choosing the app
+- Fixed an app staying paused after the game was unpaused if the audio device changed during the pause
+- App volume is restored more reliably if Windows audio has a hiccup
+
 ## 1.5.11
 
 ### Changed
-
-- Optimization work was done, Radio now does much less work every frame, especially while no radio is playing or in earshot
-- Removed small stutters from Radio searching the world for cabins and radio stalls
-- Radio stalls appear with the rest of the port instead of popping in when you get close
-
-## Changed
 
 - Radio does much less work every frame, especially while no radio is playing or in earshot
 - Removed small stutters from Radio searching the world for cabins and radio stalls

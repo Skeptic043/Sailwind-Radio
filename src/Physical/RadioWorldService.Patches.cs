@@ -183,8 +183,12 @@ namespace SailwindRadio.Physical
         }
 
         // Native ShowHoldText writes the held item's prompts. A device that can go on the stack in view says so.
-        private static void HoldTextPostfix(LookUI __instance, PickupableItem item) =>
-            Guard(() => RadioHoverText.AddControls(__instance, HoldHint(item)));
+        // It runs every frame an item is held, so it catches directly instead of allocating a Guard closure.
+        private static void HoldTextPostfix(LookUI __instance, PickupableItem item)
+        {
+            try { RadioHoverText.AddControls(__instance, HoldHint(item)); }
+            catch (Exception ex) { active?.warn("Radio native integration failed: " + ex.Message); }
+        }
 
         // The device a pointed button belongs to: an item body or one of its controls.
         private static RadioItemController DeviceOf(GoPointerButton button) =>

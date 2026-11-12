@@ -48,7 +48,14 @@ namespace SailwindRadio.Audio
         private void TickApplication(bool shouldPlay, bool gamePaused)
         {
             int rate = AudioSettings.outputSampleRate;
-            if (live != null && (!state.Powered || live.Ring.SampleRate != rate)) StopApplication(false);
+            if (live != null && !state.Powered) StopApplication(false);
+            // A new output rate needs a new capture. The application is still paused for the game, so the radio still resumes it.
+            else if (live != null && live.Ring.SampleRate != rate)
+            {
+                bool resume = pausedForGame;
+                StopApplication(false);
+                pausedForGame = resume;
+            }
             if (state.Powered && live == null) live = new ApplicationAudio(application, rate);
             Exception fault = live == null ? null : live.Fault;
             if (live != null && fault == null && state.Powered && !state.Paused)
