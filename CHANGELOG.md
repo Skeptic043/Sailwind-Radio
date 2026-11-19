@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.5.15
+## 1.5.16
 
 ### Added
 - `App volume` slider in the radio's music menu

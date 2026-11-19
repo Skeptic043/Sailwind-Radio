@@ -48,6 +48,7 @@ namespace SailwindRadio.Physical
         private Material screenMaterial;
         private bool screenLit;
         private string title = "", artist = "", album = "", displayContent = "", renderedText;
+        private string rawTitle, rawArtist, rawAlbum;
         private bool trackNamed;
         private readonly Dictionary<RadioVolumeKnob, float> knobAngles = new Dictionary<RadioVolumeKnob, float>();
         private readonly Dictionary<RadioVolumeKnob, Vector3> knobAxes = new Dictionary<RadioVolumeKnob, Vector3>();
@@ -244,6 +245,13 @@ namespace SailwindRadio.Physical
         public void SetTrackInfo(string trackTitle, string trackArtist, string trackAlbum, bool named)
         {
             trackNamed = named;
+            // Called every frame; cleaning allocates, so it runs only when the source text changes.
+            if (ReferenceEquals(trackTitle, rawTitle) && ReferenceEquals(trackArtist, rawArtist) &&
+                ReferenceEquals(trackAlbum, rawAlbum))
+                return;
+            rawTitle = trackTitle;
+            rawArtist = trackArtist;
+            rawAlbum = trackAlbum;
             string newTitle = Clean(trackTitle, 128), newArtist = Clean(trackArtist, 128), newAlbum = Clean(trackAlbum, 128);
             if (title == newTitle && artist == newArtist && album == newAlbum)
                 return;
