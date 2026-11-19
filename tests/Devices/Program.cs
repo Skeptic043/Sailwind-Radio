@@ -191,6 +191,23 @@ internal static class Program
             Refs.charController=new(){enabled=false};Refs.ovrController=new(){enabled=false};menus.Close();
             Check(!Refs.charController.enabled&&!Refs.ovrController.enabled,"lease cannot enable replacement scene controllers");
         }
+        Reset();
+        {
+            float heard=0,saved=0;string folders="D:\\Music";int folderSaves=0,volumeSaves=0;
+            var settings=new MenuSettings{MinimumAppVolume=1f,MaximumAppVolume=100f,GetAppVolume=()=>100f,HearAppVolume=value=>heard=value,
+                SaveAppVolume=value=>{saved=value;volumeSaves++;},GetMusicFolders=()=>folders,SaveMusicFolders=value=>{folders=value;folderSaves++;},MusicFoldersHelp="help"};
+            using var menus=new RadioMenus(settings);var radio=new RadioItemController();
+            menus.ShowCollections(radio,Array.Empty<CollectionChoice>());menus.Draw();
+            Check(GUILayout.Labels.Contains("Music folders")&&GUILayout.Labels.Contains("help")&&GUILayout.Labels.Contains("App volume 100%"),"menu shows music folders, their explanation and app volume");
+            menus.Close();Check(volumeSaves==0&&folderSaves==0,"closing an unchanged menu writes nothing");
+            menus.ShowCollections(radio,Array.Empty<CollectionChoice>());GUILayout.Slider=42.4f;menus.Draw();
+            Check(heard==42&&volumeSaves==0,"moving the slider is heard at once in whole percent but not saved yet");
+            menus.Close();Check(volumeSaves==1&&saved==42,"the app volume is saved once when the menu closes");
+            menus.ShowCollections(radio,Array.Empty<CollectionChoice>());GUILayout.Field="D:\\Music|E:\\Sea";menus.Draw();
+            menus.Close();Check(folderSaves==0,"closing without Apply keeps the music folders");
+            menus.ShowCollections(radio,Array.Empty<CollectionChoice>());GUILayout.Field="D:\\Music|E:\\Sea";menus.Draw();
+            GUILayout.Click="Apply";menus.Draw();Check(folderSaves==1&&folders=="D:\\Music|E:\\Sea"&&!menus.IsOpen,"Apply saves changed music folders");
+        }
         Reset();Refs.charController.enabled=false;using(var menus=new RadioMenus()){menus.ShowCollections(new RadioItemController(),Array.Empty<CollectionChoice>());Check(!menus.IsOpen,"another native control owner prevents menu acquisition");}
         Reset();using(var menus=new RadioMenus()){menus.ShowCollections(new RadioItemController(),Array.Empty<CollectionChoice>());menus.Dispose();Check(!GameState.inCursorMenu&&Refs.charController.enabled,"dispose returns owned input state");}
         Console.WriteLine(checks+" device association and collection menu lifecycle checks passed with production rules and native API doubles. Physical placement and UI remain live checks.");

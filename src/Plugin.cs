@@ -21,13 +21,14 @@ namespace SailwindRadio
     public sealed class Plugin : BaseUnityPlugin
     {
         public const string Id = "local.sailwind.radio";
-        public const string Version = "1.5.13";
+        public const string Version = "1.5.15";
         private static Plugin instance;
         private Harmony harmony;
         private RadioWorldService world;
         private RadioAcousticsService acoustics;
         private RadioShopService shops;
         private ConfigEntry<string> musicFolders;
+        private ConfigEntry<float> appVolume;
         private ConfigEntry<bool> continueWhileSleeping;
         private ConfigEntry<float> mechanismVolume;
         private ConfigEntry<bool> songHover;
@@ -52,11 +53,12 @@ namespace SailwindRadio
                     "Music folders separated by |. Each folder is one collection including all its subfolders. Example: D:\\Music | E:\\Sailing Music");
                 continueWhileSleeping = Config.Bind("Audio", "ContinueWhileSleeping", false,
                     "Keep music playing while the player sleeps. Loading still suspends playback.");
-                var appVolume = Config.Bind("Audio", "AppVolume", 1f, new ConfigDescription(
-                    "Volume multiplier for apps playing through a radio, such as Spotify or a browser. 1 plays an app as loud as its own volume allows. Raise it to bring an app up to your music without turning the app itself up. Loud peaks are smoothly limited instead of clipping.",
-                    new AcceptableValueRange<float>(ApplicationRing.MinimumBoost, ApplicationRing.MaximumBoost)));
-                ApplicationRing.Boost = appVolume.Value;
-                appVolume.SettingChanged += (sender, args) => ApplicationRing.Boost = appVolume.Value;
+                appVolume = Config.Bind("Audio", "AppVolumePercent", 100f, new ConfigDescription(
+                    "Volume of apps playing through a radio, such as Spotify or a browser, from 1 to 100%. Lower it if an app plays louder than your music. Loud peaks are smoothly limited instead of clipping.",
+                    new AcceptableValueRange<float>(MinimumAppPercent, 100f)));
+                AdoptOldAppVolume();
+                ApplicationRing.Boost = AppGain(appVolume.Value);
+                appVolume.SettingChanged += (sender, args) => ApplicationRing.Boost = AppGain(appVolume.Value);
                 BindFalloff("RadioFalloff", "the radio's built-in speaker", RadioSpeakerProfile.BuiltIn);
                 BindFalloff("SmallSpeakerFalloff", "Small Speakers", RadioSpeakerProfile.Small);
                 BindFalloff("SpeakerFalloff", "Speakers", RadioSpeakerProfile.Normal);
@@ -80,7 +82,17 @@ namespace SailwindRadio
                 radios = new RadioPlaybackSet<RadioItemController>(
                     (item, state) => new RadioPlayback(this, state, Warn), AttachEngine,
                     item => { if (item && item.State.Powered) item.TogglePower(); }, Warn);
-                menus = new RadioMenus();
+                menus = new RadioMenus(new MenuSettings
+                {
+                    MinimumAppVolume = MinimumAppPercent,
+                    MaximumAppVolume = 100f,
+                    GetAppVolume = () => appVolume.Value,
+                    HearAppVolume = value => ApplicationRing.Boost = AppGain(value),
+                    SaveAppVolume = value => appVolume.Value = value,
+                    GetMusicFolders = () => musicFolders.Value,
+                    SaveMusicFolders = value => musicFolders.Value = value,
+                    MusicFoldersHelp = musicFolders.Description.Description,
+                });
                 DisplayTiming.Configure(() => logDisplayTiming.Value, message => Logger.LogInfo(message));
                 world = new RadioWorldService(harmony, Warn, new DisplaySoundBank(() => mechanismVolume.Value, Warn));
                 world.BeforeSave += CapturePositions;
@@ -89,6 +101,8 @@ namespace SailwindRadio
                 shops = new RadioShopService(world, Warn);
                 menus.CollectionsChanged += SelectCollections;
                 menus.ApplicationChosen += ChooseApplication;
+                // Folders changed in the radio menu or Configuration Manager are scanned straight away.
+                musicFolders.SettingChanged += (sender, args) => library.RequestScan(musicFolders.Value);
                 library.RequestScan(musicFolders.Value);
                 InstallSuspendBoundary(typeof(StartMenu), "GameToSettings");
                 InstallSuspendBoundary(typeof(Sleep), "FallAsleep");
@@ -117,6 +131,21 @@ namespace SailwindRadio
                 new AcceptableValueRange<float>(RadioSpeakerProfile.MinimumRadius, RadioSpeakerProfile.MaximumRadius)));
             profile.SetRadius(entry.Value);
             entry.SettingChanged += (sender, args) => profile.SetRadius(entry.Value);
+        }
+
+        // AppVolumePercent's 100% is the strongest gain the radio gives an app, the old AppVolume of 50.
+        private const float MinimumAppPercent = 1f;
+        private static float AppGain(float percent) => percent / 100f * ApplicationRing.MaximumBoost;
+
+        // AppVolume was a multiplier from 0.1 to 50 that most players turned up near its top. A value someone set
+        // carries over as the same loudness. The old default of 1 was too quiet to hear, so it becomes the new default.
+        private void AdoptOldAppVolume()
+        {
+            var old = Config.Bind("Audio", "AppVolume", 1f, "Retired app volume multiplier.");
+            if (Math.Abs(old.Value - 1f) > .0001f && !float.IsNaN(old.Value))
+                appVolume.Value = Mathf.Clamp(old.Value / ApplicationRing.MaximumBoost * 100f, MinimumAppPercent, 100f);
+            Config.Remove(old.Definition);
+            Config.Save();
         }
 
         private void RemoveRetiredSettings()
@@ -337,7 +366,7 @@ namespace SailwindRadio
             if (!ready || !item || item.State.Role != DeviceRole.Radio) return;
             if (action == RadioAction.Power)
             {
-                if (item.State.Powered) library.RequestScan(musicFolders.Value);
+                if (item.State.Powered) ScanMusic();
                 return;
             }
             if (action == RadioAction.Collections)
@@ -373,6 +402,14 @@ namespace SailwindRadio
                 }
                 if (changed) engine.SetTrack(item.State.TrackPath);
             });
+        }
+
+        // Rereads the config file first, so MusicFolders edited by hand while the game runs is picked up.
+        private void ScanMusic()
+        {
+            try { Config.Reload(); }
+            catch (Exception error) { Warn("Could not reread the Radio config file: " + error.Message); }
+            library.RequestScan(musicFolders.Value);
         }
 
         private void ShowCollections(RadioItemController item)
@@ -429,7 +466,13 @@ namespace SailwindRadio
 
         private void ChooseApplication(RadioItemController item, AudioApplication application)
         {
-            if (item) radios.Run(item, (engine, queue) => engine.SetApplication(application));
+            if (!item) return;
+            radios.Run(item, (engine, queue) =>
+            {
+                engine.SetApplication(application);
+                // The application's own play state takes over, so a radio paused for music doesn't silence it.
+                if (application != null && item.State.Powered) item.State.Paused = false;
+            });
         }
 
         private void OnGUI() { if (ready) menus?.Draw(); }

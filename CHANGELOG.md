@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.5.15
+
+### Added
+- `App volume` slider in the radio's music menu
+- `Music folders` box in the radio's music menu
+
+### Changed
+- `App volume` now ranges from 1 to 100%, with 100% matching the old maximum and existing settings converted to the same loudness
+- Apps now play at 100% volume by default
+
+### Fixed
+- Fixed co-op guests being unable to use radios and speakers bought after their first co-op session
+- Fixed a paused radio staying silent after switching to an app that was already playing
+- Fixed rapid pause button presses leaving the radio paused while the app kept playing
+- Fixed `MusicFolders` edits in the config file being ignored until the game restarted
+- Fixed stylized letters in song titles appearing blank instead of as plain letters on radio displays
+
 ## 1.5.13
 
 ### Changed

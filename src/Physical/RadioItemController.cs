@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using SailwindRadio.Library;
 using SailwindRadio.Models;
 using SailwindRadio.Playback;
 using UnityEngine;
@@ -253,7 +254,7 @@ namespace SailwindRadio.Physical
         }
         private static string Clean(string value, int limit)
         {
-            value = (value ?? "").Replace('\n', ' ').Replace('\r', ' ');
+            value = TitleText.Plain((value ?? "").Replace('\n', ' ').Replace('\r', ' '));
             if (value.Length <= limit)
                 return value;
             int end = limit - 1;

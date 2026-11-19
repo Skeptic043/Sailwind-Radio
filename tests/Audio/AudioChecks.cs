@@ -17,6 +17,14 @@ static partial class AudioChecks
     }
     static void Run()
     {
+        // Media buttons pressed faster than the worker delivers them still add up as pressed.
+        Check(MediaControls.Merge(MediaControls.Command.PlayPause, MediaControls.Command.PlayPause) == MediaControls.Command.None,
+            "A second play/pause before delivery cancels the first");
+        Check(MediaControls.Merge(MediaControls.Command.None, MediaControls.Command.PlayPause) == MediaControls.Command.PlayPause,
+            "A play/pause with nothing waiting is sent");
+        Check(MediaControls.Merge(MediaControls.Command.PlayPause, MediaControls.Command.Next) == MediaControls.Command.Next &&
+            MediaControls.Merge(MediaControls.Command.Next, MediaControls.Command.PlayPause) == MediaControls.Command.PlayPause,
+            "Any other command replaces what was waiting");
         // Lifecycle fixture: a scripted decoder held by the Hold gate, so each check decides when its
         // load completes. Its ten seconds of 48 kHz mono give the sample arithmetic below.
         string path = WriteHeldTrack("fixture # 100%.fake");

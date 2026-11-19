@@ -47,6 +47,10 @@ namespace UnityEngine
         public static readonly List<string> Labels=new();
         public static Rect Window(int id,Rect rect,Action<int> body,string title){Labels.Add(title);body(id);return rect;}
         public static void Label(string label){Labels.Add(label);}
+        // A typed value or slider position for the next Draw, then cleared like Click.
+        public static string Field; public static float? Slider;
+        public static string TextField(string value){string typed=Field??value;Field=null;return typed;}
+        public static float HorizontalSlider(float value,float left,float right){float moved=Slider??value;Slider=null;return moved;}
         public static void Space(float pixels){}
         public static bool Button(string text,params GUILayoutOption[] options){if(Click!=text)return false;Click=null;return true;}
         public static bool Toggle(bool value,string label)=>ToggleLabel==label?!value:value;

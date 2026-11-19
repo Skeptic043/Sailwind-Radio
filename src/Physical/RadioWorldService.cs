@@ -563,7 +563,10 @@ namespace SailwindRadio.Physical
                 return;
             }
             var nativeItem = prefab.GetComponent<ShipItem>();
-            if (!missingRadioData || !store.Writable || prefab.instanceId <= 0 || !nativeItem || !nativeItem.sold)
+            // A save without Radio data adopts what it holds. So does a co-op guest, whose hidden co-op save has no
+            // record of devices the host or the guest bought since it was made.
+            bool adoptable = missingRadioData || CoopSession.Guest;
+            if (!adoptable || !store.Writable || prefab.instanceId <= 0 || !nativeItem || !nativeItem.sold)
                 return;
             var marker = prefab.GetComponent<RadioTemplateMarker>();
             // Only the exact SaveablePrefab is required before adoption. Convert then applies the full native item rule.
@@ -572,7 +575,7 @@ namespace SailwindRadio.Physical
             if (!UniqueNativeOwner(prefab)) return;
             pendingRestores.Remove(prefab);
             var state = RadioState.NewDevice(marker.Kind);
-            if (store.TryAdoptMissing(prefab.instanceId, prefab.prefabIndex, state, missingRadioData))
+            if (store.TryAdoptMissing(prefab.instanceId, prefab.prefabIndex, state, adoptable))
                 Convert(prefab, state);
         }
 

@@ -34,8 +34,10 @@ namespace UnityEngine
     {
         public const float Rad2Deg = 180f / MathF.PI;
         public static float Abs(float value) => MathF.Abs(value);
+        public static float Round(float value) => MathF.Round(value);
         public static float Atan2(float y, float x) => MathF.Atan2(y, x);
         public static float Clamp01(float value) => Math.Clamp(value, 0, 1);
+        public static float Clamp(float value, float min, float max) => Math.Clamp(value, min, max);
         public static int FloorToInt(float value) => (int)MathF.Floor(value);
         public static int RoundToInt(float value) => (int)Math.Round(value);
         public static int Min(int a, int b) => Math.Min(a, b);

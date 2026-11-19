@@ -221,6 +221,11 @@ internal static class Program
             orphaned.TryGet(310, RadioSaveStore.ItemIndex(1), out _), "missing Radio data may adopt an exact registered item");
         Check(!orphaned.TryAdoptMissing(311, RadioSaveStore.ItemIndex(0), new RadioState { Kind = 0 }, false),
             "present Radio data cannot silently adopt an unrelated native item");
+        Check(orphaned.TryAdoptMissing(313, RadioSaveStore.ItemIndex(2), new RadioState { Kind = 2 }, true) &&
+            orphaned.TryGet(310, RadioSaveStore.ItemIndex(1), out _) && orphaned.TryGet(313, RadioSaveStore.ItemIndex(2), out _),
+            "an allowed adoption beside existing records keeps them, as for a co-op guest's devices");
+        Check(!orphaned.TryAdoptMissing(310, RadioSaveStore.ItemIndex(1), new RadioState { Kind = 1 }, true),
+            "adoption never replaces an existing record");
         var unreadable = new RadioSaveStore();
         unreadable.Load("{\"Schema\":999,\"Radios\":[]}");
         Check(!unreadable.TryAdoptMissing(312, RadioSaveStore.ItemIndex(0), new RadioState { Kind = 0 }, true),

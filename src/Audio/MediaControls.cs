@@ -24,6 +24,8 @@ namespace SailwindRadio.Audio
         // Kept apart from pending, so the worker's loop never takes it before it can be delivered.
         private volatile Command final;
         private volatile Track current;
+        // Set once the worker has looked for the application, and false again only if its loop stops.
+        private volatile bool located, reachable;
 
         // The application's current track, or null when it has no matching media session.
         internal Track Current { get { return current; } }
@@ -57,13 +59,25 @@ namespace SailwindRadio.Audio
             worker.Start();
         }
 
-        // False when the application has no media session to send it to.
+        // False when the application has neither a media session nor a window to send it to. Before the first
+        // look the command waits, since the application usually turns up a moment later.
         internal bool Send(Command command)
         {
-            if (current == null) return false;
-            Interlocked.Exchange(ref pending, (int)command);
+            if (located && !reachable) return false;
+            int seen, merged;
+            do
+            {
+                seen = Volatile.Read(ref pending);
+                merged = (int)Merge((Command)seen, command);
+            }
+            while (Interlocked.CompareExchange(ref pending, merged, seen) != seen);
             return true;
         }
+
+        // A second play/pause before the first is delivered undoes it, so quick presses add up as pressed.
+        // Any other command replaces what was waiting.
+        internal static Command Merge(Command waiting, Command next) =>
+            waiting == Command.PlayPause && next == Command.PlayPause ? Command.None : next;
 
         // Last is sent before the worker ends, such as the pause for a radio that is gone. It is sent even before the
         // first refresh, when the worker looks for the application once more to deliver it.
@@ -118,15 +132,21 @@ namespace SailwindRadio.Audio
                     IntPtr window = IntPtr.Zero;
                     while (!stopping)
                     {
-                        Deliver(session, window, (Command)Interlocked.Exchange(ref pending, 0));
-                        if (clock.ElapsedMilliseconds >= nextRefresh)
+                        bool refresh = clock.ElapsedMilliseconds >= nextRefresh;
+                        if (refresh)
                         {
                             nextRefresh = clock.ElapsedMilliseconds + RefreshMilliseconds;
                             Locate(manager, ref session, ref window);
-                            // Without a media session, the application's window title names the track.
+                            reachable = session != IntPtr.Zero || window != IntPtr.Zero;
+                            located = true;
+                        }
+                        // After the lookup, so a press made before the first one reaches the application. Before the
+                        // track is read, so a slow read never holds a press back.
+                        Deliver(session, window, (Command)Interlocked.Exchange(ref pending, 0));
+                        // Without a media session, the application's window title names the track.
+                        if (refresh)
                             current = session != IntPtr.Zero ? Read(session) :
                                 window != IntPtr.Zero ? new Track(AppWindows.Title(window), "", "") : null;
-                        }
                         Thread.Sleep(CommandMilliseconds);
                     }
                     // A radio gone before the first refresh still pauses its application.
@@ -135,7 +155,7 @@ namespace SailwindRadio.Audio
                 }
             }
             // Track names and buttons are extras. Without them the application still plays.
-            catch (Exception) { current = null; }
+            catch (Exception) { current = null; reachable = false; located = true; }
             finally
             {
                 ComCalls.Release(ref session);

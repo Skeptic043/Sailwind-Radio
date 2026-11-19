@@ -165,9 +165,10 @@ namespace SailwindRadio.Persistence
                 record.PrefabIndex = DonorIndex;
         }
 
-        public bool TryAdoptMissing(int id, int index, RadioState state, bool dataWasAbsent)
+        // Adoption is allowed only when the save has no Radio data, or for a co-op guest's devices.
+        public bool TryAdoptMissing(int id, int index, RadioState state, bool allowed)
         {
-            if (!dataWasAbsent || !Writable || records.ContainsKey(id)) return false;
+            if (!allowed || !Writable || records.ContainsKey(id)) return false;
             Put(RadioRecord.Capture(id, index, state));
             try { Save(); return true; }
             catch (SerializationException) { records.Remove(id); return false; }

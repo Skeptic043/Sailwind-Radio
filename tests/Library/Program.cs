@@ -98,6 +98,7 @@ internal static class Program
             File.WriteAllBytes(Path.Combine(current, "too-deep.mp3"), new byte[0]);
             var depth = Scan(deep);
             Check(depth.Collections[0].Tracks.Count == 0 && depth.Warnings.Count > 0, "depth bound stops pathological trees");
+            TitleChecks();
             MetadataChecks();
             FormatChecks();
             QueueChecks(first, overlap, root, sub, a, b, c);
@@ -118,6 +119,20 @@ internal static class Program
                 scanner.RequestScan(root);
                 Check(!scanner.IsScanning, "disposed scanner cannot restart");
             }
+            // A power-on rescan sees a song and a subfolder added to a collection, and a folder added to MusicFolders
+            // becomes a new collection without joining a radio's explicit choice.
+            string extraRoot = Path.GetDirectoryName(FileAt("more/e.mp3"));
+            var growing = new RadioState { TrackPath = a, Powered = true };
+            var growingQueue = new RadioQueue(growing);
+            growingQueue.ApplySnapshot(first);
+            growingQueue.SetCollections(first, new[] { root });
+            int before = growingQueue.TrackCount;
+            string added = FileAt("music/added.mp3"), nested = FileAt("music/newsub/nested.ogg");
+            var grown = Scan(root + "|" + extraRoot);
+            growingQueue.ApplySnapshot(grown);
+            Check(grown.Collections.Count == 2 && growingQueue.TrackCount == before + 2 && growing.SelectedCollections.Length == 1,
+                "rescan adds new songs and folders but keeps an explicit collection choice");
+            File.Delete(added); File.Delete(nested); Directory.Delete(Path.GetDirectoryName(nested));
             var deletedState = new RadioState { TrackPath = b, PositionSeconds = 42 };
             var deletedQueue = new RadioQueue(deletedState); deletedQueue.ApplySnapshot(first);
             File.Delete(b);
@@ -141,6 +156,19 @@ internal static class Program
             // Only delete this harness's unique directory after validating its resolved parent.
             if (Directory.Exists(scratch) && string.Equals(Path.GetDirectoryName(Path.GetFullPath(scratch)), parent, StringComparison.OrdinalIgnoreCase)) Directory.Delete(scratch, true);
         }
+    }
+
+    private static void TitleChecks()
+    {
+        Check(TitleText.Plain("\U0001D40C\U0001D422\U0001D427\U0001D41E\U0001D41C\U0001D42B\U0001D41A\U0001D41F\U0001D42D Song - (\U0001D40B\U0001D432\U0001D42B\U0001D422\U0001D41C\U0001D42C)")
+            == "Minecraft Song - (Lyrics)", "bold mathematical letters show as plain letters beside ordinary text");
+        Check(TitleText.Plain("\U0001D4DC\U0001D4F8 \U0001D7CF\U0001D7F8 \U0001D670\U0001D6A3") == "Mo 12 Az",
+            "script, digit and monospace styles fold to their letters and digits");
+        Check(TitleText.Plain("\u210Eello \u211Dain") == "hello Rain", "letterlike mathematical letters fold too");
+        Check(TitleText.Plain("Caf\u00E9 \u65E5\u672C \U0001F3B5") == "Caf\u00E9 \u65E5\u672C \U0001F3B5",
+            "other characters, including other surrogate pairs, are unchanged");
+        Check(TitleText.Plain("a\uD835") == "a\uD835" && TitleText.Plain(null) == null && TitleText.Plain("") == "",
+            "a lone surrogate and empty titles are left alone");
     }
 
     private static void QueueChecks(LibrarySnapshot first, LibrarySnapshot overlap, string root, string sub, string a, string b, string c)
