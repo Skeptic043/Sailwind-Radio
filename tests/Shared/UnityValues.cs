@@ -42,6 +42,7 @@ namespace UnityEngine
         public static int RoundToInt(float value) => (int)Math.Round(value);
         public static int Min(int a, int b) => Math.Min(a, b);
         public static float Min(float a, float b) => Math.Min(a, b);
+        public static float Max(float a, float b) => Math.Max(a, b);
     }
     public static class Time
     {

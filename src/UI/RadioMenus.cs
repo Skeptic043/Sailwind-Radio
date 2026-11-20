@@ -38,6 +38,8 @@ namespace SailwindRadio.UI
         private AudioApplication playing;
         private string applicationNote;
         private Vector2 scroll;
+        private GUISkin layoutSkin;
+        private GUIStyle wrappedLabel, clippedToggle, clippedButton;
         private bool disposed;
         public bool IsOpen => lease.Owned;
 
@@ -97,35 +99,55 @@ namespace SailwindRadio.UI
             else if (!CollectionRadio) Close();
         }
 
+        private static float WindowWidth => Mathf.Max(1f, Mathf.Min(440, Screen.width - 24));
+
         public void Draw()
         {
             if (!IsOpen) return;
-            float width = Mathf.Min(440, Screen.width - 24);
-            float height = Mathf.Min(520, Screen.height - 24);
+            float width = WindowWidth;
+            float height = Mathf.Max(1f, Mathf.Min(520, Screen.height - 24));
             GUILayout.Window(194043, new Rect((Screen.width - width) * .5f, (Screen.height - height) * .5f, width, height),
-                DrawWindow, "Radio music");
+                DrawWindow, "Radio music", GUILayout.Width(width), GUILayout.Height(height));
         }
 
         private void DrawWindow(int id)
         {
             if (CollectionRadio)
             {
+                var skin = GUI.skin;
+                if (layoutSkin != skin)
+                {
+                    layoutSkin = skin;
+                    wrappedLabel = new GUIStyle(skin.label) { wordWrap = true, clipping = TextClipping.Clip };
+                    clippedToggle = new GUIStyle(skin.toggle) { wordWrap = false, clipping = TextClipping.Clip };
+                    clippedButton = new GUIStyle(skin.button) { wordWrap = false, clipping = TextClipping.Clip };
+                }
+
+                // Keep room for the vertical scrollbar even as the list changes length.
+                float bodyWidth = InsetWidth(WindowWidth, skin.window.padding, skin.scrollView.margin)
+                    - skin.verticalScrollbar.fixedWidth - skin.verticalScrollbar.margin.left;
+                var padding = skin.scrollView.padding;
+                var labelWidth = GUILayout.Width(InsetWidth(bodyWidth, padding, wrappedLabel.margin));
+                var toggleWidth = GUILayout.Width(InsetWidth(bodyWidth, padding, clippedToggle.margin));
+                var buttonWidth = GUILayout.Width(InsetWidth(bodyWidth, padding, clippedButton.margin));
+
+                // The scroll view takes the space left by the window padding and the two footer buttons.
+                scroll = GUILayout.BeginScrollView(scroll, GUILayout.ExpandHeight(true));
                 if (HasFolders)
                 {
-                    GUILayout.Label("Music folders");
+                    GUILayout.Label("Music folders", wrappedLabel, labelWidth);
                     // The same explanation Configuration Manager shows for the setting.
-                    if (!string.IsNullOrEmpty(settings.MusicFoldersHelp)) GUILayout.Label(settings.MusicFoldersHelp);
-                    foldersDraft = GUILayout.TextField(foldersDraft ?? "");
+                    if (!string.IsNullOrEmpty(settings.MusicFoldersHelp)) GUILayout.Label(settings.MusicFoldersHelp, wrappedLabel, labelWidth);
+                    foldersDraft = GUILayout.TextField(foldersDraft ?? "", GUILayout.Width(InsetWidth(bodyWidth, padding, skin.textField.margin)));
                     GUILayout.Space(8);
                 }
-                GUILayout.Label("Choose which music collections this radio plays");
-                scroll = GUILayout.BeginScrollView(scroll, GUILayout.Height(Mathf.Min(320, Screen.height - 210)));
-                if (choices.Count == 0) GUILayout.Label("No collections available yet");
+                GUILayout.Label("Choose which music collections this radio plays", wrappedLabel, labelWidth);
+                if (choices.Count == 0) GUILayout.Label("No collections available yet", wrappedLabel, labelWidth);
                 foreach (var choice in choices)
-                    selected[choice.Id] = GUILayout.Toggle(selected[choice.Id], choice.Label ?? choice.Id);
-                DrawApplications();
+                    selected[choice.Id] = GUILayout.Toggle(selected[choice.Id], choice.Label ?? choice.Id, clippedToggle, toggleWidth);
+                DrawApplications(labelWidth, buttonWidth);
                 GUILayout.EndScrollView();
-                if (GUILayout.Button("Apply"))
+                if (GUILayout.Button("Apply", GUILayout.ExpandHeight(false)))
                 {
                     var radio = CollectionRadio;
                     var roots = new List<string>();
@@ -137,25 +159,28 @@ namespace SailwindRadio.UI
                     if (HasFolders && folders != null && folders != settings.GetMusicFolders()) settings.SaveMusicFolders(folders);
                 }
             }
-            if (GUILayout.Button("Close")) Close();
+            if (GUILayout.Button("Close", GUILayout.ExpandHeight(false))) Close();
         }
 
-        private void DrawApplications()
+        private static float InsetWidth(float width, RectOffset padding, RectOffset margin)
+            => Mathf.Max(1f, width - Mathf.Max(padding.left, margin.left) - Mathf.Max(padding.right, margin.right));
+
+        private void DrawApplications(GUILayoutOption labelWidth, GUILayoutOption buttonWidth)
         {
             GUILayout.Space(12);
-            GUILayout.Label(playing != null ? "Playing " + playing.Label : "Or play an application through the radio");
+            GUILayout.Label(playing != null ? "Playing " + playing.Label : "Or play an application through the radio", wrappedLabel, labelWidth);
             if (HasVolume)
             {
-                GUILayout.Label("App volume " + Mathf.RoundToInt(volumeDraft) + "%");
+                GUILayout.Label("App volume " + Mathf.RoundToInt(volumeDraft) + "%", wrappedLabel, labelWidth);
                 float value = Mathf.Round(GUILayout.HorizontalSlider(volumeDraft, settings.MinimumAppVolume, settings.MaximumAppVolume));
                 value = Mathf.Clamp(value, settings.MinimumAppVolume, settings.MaximumAppVolume);
                 if (Mathf.Abs(value - volumeDraft) > 0.0001f) { volumeDraft = value; settings.HearAppVolume?.Invoke(value); }
             }
-            bool chosen = playing != null && GUILayout.Button("Back to music");
+            bool chosen = playing != null && GUILayout.Button("Back to music", clippedButton, buttonWidth);
             AudioApplication choice = null;
-            if (applicationNote != null) GUILayout.Label(applicationNote);
+            if (applicationNote != null) GUILayout.Label(applicationNote, wrappedLabel, labelWidth);
             foreach (var application in applications)
-                if (!application.Same(playing) && GUILayout.Button(application.Label)) { chosen = true; choice = application; }
+                if (!application.Same(playing) && GUILayout.Button(application.Label, clippedButton, buttonWidth)) { chosen = true; choice = application; }
             if (!chosen) return;
             var radio = CollectionRadio;
             Close();

@@ -40,21 +40,59 @@ namespace UnityEngine
     public enum KeyCode { Escape }
     public static class Input { public static bool Escape; public static bool GetKeyDown(KeyCode key)=>Escape; }
     public static class Screen { public static int width=1920,height=1080; }
-    public class GUILayoutOption { }
+    public enum TextClipping { Overflow, Clip }
+    public class RectOffset { public int left, right; }
+    public class GUIStyle
+    {
+        public readonly RectOffset padding = new(), margin = new();
+        public float fixedWidth;
+        public bool wordWrap;
+        public TextClipping clipping;
+        public GUIStyle() { }
+        public GUIStyle(GUIStyle source) { }
+    }
+    public class GUISkin
+    {
+        public readonly GUIStyle window = new(), scrollView = new(), verticalScrollbar = new() { fixedWidth = 14 },
+            label = new(), textField = new(), toggle = new(), button = new();
+    }
+    public static class GUI { public static GUISkin skin { get; } = new(); }
+    public record GUILayoutOption(float? Width = null, float? Height = null);
     public static class GUILayout
     {
         public static string Click,ToggleLabel;
         public static readonly List<string> Labels=new();
-        public static Rect Window(int id,Rect rect,Action<int> body,string title){Labels.Add(title);body(id);return rect;}
-        public static void Label(string label){Labels.Add(label);}
+        public static GUILayoutOption[] WindowOptions;
+        public static Rect Window(int id,Rect rect,Action<int> body,string title,params GUILayoutOption[] options)
+        {
+            WindowOptions = options;
+            Labels.Add(title);
+            body(id);
+            return rect;
+        }
+        public static void Label(string label, params GUILayoutOption[] options) => Labels.Add(label);
+        public static void Label(string label, GUIStyle style, params GUILayoutOption[] options) => Label(label, options);
         // A typed value or slider position for the next Draw, then cleared like Click.
-        public static string Field; public static float? Slider;
-        public static string TextField(string value){string typed=Field??value;Field=null;return typed;}
+        public static string Field, FieldValue;
+        public static float? Slider;
+        public static GUILayoutOption[] FieldOptions;
+        public static string TextField(string value, params GUILayoutOption[] options)
+        {
+            FieldValue = value;
+            FieldOptions = options;
+            string typed = Field ?? value;
+            Field = null;
+            return typed;
+        }
         public static float HorizontalSlider(float value,float left,float right){float moved=Slider??value;Slider=null;return moved;}
         public static void Space(float pixels){}
         public static bool Button(string text,params GUILayoutOption[] options){if(Click!=text)return false;Click=null;return true;}
-        public static bool Toggle(bool value,string label)=>ToggleLabel==label?!value:value;
-        public static GUILayoutOption Height(float value)=>new();
+        public static bool Button(string text, GUIStyle style, params GUILayoutOption[] options) => Button(text, options);
+        public static bool Toggle(bool value,string label,params GUILayoutOption[] options)=>ToggleLabel==label?!value:value;
+        public static bool Toggle(bool value, string label, GUIStyle style, params GUILayoutOption[] options) => Toggle(value, label, options);
+        public static GUILayoutOption Width(float value) => new(Width: value);
+        public static GUILayoutOption Height(float value) => new(Height: value);
+        public static GUILayoutOption ExpandHeight(bool value) => new();
         public static Vector2 BeginScrollView(Vector2 value,params GUILayoutOption[] options)=>value;
         public static void EndScrollView(){}
     }

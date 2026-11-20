@@ -15,6 +15,8 @@ internal static class Program
         Refs.charController=new();Refs.ovrController=new();Refs.mouseCrosshair=new();Refs.observerMirror=new();
         Cursor.visible=false;Cursor.lockState=CursorLockMode.Locked;MouseLook.Enabled=true;
         GUILayout.Click=GUILayout.ToggleLabel=null;GUILayout.Labels.Clear();
+        Screen.width = 1920;
+        Screen.height = 1080;
         GPButtonInventorySlot.inventorySlots=Array.Empty<GPButtonInventorySlot>();
     }
     private static Transform Boat()
@@ -193,20 +195,41 @@ internal static class Program
         }
         Reset();
         {
+            string longFolders = string.Join(" | ", Enumerable.Range(1, 12).Select(index =>
+                $@"D:\Music library\Collection {index}\{new string('a', 65)}"));
+            string editedFolders = longFolders + @" | E:\Sailing Music\New collection";
             float heard=0,saved=0;string folders="D:\\Music";int folderSaves=0,volumeSaves=0;
             var settings=new MenuSettings{MinimumAppVolume=1f,MaximumAppVolume=100f,GetAppVolume=()=>100f,HearAppVolume=value=>heard=value,
                 SaveAppVolume=value=>{saved=value;volumeSaves++;},GetMusicFolders=()=>folders,SaveMusicFolders=value=>{folders=value;folderSaves++;},MusicFoldersHelp="help"};
             using var menus=new RadioMenus(settings);var radio=new RadioItemController();
             menus.ShowCollections(radio,Array.Empty<CollectionChoice>());menus.Draw();
             Check(GUILayout.Labels.Contains("Music folders")&&GUILayout.Labels.Contains("help")&&GUILayout.Labels.Contains("App volume 100%"),"menu shows music folders, their explanation and app volume");
+            Check(GUILayout.WindowOptions.Any(option => option.Width == 440) &&
+                GUILayout.WindowOptions.Any(option => option.Height == 520), "menu caps the window size explicitly");
             menus.Close();Check(volumeSaves==0&&folderSaves==0,"closing an unchanged menu writes nothing");
             menus.ShowCollections(radio,Array.Empty<CollectionChoice>());GUILayout.Slider=42.4f;menus.Draw();
             Check(heard==42&&volumeSaves==0,"moving the slider is heard at once in whole percent but not saved yet");
             menus.Close();Check(volumeSaves==1&&saved==42,"the app volume is saved once when the menu closes");
-            menus.ShowCollections(radio,Array.Empty<CollectionChoice>());GUILayout.Field="D:\\Music|E:\\Sea";menus.Draw();
-            menus.Close();Check(folderSaves==0,"closing without Apply keeps the music folders");
-            menus.ShowCollections(radio,Array.Empty<CollectionChoice>());GUILayout.Field="D:\\Music|E:\\Sea";menus.Draw();
-            GUILayout.Click="Apply";menus.Draw();Check(folderSaves==1&&folders=="D:\\Music|E:\\Sea"&&!menus.IsOpen,"Apply saves changed music folders");
+            folders = longFolders;
+            menus.ShowCollections(radio, Array.Empty<CollectionChoice>());
+            Screen.width = 400;
+            Screen.height = 360;
+            GUILayout.Field = editedFolders;
+            menus.Draw();
+            Check(GUILayout.WindowOptions.Any(option => option.Width == 376) &&
+                GUILayout.WindowOptions.Any(option => option.Height == 336), "open menu follows smaller screen dimensions");
+            Check(GUILayout.FieldValue == longFolders && GUILayout.FieldOptions.Any(option => option.Width is > 0 and < 376),
+                "folder editor receives the full setting and fits inside the window");
+            GUILayout.Click = "Close";
+            menus.Draw();
+            Check(folderSaves == 0 && folders == longFolders && !menus.IsOpen, "Close discards a long folder edit");
+
+            menus.ShowCollections(radio, Array.Empty<CollectionChoice>());
+            GUILayout.Field = editedFolders;
+            menus.Draw();
+            GUILayout.Click = "Apply";
+            menus.Draw();
+            Check(folderSaves == 1 && folders == editedFolders && !menus.IsOpen, "Apply saves the entire edited folder string verbatim");
         }
         Reset();Refs.charController.enabled=false;using(var menus=new RadioMenus()){menus.ShowCollections(new RadioItemController(),Array.Empty<CollectionChoice>());Check(!menus.IsOpen,"another native control owner prevents menu acquisition");}
         Reset();using(var menus=new RadioMenus()){menus.ShowCollections(new RadioItemController(),Array.Empty<CollectionChoice>());menus.Dispose();Check(!GameState.inCursorMenu&&Refs.charController.enabled,"dispose returns owned input state");}

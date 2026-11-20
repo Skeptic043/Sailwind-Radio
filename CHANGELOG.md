@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.17
+
+### Fixed
+- Fixed the radio’s music menu stretching off-screen with a long Music folders value. Apply and Close stay visible while you scroll. Thanks to HerpDerp for the report. [#8](https://github.com/Skeptic043/Sailwind-Radio/issues/8)
+
 ## 1.5.16
 
 ### Added
