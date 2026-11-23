@@ -3,7 +3,7 @@
 ## 1.6.1
 
 ### Added
-- Support for `.m3u`, `.m3u8` and `.pls` playlists in `MusicFolders` or in the top level of a music folder, including local track order and direct `http://` and `https://` MP3 and AAC internet radio streams with live track info
+- Support for `.m3u`, `.m3u8` and `.pls` playlists in `MusicFolders` or in the top level of a music folder, including local track order and direct `http://` and `https://` MP3 and AAC internet radio streams with live track info. Thank you Dumpshock on Discord for the suggestion
 - Hide unwanted apps from the radio's app list with `Hide` and restore them under `Show hidden apps`, saved in `ExcludedApps`. Thanks to hydro on Discord for the suggestion
 - `AppBufferSeconds` setting to buffer external app audio across game saves. Pausing the game clears the buffer and unpausing rebuilds it. This should remain at 0 unless you have problems with saving causing music stutters
 - Items can now be placed on top of flat-topped speakers and woofers
