@@ -162,6 +162,7 @@ namespace SailwindRadio.Physical
             item.description = "";
             // Big items are carried in both hands and are what native cargo loading accepts.
             item.big = role == DeviceRole.Speaker || role == DeviceRole.Woofer;
+            item.allowPlacingItems = DeviceKind.HasTabletop(kind);
             item.wallAttachment = role == DeviceRole.SmallSpeaker;
             item.category = role == DeviceRole.Radio || role == DeviceRole.SmallSpeaker ? TransactionCategory.toolsAndSupplies : TransactionCategory.otherItems;
             item.mass = Mass(role);
@@ -193,6 +194,8 @@ namespace SailwindRadio.Physical
             if (stock)
                 ReleaseControls();
             shopStock = stock;
+            if (!stackBase && item)
+                item.allowPlacingItems = !shopStock && DeviceKind.HasTabletop(TopKind);
             ApplyControlColliders();
         }
 

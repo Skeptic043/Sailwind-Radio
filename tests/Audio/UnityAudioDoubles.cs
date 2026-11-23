@@ -94,8 +94,7 @@ namespace UnityEngine
         public static int CreateThread, Created;
         public static bool RejectCreate;
         public static AudioClip LastCreated;
-        // Production audio never uploads PCM, so this double deliberately has no SetData.
-        // Any SetData call in src/Audio fails to compile in every harness that links it.
+        private float[] pcm;
         public static AudioClip Create(string name, int lengthSamples, int channels, int frequency, bool stream)
         {
             CreateThread = Environment.CurrentManagedThreadId;
@@ -121,6 +120,27 @@ namespace UnityEngine
             PcmSetPosition(position);
             PreRead(position);
         }
+        public bool SetData(float[] data, int offsetSamples)
+        {
+            if (Streaming || offsetSamples < 0 || offsetSamples >= samples || data.Length > samples * channels)
+                return false;
+            if (pcm == null) pcm = new float[samples * channels];
+            int offset = offsetSamples * channels;
+            int first = Math.Min(data.Length, pcm.Length - offset);
+            Array.Copy(data, 0, pcm, offset, first);
+            Array.Copy(data, first, pcm, 0, data.Length - first);
+            return true;
+        }
+        public bool GetData(float[] data, int offsetSamples)
+        {
+            if (pcm == null || offsetSamples < 0 || offsetSamples >= samples || data.Length > pcm.Length)
+                return false;
+            int offset = offsetSamples * channels;
+            int first = Math.Min(data.Length, pcm.Length - offset);
+            Array.Copy(pcm, offset, data, 0, first);
+            Array.Copy(pcm, 0, data, first, data.Length - first);
+            return true;
+        }
         private void PreRead(int position)
         {
             if (PcmRead == null) return;
@@ -142,6 +162,8 @@ namespace UnityEngine
     public class AudioSource : Object
     {
         public static AudioSource Last;
+        public double ScheduledEnd = double.PositiveInfinity;
+        public void SetScheduledEndTime(double endDsp) { ScheduledEnd = endDsp; }
         public AudioSource() { Last = this; }
         public bool playOnAwake, loop, ignoreListenerPause, bypassReverbZones;
         public float spatialBlend, minDistance, maxDistance, pitch, dopplerLevel, volume;

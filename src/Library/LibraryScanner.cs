@@ -81,22 +81,24 @@ namespace SailwindRadio.Library
                 { Warn(warnings, "MusicFolders entry " + entry + " is not an absolute local folder path."); }
             }
             roots.Sort(LibraryPaths.Comparer);
-            var labels = new Dictionary<string, int>(LibraryPaths.Comparer);
-            foreach (string root in roots)
-            {
-                string name = FolderName(root);
-                labels.TryGetValue(name, out int count);
-                labels[name] = count + 1;
-            }
-            var collections = new List<MusicCollection>();
+            var rawCollections = new List<ScannedCollection>();
             var tracksByPath = new Dictionary<string, MusicTrack>(LibraryPaths.Comparer);
+            var discoveredPlaylists = new List<string>();
+            var seenPlaylists = new HashSet<string>(rootSet, LibraryPaths.Comparer);
             int directories = 0, entries = 0;
             foreach (string root in roots)
             {
                 token.ThrowIfCancellationRequested();
+                if (LibraryPaths.IsPlaylist(root))
+                {
+                    var playlistTracks = ScanPlaylist(root, tracksByPath, metadata, warnings, token);
+                    rawCollections.Add(new ScannedCollection(root, PlaylistName(root), playlistTracks, true));
+                    continue;
+                }
                 // Players share this log, so folders are named without their personal paths.
                 string name = FolderName(root);
                 var tracks = new List<MusicTrack>();
+                int topPlaylists = 0;
                 var visited = new HashSet<string>(LibraryPaths.Comparer);
                 var stack = new Stack<KeyValuePair<string, int>>();
                 stack.Push(new KeyValuePair<string, int>(root, 0));
@@ -134,6 +136,18 @@ namespace SailwindRadio.Library
                                     else Warn(warnings, "A collection contains folders deeper than the scan limit.");
                                     continue;
                                 }
+                                // Only top-level playlists in a configured folder become collections.
+                                // Album subfolders often carry auto-generated .m3u files that should not flood the menu.
+                                if (current.Value == 0 && LibraryPaths.IsPlaylist(item.Name))
+                                {
+                                    string playlistPath = item.FullName;
+                                    if (seenPlaylists.Add(playlistPath))
+                                    {
+                                        discoveredPlaylists.Add(playlistPath);
+                                        topPlaylists++;
+                                    }
+                                    continue;
+                                }
                                 if (!LibraryPaths.Supported(item.Name)) continue;
                                 string path = item.FullName;
                                 if (!tracksByPath.TryGetValue(path, out var track))
@@ -151,12 +165,111 @@ namespace SailwindRadio.Library
                     { Warn(warnings, Unreadable(name, current.Key == root)); }
                 }
                 tracks.Sort((left, right) => LibraryPaths.Comparer.Compare(left.Path, right.Path));
-                string label = name;
-                if (labels[label] > 1) label += " (" + (System.IO.Path.GetDirectoryName(root) ?? root) + ")";
-                collections.Add(new MusicCollection(root, label, tracks.ToArray()));
+                // If a configured folder only holds top-level playlists (like a dedicated Playlists folder),
+                // omit the empty folder entry so only its playlists appear.
+                if (tracks.Count > 0 || topPlaylists == 0)
+                    rawCollections.Add(new ScannedCollection(root, name, tracks.ToArray(), false));
+            }
+            discoveredPlaylists.Sort(LibraryPaths.Comparer);
+            foreach (string playlistPath in discoveredPlaylists)
+            {
+                token.ThrowIfCancellationRequested();
+                if (rawCollections.Count >= MaximumRoots)
+                {
+                    Warn(warnings, "Only the first 64 collection folders were scanned.");
+                    break;
+                }
+                var playlistTracks = ScanPlaylist(playlistPath, tracksByPath, metadata, warnings, token);
+                if (playlistTracks.Length > 0)
+                    rawCollections.Add(new ScannedCollection(playlistPath, PlaylistName(playlistPath), playlistTracks, true));
+            }
+            var labels = new Dictionary<string, int>(LibraryPaths.Comparer);
+            var playlistFiles = new Dictionary<string, int>(LibraryPaths.Comparer);
+            foreach (var item in rawCollections)
+            {
+                labels.TryGetValue(item.Name, out int count);
+                labels[item.Name] = count + 1;
+                if (item.IsPlaylist)
+                {
+                    string file = Path.GetFileName(item.Id);
+                    playlistFiles.TryGetValue(file, out int fileCount);
+                    playlistFiles[file] = fileCount + 1;
+                }
+            }
+            var collections = new List<MusicCollection>(rawCollections.Count);
+            foreach (var item in rawCollections)
+            {
+                string label = item.Name;
+                if (labels[label] > 1)
+                {
+                    string file = Path.GetFileName(item.Id);
+                    label += item.IsPlaylist && playlistFiles[file] == 1
+                        ? " (" + file + ")"
+                        : " (" + (Path.GetDirectoryName(item.Id) ?? item.Id) + ")";
+                }
+                collections.Add(new MusicCollection(item.Id, label, item.Tracks));
             }
             metadata?.Prune(tracksByPath.Keys);
             return new LibrarySnapshot(collections.ToArray(), warnings.ToArray());
+        }
+
+        private sealed class ScannedCollection
+        {
+            internal readonly string Id;
+            internal readonly string Name;
+            internal readonly MusicTrack[] Tracks;
+            internal readonly bool IsPlaylist;
+            internal ScannedCollection(string id, string name, MusicTrack[] tracks, bool isPlaylist)
+            {
+                Id = id;
+                Name = name;
+                Tracks = tracks;
+                IsPlaylist = isPlaylist;
+            }
+        }
+
+        private static MusicTrack[] ScanPlaylist(string playlistPath, Dictionary<string, MusicTrack> tracksByPath,
+            MetadataCache metadata, List<string> warnings, CancellationToken token)
+        {
+            var entries = PlaylistFiles.Read(playlistPath, out string playlistWarning);
+            if (playlistWarning != null) Warn(warnings, playlistWarning);
+            var tracks = new List<MusicTrack>(entries.Count);
+            var seenInPlaylist = new HashSet<string>(LibraryPaths.Comparer);
+            foreach (var entry in entries)
+            {
+                token.ThrowIfCancellationRequested();
+                if (!seenInPlaylist.Add(entry.Path)) continue;
+                if (entry.IsStream)
+                {
+                    tracks.Add(new MusicTrack(entry.Path, new TrackInfo(entry.Path, entry.Title, entry.Artist, "")));
+                    continue;
+                }
+                if (!tracksByPath.TryGetValue(entry.Path, out var track))
+                {
+                    if (tracksByPath.Count >= MaximumTracks)
+                    {
+                        Warn(warnings, "The music library reached its scan limit. Use smaller collection folders.");
+                        break;
+                    }
+                    track = new MusicTrack(entry.Path, metadata?.GetInfo(entry.Path));
+                    tracksByPath.Add(entry.Path, track);
+                }
+                // Keep real embedded file tags when present, and use the playlist's #EXTINF/Title as fallback.
+                if (!string.IsNullOrEmpty(entry.Title) && string.IsNullOrEmpty(track.Info.Artist) &&
+                    string.Equals(track.Info.Title, LibraryPaths.FileLabel(entry.Path), StringComparison.Ordinal))
+                {
+                    track = new MusicTrack(entry.Path, new TrackInfo(entry.Path, entry.Title, entry.Artist, track.Info.Album));
+                    tracksByPath[entry.Path] = track;
+                }
+                tracks.Add(track);
+            }
+            return tracks.ToArray();
+        }
+
+        private static string PlaylistName(string path)
+        {
+            string name = Path.GetFileNameWithoutExtension(path);
+            return string.IsNullOrEmpty(name) ? FolderName(path) : name;
         }
 
         private static string FolderName(string root)

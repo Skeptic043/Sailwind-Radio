@@ -308,8 +308,8 @@ static partial class AudioChecks
         var source = AudioSource.Last;
         player.SetAcoustics(new Vector3(), true, 0);
         PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
-        Check(!player.LoadFailed && source.clip.Streaming && source.clip.samples == rate * 3 / 10 && source.Schedules == 1 &&
-            source.timeSamples == 0, "A 0.3 second WAV streams and schedules from its start");
+        Check(!player.LoadFailed && !source.clip.Streaming && source.Schedules == 1 &&
+            source.timeSamples == 0, "A 0.3 second WAV uploads and schedules from its start");
         AudioSettings.dspTime = source.ScheduledAt + .45;
         source.timeSamples = 0;
         player.Tick(new Vector3(), false);
@@ -321,7 +321,8 @@ static partial class AudioChecks
         var endPlayer = new RadioPlayback(new MonoBehaviour(), nearEnd, _ => { });
         var endSource = AudioSource.Last;
         PumpUntil(endPlayer, false, () => endPlayer.Status == "Playing" || endPlayer.LoadFailed);
-        Check(endSource.timeSamples == (int)Math.Floor(.29 * rate), "A short track saved 10 ms before its end starts there");
+        Check(endSource.timeSamples == MusicSample(endPlayer, (int)Math.Floor(.29 * rate)),
+            "A short track saved 10 ms before its end starts there");
         AudioSettings.dspTime = endSource.ScheduledAt + .02;
         endPlayer.Tick(new Vector3(), false);
         Check(endPlayer.TrackEnded, "A start near the end reaches ordinary completion");
@@ -497,6 +498,7 @@ static partial class AudioChecks
         PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
         var stream = (StreamedAudio)Field(player, "streamed");
         double start = source.ScheduledAt;
+        AdvanceLocalPlayback(player, start, 0, start + 5, source);
         AudioSettings.dspTime = start + 5;
         player.Tick(new Vector3(), false);
         var deadline = DateTime.UtcNow.AddSeconds(10);
@@ -504,6 +506,7 @@ static partial class AudioChecks
         player.Tick(new Vector3(), false);
         Check(stream.DamageFrame == damageFrame && stream.Fault == null && !player.TrackEnded && !player.LoadFailed && player.Status == "Playing" &&
             warnings == 0, "Damage found ahead of the playhead leaves the track playing: status=" + player.Status + " warning=" + last);
+        AdvanceLocalPlayback(player, start, 0, start + 11.99, source);
         AudioSettings.dspTime = start + 11.99;
         player.Tick(new Vector3(), false);
         Check(!player.TrackEnded && player.Status == "Playing" && warnings == 0 && Math.Abs(state.PositionSeconds - 11.99) < 1e-3,
@@ -641,9 +644,7 @@ static partial class AudioChecks
         DeleteClosed(denied);
     }
 
-    // Unity alone positions each output's reader. It pre-reads a new clip's opening and plays it unchanged from
-    // sample 0, and it seeks on any other scheduled start. The radio creates its clip only once that opening is
-    // decoded. An endpoint whose clip Unity refuses stays silent instead of sharing the radio's clip.
+    // The worker decodes the opening before any output starts, and all voices share its uploaded PCM.
     static void CheckOutputReaders()
     {
         // A slow decoder, so the stream opens well before its opening is decoded.
@@ -653,25 +654,16 @@ static partial class AudioChecks
         var player = new RadioPlayback(new MonoBehaviour(), state, _ => { });
         var radio = AudioSource.Last;
         player.SetAcoustics(new Vector3(), true, 0);
-        PumpUntil(player, false, () => radio.clip != null || player.LoadFailed);
-        var stream = (StreamedAudio)Field(player, "streamed");
-        int preRead = (int)Math.Round(48000 * AudioClip.PreReadSeconds);
-        int wrong = radio.clip.PreReadFrom == 0 && radio.clip.PreReadData.Length == preRead ? -1 : -2;
-        for (int i = 0; wrong == -1 && i < preRead; i++) if (Math.Abs(radio.clip.PreReadData[i] - FakeSample(i, 0)) > 1e-6f) wrong = i;
-        Check(wrong == -1 && stream.MissingFrames == 0,
-            "The radio creates its clip only once Unity's pre-read of the opening is decoded: missing=" + stream.MissingFrames +
-            " from=" + radio.clip.PreReadFrom + " length=" + radio.clip.PreReadData.Length + " first wrong frame=" + wrong);
-        PumpUntil(player, false, () => radio.Schedules > 0);
-        var reader = (StreamedAudio.Reader)radio.clip.PcmRead.Target;
-        Check(radio.Schedules == 1 && radio.timeSamples == 0 && reader.Cursor == preRead,
-            "A start at sample 0 plays the pre-read, and the reader continues after it: cursor=" + reader.Cursor);
-        state.Paused = true;
-        player.Tick(new Vector3(), false);
-        state.Paused = false;
-        WaitStream(player);
-        player.Tick(new Vector3(), false);
-        Check(radio.Schedules == 2 && radio.timeSamples == 0 && radio.clip.PreReadFrom == 0 && reader.Cursor == preRead,
-            "A stopped output scheduled again at sample 0 is rewound by Unity alone: cursor=" + reader.Cursor);
+        PumpUntil(player, false, () => radio.Schedules > 0 || player.LoadFailed);
+        var opening = new float[48000];
+        Check(!player.LoadFailed && SameStream(radio.clip, radio) && radio.timeSamples == 0 &&
+            radio.clip.GetData(opening, radio.timeSamples), "A local track starts from Unity's uploaded PCM without a reader callback");
+        int wrong = -1;
+        for (int frame = 0; wrong < 0 && frame < opening.Length; frame++)
+            if (Math.Abs(opening[frame] - FakeSample(frame, 0)) > 1e-6f) wrong = frame;
+        Check(wrong == -1, "Music plays the correct first second before Unity schedules it: first wrong frame=" + wrong);
+        PumpUntil(player, false, () => radio.ScheduledEnd - radio.ScheduledAt >= 3);
+
         AudioSource speaker;
         AudioClip.RejectCreate = true;
         try
@@ -680,26 +672,37 @@ static partial class AudioChecks
             speaker = AudioSource.Last;
             AudioSettings.dspTime += 1;
             player.Tick(new Vector3(), false);
-            Check(speaker.clip == null && speaker.Schedules == 0 && radio.isPlaying && player.Status == "Playing",
-                "An endpoint whose clip Unity refuses stays silent rather than sharing the radio's clip");
+            Check(SameStream(radio.clip, speaker) && speaker.Schedules == 1 && speaker.timeSamples > 0 &&
+                speaker.ScheduledEnd == radio.ScheduledEnd && player.Status == "Playing",
+                "An endpoint joins the current DSP timeline even while Unity refuses new clips");
         }
         finally { AudioClip.RejectCreate = false; }
-        player.Tick(new Vector3(), false);
-        var speakerReader = (StreamedAudio.Reader)speaker.clip.PcmRead.Target;
-        Check(SameStream(radio.clip, speaker) && speaker.Schedules == 1 && speaker.timeSamples > 0 &&
-            speaker.clip.PreReadFrom == speaker.timeSamples && speakerReader.Cursor == speaker.timeSamples + preRead,
-            "The refused endpoint joins with its own clip once Unity creates one, and Unity seeks its reader: cursor=" + speakerReader.Cursor);
 
         // Unity reports a stopped voice as virtual. A running output that stopped natively is scheduled again.
         int repairs = player.DriftRepairs, schedules = speaker.Schedules;
         speaker.Stop();
         speaker.isVirtual = true;
         AudioSettings.dspTime += 1;
-        radio.timeSamples = (int)(((int)Field(player, "scheduledSample") +
-            (long)Math.Round((AudioSettings.dspTime - (double)Field(player, "scheduledDsp")) * 48000)) % 480000);
+        radio.timeSamples = MusicSample(player, (long)Math.Round((AudioSettings.dspTime - radio.ScheduledAt) * 48000));
         player.Tick(new Vector3(), false);
         Check(speaker.Schedules == schedules + 1 && speaker.isPlaying && player.DriftRepairs == repairs + 1,
             "A natively stopped output is scheduled again although Unity reports it virtual");
+
+        // Skip all refills until after the committed audio ended. The saved position and the recovered
+        // voices must agree about the first frame that did not play.
+        double expiry = radio.ScheduledEnd;
+        int resumeFrame = (int)Math.Round((expiry - radio.ScheduledAt) * 48000);
+        AudioSettings.dspTime = expiry + .125;
+        player.CapturePosition();
+        Check(Math.Abs(state.PositionSeconds - resumeFrame / 48000d) < 1e-6, "Saving beyond the uploaded horizon preserves the missed frame");
+        player.Tick(new Vector3(), false);
+        PumpUntil(player, false, () => radio.Schedules == 2 || player.LoadFailed);
+        var next = new float[4];
+        Check(SameStream(radio.clip, speaker) && radio.Schedules == 2 && radio.timeSamples == MusicSample(player, resumeFrame) &&
+            radio.timeSamples == speaker.timeSamples && radio.ScheduledAt == speaker.ScheduledAt &&
+            radio.ScheduledEnd > radio.ScheduledAt && radio.clip.GetData(next, radio.timeSamples) &&
+            Math.Abs(next[0] - FakeSample(resumeFrame, 0)) < 1e-6,
+            "Refill after an overlong stall resumes every voice from the first new frame without replaying old PCM");
         player.Dispose();
         DeleteClosed(path);
         CheckPreReadReadiness();
@@ -790,13 +793,12 @@ static partial class AudioChecks
 
     static void CheckStreamingIsolation()
     {
-        // Every format streams through PcmDecoders. Unity PCM upload and web requests appear nowhere in production audio.
+        // All local formats use the Radio decoder worker and keep Unity's runtime file loader out of playback.
         string audio = Path.Combine(RepoRoot, "src", "Audio");
         foreach (string file in Directory.GetFiles(audio, "*.cs"))
         {
             string text = File.ReadAllText(file);
             string name = Path.GetFileName(file);
-            Check(text.IndexOf("SetData(", StringComparison.Ordinal) < 0, name + " never uploads PCM with AudioClip.SetData");
             Check(text.IndexOf("UnityWebRequest", StringComparison.Ordinal) < 0 && text.IndexOf("UnityEngine.Networking", StringComparison.Ordinal) < 0 &&
                 text.IndexOf("DownloadHandler", StringComparison.Ordinal) < 0 && text.IndexOf("AudioType", StringComparison.Ordinal) < 0,
                 name + " never uses Unity web requests or its runtime audio loader");

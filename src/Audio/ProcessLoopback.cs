@@ -19,7 +19,7 @@ namespace SailwindRadio.Audio
         private const int VariantBlob = 65;
         private const int StreamLoopback = 0x20000, StreamEventCallback = 0x40000, StreamAutoConvertPcm = unchecked((int)0x80000000), StreamDefaultQuality = 0x08000000;
         private const long BufferHundredNanoseconds = 2000000;
-        private const int BufferSilent = 0x2;
+        private const int BufferDiscontinuity = 0x1, BufferSilent = 0x2;
         private static readonly Guid AudioClientId = new Guid("1CB9AD4C-DBFA-4c32-B178-C2F568A703B2");
         private static readonly Guid CaptureClientId = new Guid("C8ADBD64-E71E-48a0-A4DE-185C395CD317");
 
@@ -34,14 +34,14 @@ namespace SailwindRadio.Audio
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int CallMethod(IntPtr self);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int HandleMethod(IntPtr self, IntPtr handle);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        private delegate int GetBufferMethod(IntPtr self, out IntPtr data, out int frames, out int flags, IntPtr devicePosition, IntPtr counterPosition);
+        private delegate int GetBufferMethod(IntPtr self, out IntPtr data, out int frames, out int flags, out ulong devicePosition, out ulong counterPosition);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int FramesMethod(IntPtr self, out int frames);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int ReleaseBufferMethod(IntPtr self, int frames);
 
         // Vtable slots after IUnknown's 0 to 2.
         private const int SlotQueryInterface = 0, SlotGetActivateResult = 3;
         private const int StillRunning = unchecked((int)0x8000000E), ActivateMilliseconds = 5000;
-        private const int SlotInitialize = 3, SlotStart = 10, SlotStop = 11, SlotSetEventHandle = 13, SlotGetService = 14;
+        private const int SlotInitialize = 3, SlotGetBufferSize = 4, SlotStart = 10, SlotStop = 11, SlotSetEventHandle = 13, SlotGetService = 14;
         private const int SlotGetBuffer = 3, SlotReleaseBuffer = 4, SlotGetNextPacketSize = 5;
 
         private IntPtr client, capture;
@@ -49,6 +49,9 @@ namespace SailwindRadio.Audio
         private readonly AutoResetEvent ready = new AutoResetEvent(false);
 
         internal int SampleRate { get; private set; }
+        internal int BufferFrames { get; private set; }
+        // 100-nanosecond QPC timestamp returned by Windows for the most recently read packet.
+        internal ulong LastPacketQpc { get; private set; }
 
         // Blocks until Windows activates the client. Throws when the system or process refuses it.
         internal static ProcessLoopback Open(int processId, int sampleRate)
@@ -72,22 +75,35 @@ namespace SailwindRadio.Audio
             int written = 0;
             while (true)
             {
-                int frames;
-                Check(ComCalls.Method<FramesMethod>(capture, SlotGetNextPacketSize)(capture, out frames), "read application audio");
-                if (frames == 0 || written + frames * Channels > count) return written;
-                IntPtr data;
-                int flags;
-                Check(ComCalls.Method<GetBufferMethod>(capture, SlotGetBuffer)(capture, out data, out frames, out flags, IntPtr.Zero, IntPtr.Zero),
-                    "read application audio");
-                try
-                {
-                    int samples = frames * Channels;
-                    if ((flags & BufferSilent) != 0 || data == IntPtr.Zero) Array.Clear(buffer, offset + written, samples);
-                    else Marshal.Copy(data, buffer, offset + written, samples);
-                    written += samples;
-                }
-                finally { ComCalls.Method<ReleaseBufferMethod>(capture, SlotReleaseBuffer)(capture, frames); }
+                bool discontinuity;
+                int frames = ReadPacket(buffer, offset + written, count - written, out discontinuity);
+                if (frames == 0) return written;
+                written += frames * Channels;
             }
+        }
+
+        // The discontinuity is attached to the first new packet, so the ring can reset at that frame.
+        internal int ReadPacket(float[] buffer, int offset, int count, out bool discontinuity)
+        {
+            discontinuity = false;
+            int frames;
+            Check(ComCalls.Method<FramesMethod>(capture, SlotGetNextPacketSize)(capture, out frames), "read application audio");
+            if (frames == 0 || frames > count / Channels) return 0;
+            IntPtr data;
+            int flags;
+            ulong devicePosition, qpcPosition;
+            Check(ComCalls.Method<GetBufferMethod>(capture, SlotGetBuffer)(capture, out data, out frames, out flags, out devicePosition, out qpcPosition),
+                "read application audio");
+            try
+            {
+                discontinuity = (flags & BufferDiscontinuity) != 0;
+                LastPacketQpc = qpcPosition;
+                int samples = frames * Channels;
+                if ((flags & BufferSilent) != 0 || data == IntPtr.Zero) Array.Clear(buffer, offset, samples);
+                else Marshal.Copy(data, buffer, offset, samples);
+                return frames;
+            }
+            finally { ComCalls.Method<ReleaseBufferMethod>(capture, SlotReleaseBuffer)(capture, frames); }
         }
 
         private void Initialize(int sampleRate)
@@ -107,6 +123,9 @@ namespace SailwindRadio.Audio
                     StreamLoopback | StreamEventCallback | StreamAutoConvertPcm | StreamDefaultQuality, BufferHundredNanoseconds, 0, format, IntPtr.Zero), "start application audio");
             }
             finally { Marshal.FreeHGlobal(format); }
+            int bufferFrames;
+            Check(ComCalls.Method<FramesMethod>(client, SlotGetBufferSize)(client, out bufferFrames), "size application audio buffer");
+            BufferFrames = bufferFrames;
             Guid id = CaptureClientId;
             Check(ComCalls.Method<HandleMethod>(client, SlotSetEventHandle)(client, ready.SafeWaitHandle.DangerousGetHandle()), "start application audio");
             Check(ComCalls.Method<GetServiceMethod>(client, SlotGetService)(client, ref id, out capture), "start application audio");

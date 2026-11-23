@@ -93,12 +93,41 @@ static partial class AudioChecks
         CheckAac(aac, "AAC-LC stereo M4A", 2, 44100, 88200, true);
         CheckAac(M4aFixture("aac-mono.m4a", 1, 44100, 16, 2, "-c:a aac -b:a 96k -map_metadata -1"), "AAC-LC mono M4A", 1, 44100, 88200, true);
         CheckAac(M4aFixture("aac-48k.m4a", 2, 48000, 16, 2, "-c:a aac -b:a 128k -map_metadata -1"), "AAC-LC 48 kHz M4A", 2, 48000, 96000, true);
-        CheckAac(M4aFixture("aac-stereo.aac", 2, 44100, 16, 2, "-c:a aac -b:a 128k -f adts -map_metadata -1"), "ADTS AAC", 2, 44100, 88200, false);
+        string adtsPath = M4aFixture("aac-stereo.aac", 2, 44100, 16, 2, "-c:a aac -b:a 128k -f adts -map_metadata -1");
+        CheckAac(adtsPath, "ADTS AAC", 2, 44100, 88200, false);
+        CheckStreamingAac(adtsPath);
         CheckM4aFailures(aac);
         CheckM4aStreaming(alac16, aac);
         CheckM4aPlayback(alac16);
         CheckM4aExtras();
         if (skippedChecks.Count > 0) Console.WriteLine("M4A checks skipped " + skippedChecks.Count + " item(s).");
+    }
+
+    static void CheckStreamingAac(string adtsPath)
+    {
+        if (adtsPath == null) { SkipCheck("streaming ADTS AAC (ffmpeg missing)"); return; }
+        bool isAac;
+        InternetRadioStream.ValidateContentType("audio/aacp", out isAac);
+        Check(isAac, "audio/aacp routes to the streaming AAC decoder when Media Foundation is enabled");
+        byte[] adtsBytes = File.ReadAllBytes(adtsPath);
+        byte[] icyAac = BuildIcyMux(adtsBytes, 4096, "StreamTitle='SomaFM - Space Station';");
+        using (var stream = InternetRadioStream.StartForTest(new MemoryStream(icyAac), "audio/aacp", 4096, "Space Station Soma"))
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(10);
+            while (!stream.WorkerCompleted && stream.WrittenFrames < 44100 && DateTime.UtcNow < deadline)
+                Thread.Sleep(5);
+            Check(stream.Fault == null && stream.Ready && stream.SampleRate == 44100 && stream.WrittenFrames >= 44100,
+                "Streaming ADTS AAC decodes live ICY stream through Windows Media Foundation MFT" +
+                (stream.Fault != null ? " (" + stream.Fault.Message + ")" : ""));
+            Check(stream.Station == "Space Station Soma" && stream.Artist == "SomaFM" && stream.Title == "Space Station",
+                "Streaming ADTS AAC reports live ICY station, artist, and title");
+            float[] pcm = new float[22050 * 2];
+            Check(stream.TryCopy(4096, pcm, 22050), "Streaming ADTS AAC PCM reads cleanly from ring");
+            double sumSq = 0;
+            for (int i = 0; i < pcm.Length; i++) sumSq += pcm[i] * pcm[i];
+            double rms = Math.Sqrt(sumSq / pcm.Length);
+            Check(rms > 0.15 && rms < 0.6, "Streaming ADTS AAC outputs clean full-scale audio (rms=" + rms.ToString("F4") + ")");
+        }
     }
 
     static void CheckMediaFoundationDecision()
@@ -315,8 +344,9 @@ static partial class AudioChecks
         var source = AudioSource.Last;
         player.SetAcoustics(new Vector3(), true, 0);
         PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
-        Check(!player.LoadFailed && source.clip.Streaming && source.clip.samples == 44100 &&
-            source.timeSamples == 22050 && warnings == 0, "M4A with URI-like characters plays from its saved sample through a PCM-reader stream");
+        Check(!player.LoadFailed && !source.clip.Streaming && source.clip.frequency == 44100 &&
+            source.timeSamples == MusicSample(player, 22050) && warnings == 0,
+            "M4A with URI-like characters plays from its saved sample through the buffered clip");
         player.Dispose();
         DeleteClosed(named);
 
@@ -328,8 +358,8 @@ static partial class AudioChecks
         player.SetAcoustics(new Vector3(), true, 0);
         var deadline = DateTime.UtcNow.AddSeconds(30);
         while (player.Status != "Playing" && !player.LoadFailed && DateTime.UtcNow < deadline) { player.Tick(new Vector3(), false); Thread.Sleep(2); }
-        Check(!player.LoadFailed && player.Status == "Playing" && source.clip.Streaming && source.clip.frequency == 44100 &&
-            source.clip.samples == 800 * 44100 && source.timeSamples == 700 * 44100 && warnings == 0,
+        Check(!player.LoadFailed && player.Status == "Playing" && !source.clip.Streaming && source.clip.frequency == 44100 &&
+            source.clip.samples < 6 * 44100 && source.timeSamples == MusicSample(player, 700 * 44100) && warnings == 0,
             "A long M4A streams from its saved position");
         player.Dispose();
     }

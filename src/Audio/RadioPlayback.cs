@@ -5,11 +5,13 @@ using UnityEngine;
 
 namespace SailwindRadio.Audio
 {
-    /// <summary>One local track streamed to the built-in emitter and any speaker endpoints. Call only from the Unity main thread.</summary>
+    /// <summary>One playback timeline shared by the built-in emitter and speaker endpoints. Call from the Unity main thread.</summary>
     public sealed partial class RadioPlayback : IDisposable
     {
         private const double ScheduleLeadSeconds = 0.05;
         private const double LoadTimeoutSeconds = 60;
+        private const int MusicAheadSeconds = 4, MusicBufferSeconds = 5;
+        private const int MusicUploadFrames = 4096, MusicUploadsPerTick = 16;
         private readonly RadioState state;
         private readonly Action<string> warning;
         private readonly MonoBehaviour host;
@@ -22,6 +24,10 @@ namespace SailwindRadio.Audio
         private Vector3 listenerPosition;
         private bool listenerKnown, flat;
         private AudioClip clip;
+        private BufferedAudioClip musicBuffer, musicWooferBuffer;
+        private BufferedAudioClip.ReadFrames readMusicFrames, readMusicWooferFrames;
+        private readonly RadioBassFilter musicWooferBass = new RadioBassFilter();
+        private readonly PeakLimiter musicWooferLimiter = new PeakLimiter();
         private StreamedAudio streamed;
         private string requestedPath;
         private string failure;
@@ -155,6 +161,8 @@ namespace SailwindRadio.Audio
                 // A device reset can invalidate source sample position. Resume from the last
                 // position captured before the reset, not the newly reset source cursor.
                 StopOutputs();
+                StopBufferedApplication();
+                StopBufferedInternetStream();
                 resetRequested = false;
             }
             lastDsp = dsp;
@@ -172,15 +180,20 @@ namespace SailwindRadio.Audio
                 FailedPath = null;
                 TrackEnded = false;
                 TrackLabel = SafeLabel(requestedPath);
-                if (!KeepOrAdoptPreload(requestedPath) && state.Powered) BeginLoad();
+                if (!IsStreamUrl(requestedPath) && !KeepOrAdoptPreload(requestedPath) && state.Powered) BeginLoad();
             }
-            else if (state.Powered && !wasPowered && clip == null && streamed == null)
+            else if (state.Powered && !wasPowered && clip == null && streamed == null && internetStream == null)
             {
                 failure = null;
                 FailedPath = null;
-                BeginLoad();
+                if (!IsStreamUrl(requestedPath)) BeginLoad();
             }
             wasPowered = state.Powered;
+            if (IsStreamUrl(requestedPath))
+            {
+                TickInternetStream(WantsToPlay(suspended));
+                return;
+            }
             AttachStream();
             if (streamed != null)
             {
@@ -195,8 +208,8 @@ namespace SailwindRadio.Audio
             FinishIfEnded();
             FinishIfDamaged(dsp, WantsToPlay(suspended));
             bool shouldPlay = WantsToPlay(suspended) && !TrackEnded;
-            int wantedFrame = SafeSavedFrame();
-            bool streamReady = streamed == null || (clip != null && streamed.Ready(running ? SampleAt(dsp) : wantedFrame));
+            if (clip != null && !TrackEnded) UpdateMusicBuffer(dsp);
+            bool streamReady = streamed == null || (clip != null && (running || MusicReady(SafeSavedFrame())));
             if (streamed != null && shouldPlay && !streamReady)
             {
                 if (streamWaitingSince < 0) streamWaitingSince = Time.realtimeSinceStartup;
@@ -218,7 +231,7 @@ namespace SailwindRadio.Audio
             if (running) JoinEndpoints();
             if (running) CheckOutputHealth();
 
-            bool loading = Loading || (streamed != null && !running && !streamReady);
+            bool loading = Loading || (shouldPlay && streamed != null && !running && !streamReady);
             Status = !state.Powered ? "Off" : failure != null ? failure : loading ? "Loading" : clip == null ? "No track" :
                 TrackEnded ? "Ended" : state.Paused ? "Paused" : suspended || AudioListener.pause ? "Suspended" : "Playing";
             // The selected track keeps priority. The next one opens only once this one can play.
@@ -229,25 +242,27 @@ namespace SailwindRadio.Audio
         private bool WantsToPlay(bool suspended) => state.Powered && !state.Paused && !suspended && !AudioListener.pause;
 
         // Whether this radio's outputs are making sound or about to: an open track that hasn't ended or
-        // failed, or an application. Only then do they need cabin muffling.
+        // failed, an internet radio stream, or an application. Only then do they need cabin muffling.
         internal bool Audible(bool suspended) =>
-            !disposed && WantsToPlay(suspended) && (application != null || (clip != null && failure == null && !TrackEnded));
+            !disposed && WantsToPlay(suspended) && (application != null ||
+                (internetStream != null && failure == null && streamScheduled) ||
+                (clip != null && failure == null && !TrackEnded));
 
         // True while the current track's stream is still opening.
         private bool Loading { get { return streamed != null && clip == null; } }
 
         // The current song stays named while opening, paused or suspended, but not once it ends or fails.
-        public bool NamesTrack => !disposed && state.Powered && failure == null && !TrackEnded && (clip != null || Loading);
+        public bool NamesTrack => !disposed && state.Powered && failure == null && !TrackEnded && (clip != null || Loading || internetStream != null);
 
         public void CapturePosition()
         {
-            if (disposed || !running || clip == null || resetRequested || AudioSettings.dspTime < lastDsp) return;
+            if (disposed || !running || clip == null || internetStream != null || resetRequested || AudioSettings.dspTime < lastDsp) return;
             if (FinishIfEnded()) return;
             state.PositionSeconds = SampleAt(AudioSettings.dspTime) / (double)clip.frequency;
         }
 
         private int SafeSavedFrame()
-        { return clip == null ? 0 : SavedFrame(clip.samples, clip.frequency); }
+        { return clip == null ? 0 : SavedFrame(streamed.Frames, streamed.SampleRate); }
 
         private int SavedFrame(int samples, int frequency)
         {
@@ -260,7 +275,7 @@ namespace SailwindRadio.Audio
         private int SampleAt(double dsp)
         {
             long sample = scheduledSample + (long)Math.Round(Math.Max(0, dsp - scheduledDsp) * clip.frequency);
-            return (int)Math.Min(clip.samples, sample);
+            return (int)Math.Min(musicBuffer.WrittenThrough, sample);
         }
 
         internal static float DistanceGain(float distance)
@@ -293,9 +308,7 @@ namespace SailwindRadio.Audio
             return fullPath;
         }
 
-        // Creating a PCM-reader clip allocates no sample data. Each output gets its own reader. Unity pre-reads
-        // the opening of a new clip and plays it unchanged when the track starts at frame 0, so the clip waits
-        // until the stream holds the start. Otherwise it would begin with silence for frames still decoding.
+        // The decoder and the native clip have separate bounded windows. Only the active track owns a clip.
         private void AttachStream()
         {
             if (streamed == null || clip != null || !streamed.IsOpen || streamed.Fault != null) return;
@@ -304,26 +317,142 @@ namespace SailwindRadio.Audio
             if (!streamed.Ready(frame)) return;
             try
             {
-                clip = streamed.CreateClip(streamed.CreateReader());
-                if (clip == null) throw new IOException("Unable to create streamed audio clip");
-                builtIn.StreamClip = clip;
+                int capacity = Math.Min(streamed.Frames, streamed.SampleRate * MusicBufferSeconds);
+                musicBuffer = new BufferedAudioClip("Sailwind Radio buffered music", streamed.SampleRate,
+                    streamed.Channels, capacity, Math.Min(capacity, MusicUploadFrames));
+                musicBuffer.Reset(frame);
+                readMusicFrames = streamed.TryCopy;
+                readMusicWooferFrames = ReadMusicWooferFrames;
+                musicWooferBass.SetProfile(streamed.SampleRate, true);
+                musicWooferLimiter.Reset();
+                clip = musicBuffer.Clip;
                 source.clip = clip;
             }
             catch (Exception ex) { Fail("Unable to decode music", ex.Message); }
+        }
+
+        private bool HasWooferEndpoint()
+        {
+            foreach (var endpoint in endpoints.Values)
+                if (endpoint.Profile != null && endpoint.Profile.IsWoofer) return true;
+            return false;
+        }
+
+        private bool ReadMusicWooferFrames(long firstFrame, float[] data, int frames)
+        {
+            if (streamed == null || !streamed.TryCopy(firstFrame, data, frames)) return false;
+            musicWooferBass.Process(data, streamed.Channels, frames);
+            musicWooferLimiter.Process(data, streamed.Channels, frames, 1f, streamed.SampleRate);
+            return true;
+        }
+
+        private BufferedAudioClip MusicBufferFor(RadioSpeakerOutput output) =>
+            output.Profile != null && output.Profile.IsWoofer && musicWooferBuffer != null ? musicWooferBuffer : musicBuffer;
+
+        private int MusicEndFrame => Math.Min(streamed.Frames, streamed.DamageFrame);
+
+        private bool MusicReady(int frame)
+        {
+            long required = Math.Min((long)MusicEndFrame, (long)frame + streamed.SampleRate);
+            return frame >= musicBuffer.FirstFrame && frame < musicBuffer.WrittenThrough &&
+                musicBuffer.WrittenThrough >= required;
+        }
+
+        private bool LoopMusicBuffer => streamed.Frames > musicBuffer.CapacityFrames;
+
+        private double BufferedMusicEndDsp(BufferedAudioClip buffer = null) =>
+            scheduledDsp + (Math.Min((buffer ?? musicBuffer).WrittenThrough, MusicEndFrame) - scheduledSample) / (double)clip.frequency;
+
+        private void UpdateMusicBuffer(double dsp)
+        {
+            try
+            {
+                if (running && musicBuffer.WrittenThrough < MusicEndFrame && dsp >= BufferedMusicEndDsp())
+                {
+                    // The scheduled end stopped native playback. Resume at the first frame it could not play.
+                    state.PositionSeconds = musicBuffer.WrittenThrough / (double)clip.frequency;
+                    StopOutputs();
+                }
+
+                int frame = running ? SampleAt(dsp) : SafeSavedFrame();
+                if (frame < musicBuffer.FirstFrame || frame > musicBuffer.WrittenThrough)
+                {
+                    StopOutputs();
+                    musicBuffer.Reset(frame);
+                    if (musicWooferBuffer != null)
+                    {
+                        musicWooferBuffer.Reset(frame);
+                        musicWooferBass.Reset();
+                        musicWooferLimiter.Reset();
+                    }
+                }
+                long lastWritten = musicBuffer.WrittenThrough;
+                int end = MusicEndFrame;
+                long target = Math.Min((long)end, (long)frame + streamed.SampleRate * MusicAheadSeconds);
+                long retainFrom = Math.Max(0, frame - streamed.SampleRate / 2);
+                for (int block = 0; block < MusicUploadsPerTick && musicBuffer.WrittenThrough < target; block++)
+                {
+                    int count = (int)Math.Min(musicBuffer.BlockFrames, end - musicBuffer.WrittenThrough);
+                    if (!musicBuffer.TryAppend(retainFrom, count, readMusicFrames)) break;
+                }
+
+                bool needWoofer = HasWooferEndpoint();
+                if (needWoofer && musicWooferBuffer == null)
+                {
+                    musicWooferBuffer = new BufferedAudioClip("Sailwind Radio buffered music woofer", streamed.SampleRate,
+                        streamed.Channels, musicBuffer.CapacityFrames, musicBuffer.BlockFrames);
+                    musicWooferBuffer.Reset(frame);
+                    musicWooferBass.SetProfile(streamed.SampleRate, true);
+                    musicWooferLimiter.Reset();
+                }
+                else if (!needWoofer && musicWooferBuffer != null)
+                {
+                    musicWooferBuffer.Dispose();
+                    musicWooferBuffer = null;
+                }
+
+                long lastWooferWritten = musicWooferBuffer == null ? 0 : musicWooferBuffer.WrittenThrough;
+                if (musicWooferBuffer != null)
+                {
+                    if (frame < musicWooferBuffer.FirstFrame || frame > musicWooferBuffer.WrittenThrough)
+                    {
+                        StopWooferOutputs(musicWooferBuffer);
+                        musicWooferBuffer.Reset(frame);
+                        musicWooferBass.Reset();
+                        musicWooferLimiter.Reset();
+                    }
+                    for (int block = 0; block < MusicUploadsPerTick && musicWooferBuffer.WrittenThrough < target; block++)
+                    {
+                        int count = (int)Math.Min(musicWooferBuffer.BlockFrames, end - musicWooferBuffer.WrittenThrough);
+                        if (!musicWooferBuffer.TryAppend(retainFrom, count, readMusicWooferFrames)) break;
+                    }
+                }
+
+                if (running && (musicBuffer.WrittenThrough != lastWritten ||
+                    (musicWooferBuffer != null && musicWooferBuffer.WrittenThrough != lastWooferWritten)))
+                {
+                    double horizon = BufferedMusicEndDsp(musicBuffer);
+                    double wooferHorizon = musicWooferBuffer == null ? horizon : BufferedMusicEndDsp(musicWooferBuffer);
+                    builtIn.ExtendBuffered(horizon);
+                    foreach (var endpoint in endpoints.Values)
+                        endpoint.ExtendBuffered(endpoint.Profile.IsWoofer && musicWooferBuffer != null ? wooferHorizon : horizon);
+                }
+            }
+            catch (InvalidOperationException ex) { Fail("Unable to play buffered music", ex.Message); }
         }
 
         private void StartAtSavedPosition()
         {
             double position = state.PositionSeconds;
             if (Double.IsNaN(position) || Double.IsInfinity(position) || position < 0) position = 0;
-            double duration = clip.samples / (double)clip.frequency;
+            double duration = streamed.Frames / (double)clip.frequency;
             if (position >= duration)
             {
                 state.PositionSeconds = duration;
                 TrackEnded = true;
                 return;
             }
-            scheduledSample = (int)Math.Min(clip.samples - 1, Math.Floor(position * clip.frequency));
+            scheduledSample = SafeSavedFrame();
             double now = AudioSettings.dspTime;
             scheduledDsp = now + (voicesPaused ? 0 : ScheduleLeadSeconds);
             if (voicesPaused)
@@ -343,21 +472,23 @@ namespace SailwindRadio.Audio
 
         private void ResumeOutput(RadioSpeakerOutput output, double now)
         {
-            if (output.Paused && output.Source != null && output.StreamClip != null && output.Source.clip == output.StreamClip)
+            BufferedAudioClip buffer = MusicBufferFor(output);
+            if (output.Paused && output.Source != null && buffer != null && output.Source.clip == buffer.Clip)
             {
-                Want(scheduledSample);
-                output.Resume(scheduledSample, now);
+                output.Resume(buffer.ClipFrame(scheduledSample), now);
+                output.ExtendBuffered(BufferedMusicEndDsp(buffer));
             }
             else ScheduleEndpoint(output, now + ScheduleLeadSeconds, SampleAt(now + ScheduleLeadSeconds));
         }
 
         private double EndDspTime()
-        { return clip == null ? Double.PositiveInfinity : scheduledDsp + (clip.samples - scheduledSample) / (double)clip.frequency; }
+        { return clip == null ? Double.PositiveInfinity : scheduledDsp + (streamed.Frames - scheduledSample) / (double)clip.frequency; }
 
         private bool FinishIfEnded()
         {
-            if (!running || clip == null || AudioSettings.dspTime < EndDspTime()) return false;
-            state.PositionSeconds = clip.samples / (double)clip.frequency;
+            if (!running || clip == null || musicBuffer.WrittenThrough < streamed.Frames ||
+                AudioSettings.dspTime < EndDspTime()) return false;
+            state.PositionSeconds = streamed.Frames / (double)clip.frequency;
             TrackEnded = true;
             StopOutputs();
             return true;
@@ -372,14 +503,11 @@ namespace SailwindRadio.Audio
             bool reached = running ? SampleAt(dsp) >= damage : wantsToPlay && SafeSavedFrame() >= damage;
             if (!reached) return;
             Exception reason = streamed.Damage;
-            state.PositionSeconds = clip.samples / (double)clip.frequency;
+            state.PositionSeconds = streamed.Frames / (double)clip.frequency;
             TrackEnded = true;
             StopOutputs();
             warning("Music ended early at damaged audio: " + (reason == null ? "The decoder failed" : reason.Message) + NamedFile(requestedPath));
         }
-
-        // The main thread alone moves the stream worker. Every native seek asks for its frame first.
-        private void Want(int frame) { if (streamed != null) streamed.Request(frame); }
 
         private void JoinEndpoints()
         {
@@ -400,25 +528,9 @@ namespace SailwindRadio.Audio
 
         private void ScheduleEndpoint(RadioSpeakerOutput endpoint, double start, int sample)
         {
-            if (endpoint.Source == null) return;
-            if (clip == null || sample < 0 || sample >= clip.samples || start >= EndDspTime()) return;
-            Want(sample);
-            if (endpoint.StreamClip == null)
-            {
-                endpoint.StreamClip = streamed.CreateClip(streamed.CreateReader());
-                // A refused clip leaves this output silent. Sharing another output's clip would share its cursor.
-                if (endpoint.StreamClip == null) return;
-            }
-            endpoint.Source.clip = endpoint.StreamClip;
-            // Unity alone positions the reader. It seeks it on PlayScheduled to a nonzero sample and, at sample 0,
-            // plays the opening it pre-read. Moving the reader here would desynchronize it from that buffered audio.
-            endpoint.Source.timeSamples = sample;
-            endpoint.Apply();
-            endpoint.Source.PlayScheduled(start);
-            endpoint.Running = true;
-            endpoint.Paused = false;
-            endpoint.SettlesAt = start + .3;
-            endpoint.StartsAt = start;
+            BufferedAudioClip buffer = MusicBufferFor(endpoint);
+            if (clip == null || buffer == null || sample >= MusicEndFrame) return;
+            endpoint.PlayBuffered(buffer, sample, start, BufferedMusicEndDsp(buffer), LoopMusicBuffer);
         }
 
         private void PauseOutputs()
@@ -455,9 +567,6 @@ namespace SailwindRadio.Audio
                 builtIn = new RadioSpeakerOutput("Sailwind Radio audio", RadioSpeakerProfile.BuiltIn, warning);
                 builtIn.Carried = previous.Carried;
                 builtIn.Obstruction = previous.Obstruction;
-                // The timeline clip outlives a lost built-in emitter. Its old output
-                // must not destroy the clip while healthy speakers still use it.
-                if (previous.StreamClip == clip) previous.StreamClip = null;
                 previous.Dispose();
                 emitter = builtIn.Emitter;
                 source = builtIn.Source;
@@ -498,8 +607,11 @@ namespace SailwindRadio.Audio
             if (!output.Running || output.Source == null || now < output.SettlesAt) return;
             // Unity reports a stopped voice as virtual, so only a playing one is skipped as unmeasurable.
             if (output.Source.isPlaying && (output.Source.isVirtual || output.Source.volume <= 0)) { output.DriftObservations = 0; return; }
-            int expected = SampleAt(now);
+            BufferedAudioClip buffer = MusicBufferFor(output);
+            if (buffer == null) return;
+            int expected = buffer.ClipFrame(SampleAt(now));
             int difference = Math.Abs(output.Source.timeSamples - expected);
+            if (LoopMusicBuffer) difference = Math.Min(difference, buffer.CapacityFrames - difference);
             int bufferLength, bufferCount;
             AudioSettings.GetDSPBufferSize(out bufferLength, out bufferCount);
             double tolerance = Math.Max(.05, 2d * bufferLength / Math.Max(8000, AudioSettings.outputSampleRate) + .01);
@@ -514,9 +626,9 @@ namespace SailwindRadio.Audio
             // a revived/lagging output without restarting healthy neighboring voices.
             if (output.Source.isPlaying)
             {
-                Want(expected);
                 output.Pause();
                 output.Resume(expected, now);
+                output.ExtendBuffered(BufferedMusicEndDsp(buffer));
             }
             else ScheduleEndpoint(output, now + ScheduleLeadSeconds, SampleAt(now + ScheduleLeadSeconds));
         }
@@ -544,10 +656,11 @@ namespace SailwindRadio.Audio
             warning(message + ": " + detail + NamedFile(requestedPath));
         }
 
-        // The file name only. Players post logs, so a full path never appears in a warning.
+        // The file name only. Players post logs, so a full path or stream URL never appears in a warning.
         private static string NamedFile(string path)
         {
             if (String.IsNullOrWhiteSpace(path)) return "";
+            if (IsStreamUrl(path)) return " (internet stream)";
             try
             {
                 string name = Path.GetFileName(path);
@@ -559,6 +672,11 @@ namespace SailwindRadio.Audio
         private static string SafeLabel(string path)
         {
             if (String.IsNullOrWhiteSpace(path)) return "No track";
+            if (IsStreamUrl(path))
+            {
+                try { return new Uri(path.Trim()).Host; }
+                catch { return "Internet radio"; }
+            }
             try { return Path.GetFileNameWithoutExtension(path); }
             catch { return "Music file"; }
         }
@@ -571,13 +689,13 @@ namespace SailwindRadio.Audio
 
         private void ReleaseTrackResources()
         {
-            foreach (var endpoint in endpoints.Values) endpoint.ReleaseStreamClip();
-            if (builtIn != null)
-            {
-                if (builtIn.StreamClip == clip) builtIn.StreamClip = null;
-                else builtIn.ReleaseStreamClip();
-            }
-            if (clip != null) UnityEngine.Object.Destroy(clip);
+            ReleaseInternetStream();
+            musicBuffer?.Dispose();
+            musicBuffer = null;
+            musicWooferBuffer?.Dispose();
+            musicWooferBuffer = null;
+            readMusicFrames = null;
+            readMusicWooferFrames = null;
             clip = null;
             // Disposal never waits for the stream worker. A late open result dies with it.
             if (streamed != null) { streamed.Dispose(); streamed = null; }

@@ -1,28 +1,49 @@
 using System;
-using UnityEngine;
 
 namespace SailwindRadio.Audio
 {
-    /// <summary>Low-frequency processing for the Turbo Wolfer output only.</summary>
-    public sealed class RadioBassFilter : MonoBehaviour
+    /// <summary>Low-frequency processing for the Turbo Wolfer output, run before uploading PCM to Unity.</summary>
+    internal sealed class RadioBassFilter
     {
-        private volatile BassFilter bass;
+        private BassFilter bass;
+
         internal void SetProfile(int sampleRate, bool woofer)
         {
-            BassFilter current = bass;
             if (!woofer) { bass = null; return; }
             if (sampleRate < 8000 || sampleRate > 192000) sampleRate = 48000;
-            if (current == null || current.SampleRate != sampleRate) bass = new BassFilter(sampleRate);
+            if (bass == null || bass.SampleRate != sampleRate) bass = new BassFilter(sampleRate);
         }
 
-        // Coefficients and channel storage are allocated on the main thread. The audio
-        // callback alone mutates the delay state. A sample-rate change swaps the entire
-        // bank, so it cannot expose half-written coefficients to the audio thread.
+        internal void Reset()
+        {
+            if (bass != null) bass.Reset();
+        }
+
+        internal void Process(float[] data, int channels)
+        {
+            if (channels > 0) Process(data, channels, data.Length / channels);
+        }
+
+        internal void Process(float[] data, int channels, int frames)
+        {
+            if (channels <= 0 || frames <= 0 || bass == null) return;
+            int total = Math.Min(data.Length, frames * channels);
+            for (int i = 0; i + channels <= total; i += channels)
+            {
+                for (int channel = 0; channel < channels; channel++)
+                {
+                    float value = bass.Apply(data[i + channel], channel);
+                    data[i + channel] = RadioSpeakerOutput.Finite(value) ? value : 0f;
+                }
+            }
+        }
+
         private sealed class BassFilter
         {
             internal readonly int SampleRate;
             private readonly double[] b0 = new double[2], b1 = new double[2], b2 = new double[2], a1 = new double[2], a2 = new double[2];
             private readonly double[] z1 = new double[16], z2 = new double[16];
+
             internal BassFilter(int sampleRate)
             {
                 SampleRate = sampleRate;
@@ -38,6 +59,13 @@ namespace SailwindRadio.Audio
                     a2[stage] = (1 - alpha) / denominator;
                 }
             }
+
+            internal void Reset()
+            {
+                Array.Clear(z1, 0, z1.Length);
+                Array.Clear(z2, 0, z2.Length);
+            }
+
             internal float Apply(float sample, int channel)
             {
                 if (channel >= 8) return 0;
@@ -50,22 +78,7 @@ namespace SailwindRadio.Audio
                     z2[index] = b2[stage] * value - a2[stage] * result;
                     value = result;
                 }
-                return (float)(value * 2); // Bounded bass emphasis before the final limiter.
-            }
-        }
-        private void OnAudioFilterRead(float[] data, int channels) { Process(data, channels); }
-        internal void Process(float[] data, int channels)
-        {
-            BassFilter filter = bass;
-            if (channels <= 0 || filter == null) return;
-            // The output's RadioOutputLimiter bounds the emphasis after every filter.
-            for (int i = 0; i < data.Length; i += channels)
-            {
-                for (int channel = 0; channel < channels && i + channel < data.Length; channel++)
-                {
-                    float value = filter.Apply(data[i + channel], channel);
-                    data[i + channel] = RadioSpeakerOutput.Finite(value) ? value : 0f;
-                }
+                return (float)(value * 2); // Bounded bass emphasis before the limiter.
             }
         }
     }

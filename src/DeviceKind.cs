@@ -22,6 +22,17 @@ namespace SailwindRadio
         public const int MaximumStack = 6;
         public static bool CanStack(int bottom, int top) => IsValid(bottom) && IsValid(top) && Family(bottom) == Family(top) &&
             IsCabinet(bottom) && (IsCabinet(top) || Role(top) == DeviceRole.Radio);
+        // Flat-topped floor cabinets that let players place small items on top.
+        // Al'Ankh Woofer has a domed top and Emerald Large Speaker has narrow raised eaves, so both stay off.
+        public static bool HasTabletop(int kind)
+        {
+            if (!IsValid(kind)) return false;
+            var role = Role(kind);
+            int family = Family(kind);
+            if (role == DeviceRole.Speaker) return family != Emerald;
+            if (role == DeviceRole.Woofer) return family != AlAnkh;
+            return false;
+        }
         private static bool IsCabinet(int kind) => Role(kind) == DeviceRole.Speaker || Role(kind) == DeviceRole.Woofer;
     }
 }

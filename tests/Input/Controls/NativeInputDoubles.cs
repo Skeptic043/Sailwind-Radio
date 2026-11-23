@@ -4,7 +4,11 @@ using UnityEngine;
 namespace UnityEngine
 {
     public class Object { public static implicit operator bool(Object value) => value != null; }
-    public class Transform : Object { public Vector3 position; }
+    public class Transform : Object
+    {
+        public Vector3 position;
+        public Vector3 up = Vector3.up;
+    }
     public class Component : Object
     {
         public bool enabled = true;
@@ -20,7 +24,7 @@ namespace UnityEngine
         public T GetComponent<T>() where T : class => TestButton as T;
         public Vector3 ClosestPoint(Vector3 _) => new Vector3();
     }
-    public struct RaycastHit { public Collider collider; public float distance; }
+    public struct RaycastHit { public Collider collider; public float distance; public Vector3 normal; }
     public class GameObject : Object { public bool activeSelf = true; public void SetActive(bool value) { activeSelf = value; } }
     public static class Application { public static bool isFocused = true; }
 }
@@ -39,6 +43,7 @@ public class GoPointerButton : Component
 {
     public string lookText;
     public bool unclickable;
+    public bool allowPlacingItems;
     public GoPointer LookedAtBy;
     public bool Unlooked;
     public void Look(GoPointer pointer) { LookedAtBy = pointer; }
@@ -69,6 +74,7 @@ public class GoPointerButton : Component
 }
 public class PickupableItem : GoPointerButton { public bool big; }
 public class ShipItem : PickupableItem { }
+public class ShipItemHammer : ShipItem { }
 public static class CargoStorageUI { public static bool loadingCargoMode; }
 namespace SailwindRadio.Physical
 {
@@ -78,6 +84,7 @@ namespace SailwindRadio.Physical
         public bool IsPlacedForControls = true;
         public ShipItem Item;
         public RadioItemController RecordOwner => this;
+        public int TopKind => State != null ? State.Kind : 0;
         public bool EnsureOwned() => true;
         public RadioState State = new RadioState { Volume = .5f };
         public int RequestedCount;

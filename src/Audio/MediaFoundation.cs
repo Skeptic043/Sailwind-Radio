@@ -29,10 +29,39 @@ namespace SailwindRadio.Audio
         internal static readonly Guid Duration = new Guid("6c990d33-bb8e-477a-8598-0d5d96fcd88a");
         internal static readonly Guid Protected = new Guid("00af2181-bdc2-423c-abca-f503593bc121");
         internal static readonly Guid AudioDecoders = new Guid("9ea73fb4-ef7a-4559-8d5d-719d8f0426c7");
+        internal static readonly Guid AacPayloadType = new Guid("bfbabe79-7434-4d1c-94f0-72a3b9e17188");
+        internal static readonly Guid UserData = new Guid("b6bc765f-4c3b-40a4-bd51-2535b66fe09d");
+        internal static readonly Guid TransformInterface = new Guid("bf94c121-5b05-4e6f-8000-ba598961414d");
+
+        internal const int MftMessageBeginStreaming = 0x10000000;
+        internal const int MftMessageStartOfStream = 0x10000003;
+        internal const int MftOutputProvidesSamples = 0x100;
+        internal const int MftOutputCanProvideSamples = 0x200;
+        internal const int HrNeedMoreInput = unchecked((int)0xC00D6D72);
+        internal const int HrStreamChange = unchecked((int)0xC00D6D61);
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct MftOutputStreamInfo
+        {
+            internal int Flags;
+            internal int Size;
+            internal int Alignment;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct MftOutputDataBuffer
+        {
+            internal int StreamId;
+            internal IntPtr Sample;
+            internal int Status;
+            internal IntPtr Events;
+        }
 
         [DllImport("mfplat.dll", ExactSpelling = true)] internal static extern int MFStartup(int version, int flags);
         [DllImport("mfplat.dll", ExactSpelling = true)] internal static extern int MFShutdown();
         [DllImport("mfplat.dll", ExactSpelling = true)] internal static extern int MFCreateMediaType(out IntPtr type);
+        [DllImport("mfplat.dll", ExactSpelling = true)] internal static extern int MFCreateSample(out IntPtr sample);
+        [DllImport("mfplat.dll", ExactSpelling = true)] internal static extern int MFCreateMemoryBuffer(int maxLength, out IntPtr buffer);
         [DllImport("mfplat.dll", ExactSpelling = true)]
         private static extern int MFTEnumEx(Guid category, int flags, IntPtr input, IntPtr output, out IntPtr activates, out int count);
         [DllImport("mfreadwrite.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
@@ -51,17 +80,33 @@ namespace SailwindRadio.Audio
         internal delegate int ReadSampleMethod(IntPtr self, int stream, int control, out int actual, out int flags, out long time, out IntPtr sample);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int GetPresentationAttributeMethod(IntPtr self, int stream, ref Guid key, IntPtr value);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int GetUInt32Method(IntPtr self, ref Guid key, out int value);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int SetUInt32Method(IntPtr self, ref Guid key, int value);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int GetGuidMethod(IntPtr self, ref Guid key, out Guid value);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int SetGuidMethod(IntPtr self, ref Guid key, ref Guid value);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int SetBlobMethod(IntPtr self, ref Guid key, byte[] data, int length);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int GetPointerMethod(IntPtr self, out IntPtr value);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int LockMethod(IntPtr self, out IntPtr data, out int maximum, out int current);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int UnlockMethod(IntPtr self);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int SetLengthMethod(IntPtr self, int length);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int AddBufferMethod(IntPtr self, IntPtr buffer);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int ActivateObjectMethod(IntPtr self, ref Guid iid, out IntPtr result);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int MftGetOutputStreamInfoMethod(IntPtr self, int streamId, out MftOutputStreamInfo info);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int MftGetOutputAvailableTypeMethod(IntPtr self, int streamId, int index, out IntPtr type);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int MftSetTypeMethod(IntPtr self, int streamId, IntPtr type, int flags);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int MftGetOutputCurrentTypeMethod(IntPtr self, int streamId, out IntPtr type);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int MftProcessMessageMethod(IntPtr self, int message, IntPtr param);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int MftProcessInputMethod(IntPtr self, int streamId, IntPtr sample, int flags);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] internal delegate int MftProcessOutputMethod(IntPtr self, int flags, int count, ref MftOutputDataBuffer output, out int status);
 
         // Vtable slots. IUnknown owns 0 to 2 and IMFAttributes 3 to 32.
-        internal const int SlotGetUInt32 = 7, SlotGetGuid = 10, SlotSetGuid = 24;
+        internal const int SlotGetUInt32 = 7, SlotGetGuid = 10, SlotSetUInt32 = 21, SlotSetGuid = 24, SlotSetBlob = 26;
+        internal const int SlotActivateObject = 33;
         internal const int SlotSetStreamSelection = 4, SlotGetNativeMediaType = 5, SlotGetCurrentMediaType = 6,
             SlotSetCurrentMediaType = 7, SlotSetCurrentPosition = 8, SlotReadSample = 9, SlotGetPresentationAttribute = 12;
-        internal const int SlotConvertToContiguousBuffer = 41, SlotLock = 3, SlotUnlock = 4;
+        internal const int SlotConvertToContiguousBuffer = 41, SlotAddBuffer = 42, SlotLock = 3, SlotUnlock = 4, SlotSetCurrentLength = 6;
+        internal const int SlotMftGetOutputStreamInfo = 7, SlotMftGetOutputAvailableType = 14, SlotMftSetInputType = 15,
+            SlotMftSetOutputType = 16, SlotMftGetOutputCurrentType = 18, SlotMftProcessMessage = 23,
+            SlotMftProcessInput = 24, SlotMftProcessOutput = 25;
 
         internal static int GetUInt32(IntPtr attributes, Guid key, int fallback)
         {
@@ -116,6 +161,44 @@ namespace SailwindRadio.Audio
         {
             int result = MFStartup(Version, StartupNoSockets);
             if (result < 0) throw new System.IO.IOException("Media Foundation could not start (error 0x" + result.ToString("X8") + ")");
+        }
+
+        // Activates the first local Windows AAC decoder MFT (IMFTransform). Caller owns the returned COM pointer.
+        internal static IntPtr ActivateAacDecoder()
+        {
+            IntPtr info = Marshal.AllocHGlobal(32);
+            try
+            {
+                Marshal.StructureToPtr(Audio, info, false);
+                Marshal.StructureToPtr(Aac, new IntPtr(info.ToInt64() + 16), false);
+                IntPtr list;
+                int count;
+                if (MFTEnumEx(AudioDecoders, EnumSync | EnumLocal | EnumSortAndFilter, info, IntPtr.Zero, out list, out count) < 0 || count <= 0)
+                    throw new System.IO.IOException("AAC decoding is unavailable on this system.");
+                IntPtr transform = IntPtr.Zero;
+                try
+                {
+                    Guid iid = TransformInterface;
+                    for (int i = 0; i < count; i++)
+                    {
+                        IntPtr activate = Marshal.ReadIntPtr(list, i * IntPtr.Size);
+                        if (transform == IntPtr.Zero && activate != IntPtr.Zero)
+                        {
+                            int hr = ComCalls.Method<ActivateObjectMethod>(activate, SlotActivateObject)(activate, ref iid, out transform);
+                            if (hr < 0) transform = IntPtr.Zero;
+                        }
+                        ComCalls.Release(ref activate);
+                    }
+                }
+                finally
+                {
+                    if (list != IntPtr.Zero) CoTaskMemFree(list);
+                }
+                if (transform == IntPtr.Zero)
+                    throw new System.IO.IOException("Could not activate the Windows AAC decoder.");
+                return transform;
+            }
+            finally { Marshal.FreeHGlobal(info); }
         }
     }
 

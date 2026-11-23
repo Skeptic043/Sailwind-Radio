@@ -242,6 +242,12 @@ internal static partial class Program
             var engine = h.EngineOf(a);
             var source = h.SourceOf(a);
             b.State.Volume = .8f;
+            // Advance through ordinary refill ticks so the bounded clip uploads the whole 10-second fixture.
+            for (int seconds = 2; seconds <= 8; seconds += 2)
+            {
+                AudioSettings.dspTime = source.ScheduledAt + seconds;
+                h.Frame();
+            }
             AudioSettings.dspTime = source.ScheduledAt + 11;
             source.ThrowOnNextStop = true;
             bool escaped = false;
@@ -367,7 +373,7 @@ internal static partial class Program
             Radio a = h.Radios[0];
             for (int i = 0; i < 10 && !(h.EngineOf(a) != null && h.SourceOf(a).isPlaying); i++) h.Frame();
             var source = h.SourceOf(a);
-            Check(a.State.TrackPath == paths[2] && source.isPlaying && source.clip != null && source.clip.Streaming &&
+            Check(a.State.TrackPath == paths[2] && source.isPlaying && source.clip != null &&
                 source.clip.frequency == 44100 && h.EngineOf(a).Status == "Playing",
                 "the queue skips Ogg Opus and Vorbis floor 0 files and plays the next Ogg Vorbis track: track=" + a.State.TrackPath +
                 " status=" + h.EngineOf(a).Status);

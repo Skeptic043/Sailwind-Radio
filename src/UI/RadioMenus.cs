@@ -14,7 +14,7 @@ namespace SailwindRadio.UI
         public CollectionChoice(string id, string label, bool selected) { Id = id; Label = label; Selected = selected; }
     }
 
-    // The two settings the radio menu shows, read and written through the plugin's config. App volume is a percentage.
+    // The settings the radio menu shows, read and written through the plugin's config. App volume is a percentage.
     public sealed class MenuSettings
     {
         public float MinimumAppVolume, MaximumAppVolume;
@@ -24,6 +24,9 @@ namespace SailwindRadio.UI
         public Func<string> GetMusicFolders;
         public Action<string> SaveMusicFolders;
         public string MusicFoldersHelp;
+        public Func<IReadOnlyList<string>> GetExcludedApps;
+        public Action<AudioApplication> ExcludeApp;
+        public Action<string> RestoreExcludedApp;
     }
 
     public sealed class RadioMenus : IDisposable
@@ -40,6 +43,7 @@ namespace SailwindRadio.UI
         private Vector2 scroll;
         private GUISkin layoutSkin;
         private GUIStyle wrappedLabel, clippedToggle, clippedButton;
+        private bool showHiddenApps;
         private bool disposed;
         public bool IsOpen => lease.Owned;
 
@@ -50,6 +54,7 @@ namespace SailwindRadio.UI
 
         private bool HasVolume => settings?.GetAppVolume != null && settings.MinimumAppVolume > 0 && settings.MaximumAppVolume > settings.MinimumAppVolume;
         private bool HasFolders => settings?.GetMusicFolders != null && settings.SaveMusicFolders != null;
+        private bool HasExclusion => settings?.GetExcludedApps != null && settings.ExcludeApp != null && settings.RestoreExcludedApp != null;
         public RadioItemController CollectionRadio { get; private set; }
         public event Action<RadioItemController, string[]> CollectionsChanged;
         // Null returns the radio to music.
@@ -145,7 +150,7 @@ namespace SailwindRadio.UI
                 if (choices.Count == 0) GUILayout.Label("No collections available yet", wrappedLabel, labelWidth);
                 foreach (var choice in choices)
                     selected[choice.Id] = GUILayout.Toggle(selected[choice.Id], choice.Label ?? choice.Id, clippedToggle, toggleWidth);
-                DrawApplications(labelWidth, buttonWidth);
+                DrawApplications(bodyWidth, padding, labelWidth, buttonWidth);
                 GUILayout.EndScrollView();
                 if (GUILayout.Button("Apply", GUILayout.ExpandHeight(false)))
                 {
@@ -165,7 +170,9 @@ namespace SailwindRadio.UI
         private static float InsetWidth(float width, RectOffset padding, RectOffset margin)
             => Mathf.Max(1f, width - Mathf.Max(padding.left, margin.left) - Mathf.Max(padding.right, margin.right));
 
-        private void DrawApplications(GUILayoutOption labelWidth, GUILayoutOption buttonWidth)
+        private const float ActionButtonWidth = 56f;
+
+        private void DrawApplications(float bodyWidth, RectOffset padding, GUILayoutOption labelWidth, GUILayoutOption buttonWidth)
         {
             GUILayout.Space(12);
             GUILayout.Label(playing != null ? "Playing " + playing.Label : "Or play an application through the radio", wrappedLabel, labelWidth);
@@ -176,11 +183,53 @@ namespace SailwindRadio.UI
                 value = Mathf.Clamp(value, settings.MinimumAppVolume, settings.MaximumAppVolume);
                 if (Mathf.Abs(value - volumeDraft) > 0.0001f) { volumeDraft = value; settings.HearAppVolume?.Invoke(value); }
             }
+            float rowWidth = InsetWidth(bodyWidth, padding, clippedButton.margin);
+            float mainWidth = Mathf.Max(1f, rowWidth - ActionButtonWidth - 4f);
+            var mainOption = GUILayout.Width(mainWidth);
+            var actionOption = GUILayout.Width(ActionButtonWidth);
             bool chosen = playing != null && GUILayout.Button("Back to music", clippedButton, buttonWidth);
             AudioApplication choice = null;
+            AudioApplication hideApp = null;
             if (applicationNote != null) GUILayout.Label(applicationNote, wrappedLabel, labelWidth);
             foreach (var application in applications)
-                if (!application.Same(playing) && GUILayout.Button(application.Label, clippedButton, buttonWidth)) { chosen = true; choice = application; }
+            {
+                if (application.Same(playing)) continue;
+                if (HasExclusion)
+                {
+                    GUILayout.BeginHorizontal();
+                    if (GUILayout.Button(application.Label, clippedButton, mainOption)) { chosen = true; choice = application; }
+                    if (GUILayout.Button("Hide", clippedButton, actionOption)) hideApp = application;
+                    GUILayout.EndHorizontal();
+                }
+                else if (GUILayout.Button(application.Label, clippedButton, buttonWidth)) { chosen = true; choice = application; }
+            }
+            if (HasExclusion)
+            {
+                var hidden = settings.GetExcludedApps();
+                string restoreEntry = null;
+                if (hidden != null && hidden.Count > 0)
+                {
+                    GUILayout.Space(8);
+                    string toggleLabel = showHiddenApps ? "Hide hidden apps" : "Show hidden apps (" + hidden.Count + ")";
+                    if (GUILayout.Button(toggleLabel, clippedButton, buttonWidth)) showHiddenApps = !showHiddenApps;
+                    if (showHiddenApps)
+                    {
+                        foreach (string entry in hidden)
+                        {
+                            GUILayout.BeginHorizontal();
+                            GUILayout.Label(entry, wrappedLabel, mainOption);
+                            if (GUILayout.Button("Show", clippedButton, actionOption)) restoreEntry = entry;
+                            GUILayout.EndHorizontal();
+                        }
+                    }
+                }
+                else
+                {
+                    showHiddenApps = false;
+                }
+                if (hideApp != null) settings.ExcludeApp(hideApp);
+                else if (restoreEntry != null) settings.RestoreExcludedApp(restoreEntry);
+            }
             if (!chosen) return;
             var radio = CollectionRadio;
             Close();
@@ -198,6 +247,7 @@ namespace SailwindRadio.UI
             applications.Clear();
             playing = null;
             applicationNote = null;
+            showHiddenApps = false;
         }
 
         public void Dispose() { if (disposed) return; Close(); disposed = true; }

@@ -101,6 +101,7 @@ internal static class Program
             TitleChecks();
             MetadataChecks();
             FormatChecks();
+            PlaylistChecks();
             QueueChecks(first, overlap, root, sub, a, b, c);
             PeekChecks(first, root);
             using (var scanner = new LibraryScanner())
@@ -551,5 +552,105 @@ internal static class Program
         AddLittleEndian(bytes, chunk.Length + 4);
         bytes.AddRange(Encoding.ASCII.GetBytes("WAVE")); bytes.AddRange(chunk);
         return bytes.ToArray();
+    }
+
+    private static void PlaylistChecks()
+    {
+        string z = FileAt("playlists/tracks/z_first.mp3");
+        string a = FileAt("playlists/tracks/a_second.ogg");
+        var id3 = new byte[128];
+        Encoding.ASCII.GetBytes("TAG").CopyTo(id3, 0);
+        Encoding.ASCII.GetBytes("Real Tag Title").CopyTo(id3, 3);
+        Encoding.ASCII.GetBytes("Real Artist").CopyTo(id3, 33);
+        string tagged = FileAt("playlists/tracks/m_tagged.mp3", id3);
+        string streamUrl = "https://stream.example.com/mp3-128";
+        string hlsUrl = "https://stream.example.com/live/master.m3u8";
+
+        string m3uPath = Path.Combine(scratch, "playlists", "voyage.m3u8");
+        File.WriteAllText(m3uPath, string.Join("\r\n", new[]
+        {
+            "#EXTM3U",
+            "#EXTINF:180,Captain - First Song",
+            @"tracks\z_first.mp3",
+            "#EXTINF:210,Wrong Artist - Wrong Title",
+            new Uri(tagged).AbsoluteUri,
+            "#EXTINF:-1,Radio Paradise",
+            streamUrl,
+            hlsUrl,
+            @"tracks\missing.mp3",
+            @"tracks\a_second.ogg",
+        }), new UTF8Encoding(false));
+
+        string plsPath = Path.Combine(scratch, "playlists", "stations.pls");
+        File.WriteAllText(plsPath, string.Join("\r\n", new[]
+        {
+            "[playlist]",
+            "File10=tracks/a_second.ogg",
+            "Title10=Tenth Entry",
+            "File2=http://radio.example.org:8000/live",
+            "Title2=Sea Shanty FM",
+            "File1=tracks/z_first.mp3",
+            "Title1=Harbor - Departure",
+            "NumberOfEntries=3",
+        }), Encoding.UTF8);
+
+        string hlsManifest = Path.Combine(scratch, "playlists", "live.m3u8");
+        File.WriteAllText(hlsManifest, "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\nseg0.ts\n", Encoding.UTF8);
+
+        // Album-style .m3u inside a subfolder must NOT be auto-discovered as a top-level collection.
+        string nestedAlbumM3u = Path.Combine(scratch, "playlists", "tracks", "album.m3u");
+        File.WriteAllText(nestedAlbumM3u, "z_first.mp3\na_second.ogg\n", Encoding.UTF8);
+
+        // Direct playlist file in MusicFolders preserves authored track order and fallback metadata.
+        var direct = Scan(m3uPath);
+        Check(direct.Collections.Count == 1 && direct.Collections[0].Label == "voyage", "direct M3U8 playlist creates named collection");
+        Check(direct.Collections[0].Tracks.Select(t => t.Path).SequenceEqual(new[] { z, tagged, streamUrl, a }),
+            "M3U8 preserves authored order, resolves relative paths, file URIs, and HTTP/HTTPS streams while skipping missing and HLS URLs");
+        Check(direct.GetTrackInfo(z).Label == "Captain - First Song", "M3U8 #EXTINF provides fallback artist and title when file has no tags");
+        Check(direct.GetTrackInfo(tagged).Label == "Real Artist - Real Tag Title", "embedded file tags take precedence over #EXTINF");
+        Check(direct.GetTrackInfo(streamUrl).Title == "Radio Paradise", "stream entry keeps its playlist title");
+        Check(direct.Warnings.Any(w => w.Contains("HLS")), "HLS URL inside playlist reports a warning");
+
+        // PLS parses FileN/TitleN in numeric order (1, 2, 10 rather than 1, 10, 2).
+        var plsScan = Scan(plsPath);
+        Check(plsScan.Collections.Count == 1 && plsScan.Collections[0].Label == "stations", "direct PLS playlist creates named collection");
+        Check(plsScan.Collections[0].Tracks.Select(t => t.Path).SequenceEqual(new[] { z, "http://radio.example.org:8000/live", a }),
+            "PLS orders entries numerically by FileN");
+        Check(plsScan.GetTrackInfo("http://radio.example.org:8000/live").Title == "Sea Shanty FM", "PLS TitleN names stream entries");
+
+        // HLS manifest is rejected cleanly with a warning and zero tracks.
+        var hlsScan = Scan(hlsManifest);
+        Check(hlsScan.Collections.Count == 1 && hlsScan.Collections[0].Tracks.Count == 0 &&
+            hlsScan.Warnings.Any(w => w.Contains("HLS")), "HLS manifest playlist is rejected with a warning");
+
+        // Auto-discovery inside a music folder finds top-level playable playlists, ignores subfolder album .m3u files,
+        // and deduplicates when a playlist is also configured directly.
+        string folder = Path.Combine(scratch, "playlists");
+        var combined = Scan(folder + "|" + m3uPath);
+        Check(combined.Collections.Count == 3 &&
+            combined.Collections.Count(c => LibraryPaths.Comparer.Equals(c.Id, m3uPath)) == 1 &&
+            combined.Collections.Any(c => LibraryPaths.Comparer.Equals(c.Id, plsPath)) &&
+            !combined.Collections.Any(c => LibraryPaths.Comparer.Equals(c.Id, hlsManifest)) &&
+            !combined.Collections.Any(c => LibraryPaths.Comparer.Equals(c.Id, nestedAlbumM3u)),
+            "folder scan discovers only top-level playlists, ignores subfolder album playlists, skips empty HLS manifests, and deduplicates direct entries");
+
+        // A dedicated playlists-only folder omits the empty folder collection so only its playlists appear.
+        string onlyPlaylistsDir = Path.Combine(scratch, "only-playlists");
+        Directory.CreateDirectory(onlyPlaylistsDir);
+        string dedicatedM3u = Path.Combine(onlyPlaylistsDir, "shanties.m3u");
+        File.WriteAllText(dedicatedM3u, z + "\n", Encoding.UTF8);
+        var dedicated = Scan(onlyPlaylistsDir);
+        Check(dedicated.Collections.Count == 1 && LibraryPaths.Comparer.Equals(dedicated.Collections[0].Id, dedicatedM3u),
+            "dedicated playlists-only folder shows only its playlists without an empty folder entry");
+
+        // RadioQueue preserves authored playlist order instead of re-sorting alphabetically.
+        var state = new RadioState();
+        var queue = new RadioQueue(state, new Random(7));
+        queue.ApplySnapshot(direct);
+        Check(state.TrackPath == z, "playlist queue starts on authored first track");
+        Check(queue.Next() && state.TrackPath == tagged, "playlist queue advances to authored second track");
+        Check(queue.Next() && state.TrackPath == streamUrl, "playlist queue advances to authored stream entry");
+        Check(queue.Next() && state.TrackPath == a, "playlist queue advances to authored final track");
+        Check(queue.Previous() && state.TrackPath == streamUrl, "playlist queue steps backward cleanly");
     }
 }

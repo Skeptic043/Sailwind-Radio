@@ -60,9 +60,9 @@ static partial class AudioChecks
         var source = AudioSource.Last;
         player.SetAcoustics(new Vector3(), true, 0);
         PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
-        Check(!player.LoadFailed && source.clip.Streaming &&
-            source.clip.samples == frames && source.clip.channels == channels && source.timeSamples == rate / 10 && warnings == 0,
-            "FLAC plays from its saved sample through a PCM-reader stream: status=" + player.Status + " samples=" + (source.clip == null ? -1 : source.clip.samples) + " frames=" + frames + " time=" + source.timeSamples + " rate=" + rate + " warnings=" + warnings);
+        Check(!player.LoadFailed && !source.clip.Streaming && source.clip.samples >= frames &&
+            source.clip.channels == channels && source.timeSamples == MusicSample(player, rate / 10) && warnings == 0,
+            "FLAC plays from its saved sample through the buffered clip: status=" + player.Status + " warnings=" + warnings);
 
         // Upcoming FLAC opens its stream beside the current track and is adopted on selection.
         string next = Path.Combine(dir, "upcoming.flac");
@@ -74,7 +74,7 @@ static partial class AudioChecks
         Check(upcoming != null && WaitReady(upcoming, 0) && source.clip == current,
             "Upcoming FLAC prefills its own stream beside the unchanged current clip");
         player.SetTrack(next); player.Tick(new Vector3(), false);
-        Check(Field(player, "streamed") == upcoming && source.clip != current && source.clip.Streaming && current.Destroyed &&
+        Check(Field(player, "streamed") == upcoming && source.clip != current && !source.clip.Streaming && current.Destroyed &&
             source.Schedules == 2 && player.Status == "Playing" && warnings == 0,
             "Selecting the upcoming FLAC adopts its prefilled stream and starts on the next Tick");
         player.Dispose();

@@ -21,7 +21,7 @@ namespace SailwindRadio
     public sealed class Plugin : BaseUnityPlugin
     {
         public const string Id = "local.sailwind.radio";
-        public const string Version = "1.5.17";
+        public const string Version = "1.6.1";
         private static Plugin instance;
         private Harmony harmony;
         private RadioWorldService world;
@@ -29,6 +29,8 @@ namespace SailwindRadio
         private RadioShopService shops;
         private ConfigEntry<string> musicFolders;
         private ConfigEntry<float> appVolume;
+        private ConfigEntry<float> appBufferSeconds;
+        private ConfigEntry<string> excludedApps;
         private ConfigEntry<bool> continueWhileSleeping;
         private ConfigEntry<float> mechanismVolume;
         private ConfigEntry<bool> songHover;
@@ -36,6 +38,7 @@ namespace SailwindRadio
         private LibraryScanner library;
         private RadioMenus menus;
         private Task<List<AudioApplication>> applicationList;
+        private List<AudioApplication> lastApplications;
         private RadioPlaybackSet<RadioItemController> radios;
         private readonly HashSet<RadioItemController> seen = new HashSet<RadioItemController>();
         private readonly List<RadioItemController> removed = new List<RadioItemController>();
@@ -50,7 +53,7 @@ namespace SailwindRadio
             try
             {
                 musicFolders = Config.Bind("Music", "MusicFolders", "",
-                    "Music folders separated by |. Each folder is one collection including all its subfolders. Example: D:\\Music | E:\\Sailing Music");
+                    "Music folders or playlist files (.m3u, .m3u8, .pls) separated by |. Each folder is one collection including its subfolders. Playlists in the top level of a folder are added too. Example: D:\\Music | E:\\Sailing.m3u");
                 continueWhileSleeping = Config.Bind("Audio", "ContinueWhileSleeping", false,
                     "Keep music playing while the player sleeps. Loading still suspends playback.");
                 appVolume = Config.Bind("Audio", "AppVolumePercent", 100f, new ConfigDescription(
@@ -59,6 +62,12 @@ namespace SailwindRadio
                 AdoptOldAppVolume();
                 ApplicationRing.Boost = AppGain(appVolume.Value);
                 appVolume.SettingChanged += (sender, args) => ApplicationRing.Boost = AppGain(appVolume.Value);
+                appBufferSeconds = Config.Bind("Audio", "AppBufferSeconds", 0f, new ConfigDescription(
+                    "Extra delay in seconds for captured app audio. Zero is most responsive. Around 1.0 second covers typical save pauses cleanly. Pausing the game clears the buffer and unpausing rebuilds it.",
+                    new AcceptableValueRange<float>(0f, RadioPlayback.MaximumAppBufferSeconds)));
+                excludedApps = Config.Bind("Audio", "ExcludedApps", "",
+                    "Applications hidden from the radio app list, separated by |. Use an executable name such as Discord.exe, or a full path for one copy. Example: Discord.exe | steamwebhelper.exe");
+                excludedApps.SettingChanged += (sender, args) => ApplyExcludedApps();
                 BindFalloff("RadioFalloff", "the radio's built-in speaker", RadioSpeakerProfile.BuiltIn);
                 BindFalloff("SmallSpeakerFalloff", "Small Speakers", RadioSpeakerProfile.Small);
                 BindFalloff("SpeakerFalloff", "Speakers", RadioSpeakerProfile.Normal);
@@ -80,7 +89,7 @@ namespace SailwindRadio
                 acoustics = new RadioAcousticsService();
                 library = new LibraryScanner();
                 radios = new RadioPlaybackSet<RadioItemController>(
-                    (item, state) => new RadioPlayback(this, state, Warn), AttachEngine,
+                    (item, state) => new RadioPlayback(this, state, Warn) { AppBufferSeconds = () => appBufferSeconds.Value }, AttachEngine,
                     item => { if (item && item.State.Powered) item.TogglePower(); }, Warn);
                 menus = new RadioMenus(new MenuSettings
                 {
@@ -92,6 +101,9 @@ namespace SailwindRadio
                     GetMusicFolders = () => musicFolders.Value,
                     SaveMusicFolders = value => musicFolders.Value = value,
                     MusicFoldersHelp = musicFolders.Description.Description,
+                    GetExcludedApps = ApplicationAudioSupport.Enabled ? (Func<IReadOnlyList<string>>)(() => ExcludedApplications.Parse(excludedApps.Value)) : null,
+                    ExcludeApp = ApplicationAudioSupport.Enabled ? (Action<AudioApplication>)(app => excludedApps.Value = ExcludedApplications.Add(excludedApps.Value, app.Program)) : null,
+                    RestoreExcludedApp = ApplicationAudioSupport.Enabled ? (Action<string>)(entry => excludedApps.Value = ExcludedApplications.Remove(excludedApps.Value, entry)) : null,
                 });
                 DisplayTiming.Configure(() => logDisplayTiming.Value, message => Logger.LogInfo(message));
                 world = new RadioWorldService(harmony, Warn, new DisplaySoundBank(() => mechanismVolume.Value, Warn));
@@ -340,7 +352,18 @@ namespace SailwindRadio
             else
             {
                 var info = library.Snapshot.GetTrackInfo(item.State.TrackPath);
-                item.SetTrackInfo(info.Title, info.Artist, info.Album, engine.NamesTrack && songHover.Value);
+                string title = info.Title, artist = info.Artist, album = info.Album;
+                if (!string.IsNullOrEmpty(engine.StreamTitle))
+                {
+                    title = TitleText.Plain(engine.StreamTitle);
+                    artist = TitleText.Plain(engine.StreamArtist ?? "");
+                    album = TitleText.Plain(engine.StreamStation ?? "");
+                }
+                else if (!string.IsNullOrEmpty(engine.StreamStation) && string.IsNullOrEmpty(info.Artist))
+                {
+                    title = TitleText.Plain(engine.StreamStation);
+                }
+                item.SetTrackInfo(title, artist, album, engine.NamesTrack && songHover.Value);
             }
         }
 
@@ -431,6 +454,7 @@ namespace SailwindRadio
         // Listing touches Windows audio and every process, so it runs off the Unity thread.
         private void ListApplications(RadioItemController item)
         {
+            lastApplications = null;
             if (!ApplicationAudioSupport.Enabled)
             {
                 menus.ShowApplications(PlayingApplication(item), null, ApplicationAudioSupport.Summary);
@@ -453,8 +477,39 @@ namespace SailwindRadio
                 if (item) menus.ShowApplications(PlayingApplication(item), null, "Could not list applications");
             }
             else if (item)
-                menus.ShowApplications(PlayingApplication(item), finished.Result, finished.Result.Count == 0
-                    ? "No other application is playing sound. Start your music app and open this menu again." : null);
+            {
+                lastApplications = finished.Result;
+                RefreshApplicationsMenu(item);
+            }
+        }
+
+        private void RefreshApplicationsMenu(RadioItemController item)
+        {
+            var visible = new List<AudioApplication>();
+            string excluded = excludedApps.Value;
+            foreach (var app in lastApplications)
+                if (!ExcludedApplications.IsExcluded(excluded, app.Program))
+                    visible.Add(app);
+            string note = lastApplications.Count == 0
+                ? "No other application is playing sound. Start your music app and open this menu again."
+                : visible.Count == 0 ? "All playing applications are hidden below." : null;
+            menus.ShowApplications(PlayingApplication(item), visible, note);
+        }
+
+        private void ApplyExcludedApps()
+        {
+            if (!ApplicationAudioSupport.Enabled) return;
+            string excluded = excludedApps.Value;
+            radios?.ForEachEngine((item, engine) =>
+            {
+                if (engine.PlayingApplication != null && ExcludedApplications.IsExcluded(excluded, engine.PlayingApplication.Program))
+                    engine.SetApplication(null);
+            }, "Could not stop an excluded application");
+            if (menus != null && menus.CollectionRadio)
+            {
+                if (lastApplications != null) RefreshApplicationsMenu(menus.CollectionRadio);
+                else if (applicationList != null) menus.ShowApplications(PlayingApplication(menus.CollectionRadio), null, "Looking for applications playing sound");
+            }
         }
 
         private AudioApplication PlayingApplication(RadioItemController item)

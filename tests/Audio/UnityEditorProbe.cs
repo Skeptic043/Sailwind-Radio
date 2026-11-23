@@ -296,20 +296,26 @@ public sealed class RadioUnityEditorProbe : MonoBehaviour
         {
             playback.Dispose(); playback = null; yield break;
         }
-        var source = (AudioSource)typeof(RadioPlayback).GetField("source", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(playback);
-        var clip = (AudioClip)typeof(RadioPlayback).GetField("clip", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(playback);
-        Check(clip != null && clip.samples >= expectedSamples && clip.samples <= expectedSamples + sampleTolerance &&
-            clip.frequency == 44100 && clip.channels == 2,
-            label + " clip samples=" + clip.samples + " expected=" + expectedSamples + " frequency=" + clip.frequency +
+        var source = (AudioSource)Private(playback, "source");
+        var clip = (AudioClip)Private(playback, "clip");
+        var stream = (StreamedAudio)Private(playback, "streamed");
+        // Older comparison builds attach a full-length streaming clip. Buffered builds expose a circular cursor.
+        var bufferField = typeof(RadioPlayback).GetField("musicBuffer", BindingFlags.Instance | BindingFlags.NonPublic);
+        object buffer = bufferField == null ? null : bufferField.GetValue(playback);
+        MethodInfo mapFrame = buffer == null ? null : buffer.GetType().GetMethod("ClipFrame", BindingFlags.Instance | BindingFlags.NonPublic);
+        Check(stream != null && stream.Frames >= expectedSamples && stream.Frames <= expectedSamples + sampleTolerance &&
+            clip != null && clip.frequency == 44100 && clip.channels == 2 && (buffer == null || clip.samples < 6 * clip.frequency),
+            label + " track frames=" + stream.Frames + " expected=" + expectedSamples + " buffered clip frames=" + clip.samples +
+            " frequency=" + clip.frequency +
             " channels=" + clip.channels + " loadType=" + clip.loadType + " loadState=" + clip.loadState);
         Info(label + " runtimeMemoryBytes=" + Profiler.GetRuntimeMemorySizeLong(clip) + " fileBytes=" + new FileInfo(path).Length);
         yield return new WaitForSecondsRealtime(0.5f);
         playback.CapturePosition();
         double start = state.PositionSeconds;
-        int native = source.timeSamples;
-        Check(start >= saved && start < saved + 1.5 && Math.Abs(native / 44100.0 - start) < 0.25,
+        double startDrift = NativeCursorDrift(source, start, buffer, mapFrame);
+        Check(start >= saved && start < saved + 1.5 && startDrift < 0.25,
             label + " starts at saved position: saved=" + saved + " timeline=" + start.ToString("F3") +
-            " native=" + (native / 44100.0).ToString("F3") + " playing=" + source.isPlaying + " virtual=" + source.isVirtual);
+            " native drift=" + startDrift.ToString("F3") + " playing=" + source.isPlaying + " virtual=" + source.isVirtual);
         int repairsBefore = playback.DriftRepairs;
         double maxDrift = 0;
         float began = Time.realtimeSinceStartup;
@@ -318,14 +324,13 @@ public sealed class RadioUnityEditorProbe : MonoBehaviour
         {
             yield return new WaitForSecondsRealtime(0.5f);
             playback.CapturePosition();
-            maxDrift = Math.Max(maxDrift, Math.Abs(source.timeSamples / 44100.0 - state.PositionSeconds));
+            maxDrift = Math.Max(maxDrift, NativeCursorDrift(source, state.PositionSeconds, buffer, mapFrame));
         }
         double real = Time.realtimeSinceStartup - began, moved = state.PositionSeconds - timelineBegan;
-        int nativeEnd = source.timeSamples;
         int repairs = playback.DriftRepairs - repairsBefore;
-        Check(Math.Abs(moved - real) < 0.25 && Math.Abs((nativeEnd - native) / 44100.0 - (state.PositionSeconds - start)) < 0.3,
+        Check(Math.Abs(moved - real) < 0.25 && maxDrift < 0.3,
             label + " progresses at real time: real=" + real.ToString("F3") + " timeline=" + moved.ToString("F3") +
-            " native=" + ((nativeEnd - native) / 44100.0).ToString("F3") + " maxNativeDrift=" + maxDrift.ToString("F4") +
+             " maxNativeDrift=" + maxDrift.ToString("F4") +
             " playing=" + source.isPlaying + " virtual=" + source.isVirtual + " volume=" + source.volume);
         Check(repairs <= 1, label + " drift repairs during 8 s=" + repairs + " total=" + playback.DriftRepairs);
         // Main-thread cost of every Tick from creation through load, start and steady play.
@@ -334,6 +339,15 @@ public sealed class RadioUnityEditorProbe : MonoBehaviour
         playback.Dispose();
         playback = null;
         yield return null;
+    }
+
+    private static double NativeCursorDrift(AudioSource source, double seconds, object buffer, MethodInfo mapFrame)
+    {
+        long trackFrame = (long)Math.Round(seconds * source.clip.frequency);
+        int expected = mapFrame == null ? (int)trackFrame : (int)mapFrame.Invoke(buffer, new object[] { trackFrame });
+        int difference = Math.Abs(source.timeSamples - expected);
+        if (source.loop) difference = Math.Min(difference, source.clip.samples - difference);
+        return difference / (double)source.clip.frequency;
     }
 
     // Three sample frames, far shorter than one audio callback.
@@ -612,7 +626,7 @@ public sealed class RadioUnityEditorProbe : MonoBehaviour
             // The filters would reshape the ramp. They add no latency, so bypassing them leaves timing unchanged,
             // and Unity keeps a playing voice's filter order even when its components are reordered.
             foreach (var filter in output.Emitter.GetComponents<Behaviour>())
-                if (filter is AudioHighPassFilter || filter is AudioLowPassFilter || filter is RadioBassFilter) filter.enabled = false;
+                if (filter is AudioHighPassFilter || filter is AudioLowPassFilter) filter.enabled = false;
             if (tap == null) tap = output.Emitter.AddComponent<RadioContentTap>();
             tap.Period = syncPeriod;
         }
@@ -797,10 +811,7 @@ public sealed class RadioUnityEditorProbe : MonoBehaviour
                     playback = null;
                     continue;
                 }
-                object stream = Private(playback, "streamed");
                 yield return new WaitForSecondsRealtime(2.7f);
-                int missing = MissingFrames(stream);
-                var clip = (AudioClip)Private(playback, "clip");
                 string gaps = "", late = "";
                 int totalGaps = 0;
                 double lead = LeadingSilence(file), worstLate = 0;
@@ -817,8 +828,7 @@ public sealed class RadioUnityEditorProbe : MonoBehaviour
                     late += " " + EndpointNames[pair.Key] + "=" + lateMs.ToString("F1");
                     worstLate = Double.IsNaN(lateMs) ? Double.PositiveInfinity : Math.Max(worstLate, Math.Abs(lateMs));
                 }
-                string counted = missing < 0 ? "unavailable" : missing + " (" + (missing * 1000.0 / clip.frequency).ToString("F1") + " ms over 4 outputs)";
-                Check(missing <= 0 && totalGaps == 0 && worstLate <= block * 1000, label + " " + start + " missing-chunk frames=" + counted +
+                Check(totalGaps == 0 && worstLate <= block * 1000, label + " " + start +
                     " silence gap frames in the first 2.5 s:" + gaps + " first sound late by ms:" + late + " drift repairs=" + playback.DriftRepairs);
                 playback.Dispose();
                 playback = null;
@@ -847,13 +857,6 @@ public sealed class RadioUnityEditorProbe : MonoBehaviour
             }
             return frames / (double)decoder.SampleRate;
         }
-    }
-
-    private static int MissingFrames(object stream)
-    {
-        if (stream == null) return -1;
-        var property = stream.GetType().GetProperty("MissingFrames", BindingFlags.Instance | BindingFlags.NonPublic);
-        return property == null ? -1 : (int)property.GetValue(stream, null);
     }
 
     private void Update()

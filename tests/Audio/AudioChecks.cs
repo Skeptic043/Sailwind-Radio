@@ -25,6 +25,36 @@ static partial class AudioChecks
         Check(MediaControls.Merge(MediaControls.Command.PlayPause, MediaControls.Command.Next) == MediaControls.Command.Next &&
             MediaControls.Merge(MediaControls.Command.Next, MediaControls.Command.PlayPause) == MediaControls.Command.PlayPause,
             "Any other command replaces what was waiting");
+        Check(MediaControls.ShouldSendShutdownPause(true, true, true, false) &&
+            !MediaControls.ShouldSendShutdownPause(true, true, false, true) &&
+            MediaControls.ShouldSendShutdownPause(false, false, false, true) &&
+            !MediaControls.ShouldSendShutdownPause(false, false, false, false),
+            "Shutdown pause only fires for a playing media session or a sounding window");
+        CheckInternetRadioStream();
+        {
+            string discordOld = @"C:\Users\player\AppData\Local\Discord\app-1.0.9163\Discord.exe";
+            string discordNew = @"C:\Users\player\AppData\Local\Discord\app-1.0.9164\Discord.exe";
+            string firefox = @"C:\Program Files\Mozilla Firefox\firefox.exe";
+            string excluded = ExcludedApplications.Add("", discordOld);
+            Check(excluded == "Discord.exe", "Hiding an app stores its executable name");
+            Check(ExcludedApplications.IsExcluded(excluded, discordOld) &&
+                ExcludedApplications.IsExcluded(excluded, discordNew) &&
+                !ExcludedApplications.IsExcluded(excluded, firefox),
+                "Executable-name exclusions keep matching after app auto-updates without affecting other apps");
+            Check(ExcludedApplications.Add(excluded, discordNew) == "Discord.exe",
+                "Adding an already excluded app does not create duplicate entries");
+            Check(ExcludedApplications.IsExcluded("discord", discordNew),
+                "Manual exclusion entry without .exe still matches");
+            string specific = @"C:\Program Files\Mozilla Firefox\firefox.exe | SteamWebHelper.exe";
+            Check(ExcludedApplications.IsExcluded(specific, firefox) &&
+                !ExcludedApplications.IsExcluded(specific, @"D:\Portable\firefox.exe"),
+                "Full-path exclusion matches only that copy of an app");
+            string two = ExcludedApplications.Add(excluded, firefox);
+            Check(two == "Discord.exe | firefox.exe" &&
+                ExcludedApplications.Remove(two, "discord.exe") == "firefox.exe" &&
+                ExcludedApplications.Remove("firefox.exe", "firefox.exe") == "",
+                "Exclusion add and remove round-trip cleanly");
+        }
         // Lifecycle fixture: a scripted decoder held by the Hold gate, so each check decides when its
         // load completes. Its ten seconds of 48 kHz mono give the sample arithmetic below.
         string path = WriteHeldTrack("fixture # 100%.fake");
@@ -47,17 +77,17 @@ static partial class AudioChecks
         Settle(player);
         MakeResident(player);
         var firstClip = source.clip;
-        Check(firstClip != null && firstClip.Streaming && Field(player, "streamed") == firstStream && source.Schedules == 0 && player.Status == "Suspended",
+        Check(firstClip != null && !firstClip.Streaming && Field(player, "streamed") == firstStream && source.Schedules == 0 && player.Status == "Suspended",
             "Load finishing during suspension stays silent, and a file name with # and % opens as a local path: status=" + player.Status + " schedules=" + source.Schedules + " same=" + (Field(player, "streamed") == firstStream));
         WaitStream(player);
         player.Tick(new Vector3(1,2,3), false);
-        Check(source.Schedules == 1 && source.timeSamples == 96000 && source.ScheduledAt > AudioSettings.dspTime, "Resume schedules saved sample on DSP clock");
+        Check(source.Schedules == 1 && source.timeSamples == MusicSample(player, 96000) && source.ScheduledAt > AudioSettings.dspTime, "Resume schedules saved sample on DSP clock");
         Check(emitter.transform.position.x == 1 && emitter.transform.position.z == 3, "Independent emitter is placed before its scheduled start");
         source.timeSamples = 0;
         player.CapturePosition();
         Check(state.PositionSeconds == 2, "Saving before scheduled start preserves intended sample");
         AudioSettings.dspTime = 101.05;
-        source.timeSamples = 144000;
+        source.timeSamples = MusicSample(player, 144000);
         player.Tick(new Vector3(), false);
         Check(state.PositionSeconds == 3, "Position follows shared DSP clock");
         Check(player.Audible(false), "A playing radio is audible, so its outputs ask for cabin muffling");
@@ -79,9 +109,9 @@ static partial class AudioChecks
         state.Paused = false;
         WaitStream(player);
         player.Tick(new Vector3(), false);
-        Check(source.timeSamples == 144000 && source.Schedules == 1 && source.UnPauses == 1, "Manual resume restores exact sample");
+        Check(source.timeSamples == MusicSample(player, 144000) && source.Schedules == 1 && source.UnPauses == 1, "Manual resume restores exact sample");
         AudioSettings.dspTime = 102.05;
-        source.timeSamples = 192000;
+        source.timeSamples = MusicSample(player, 192000);
         state.Powered = false;
         player.Tick(new Vector3(), false);
         Check(state.PositionSeconds == 4 && source.clip == firstClip && player.Status == "Off", "Power off preserves cursor and the open stream");
@@ -94,27 +124,27 @@ static partial class AudioChecks
         AudioListener.pause = false;
         WaitStream(player);
         player.Tick(new Vector3(), false);
-        Check(source.Schedules == 1 && source.UnPauses == 2 && source.timeSamples == 192000, "Power resume restores position");
+        Check(source.Schedules == 1 && source.UnPauses == 2 && source.timeSamples == MusicSample(player, 192000), "Power resume restores position");
         AudioSettings.dspTime = 103.05;
-        source.timeSamples = 240000;
+        source.timeSamples = MusicSample(player, 240000);
         player.Tick(new Vector3(), false);
         AudioSettings.Reset(); source.timeSamples = 0;
         player.Tick(new Vector3(), false);
-        Check(source.timeSamples == 240000 && source.Schedules == 2, "Audio device reset uses saved position rather than reset cursor");
+        Check(source.timeSamples == MusicSample(player, 240000) && source.Schedules == 2, "Audio device reset uses saved position rather than reset cursor");
         AudioSettings.dspTime = 0;
         source.timeSamples = 0;
         player.Tick(new Vector3(), false);
-        Check(source.timeSamples == 240000 && source.Schedules == 3, "DSP clock rollback reschedules from prior position");
+        Check(source.timeSamples == MusicSample(player, 240000) && source.Schedules == 3, "DSP clock rollback reschedules from prior position");
         player.SetTrack(path);
         Check(firstClip.Destroyed && source.clip == null && WaitWorker(firstStream), "Track reload releases previous clip and stream");
         FakeDecoder.Hold.Reset();
         player.Tick(new Vector3(), false);
         var pending = (StreamedAudio)Field(player, "streamed");
-        player.SetTrack("https://example.com/music.mp3");
+        player.SetTrack("ftp://example.com/music.mp3");
         Check(pending != null && !pending.IsOpen && Field(player, "streamed") == null && WaitWorker(pending),
             "Replacing a pending load cancels and releases its stream");
         player.Tick(new Vector3(), false);
-        Check(warnings == 1 && player.Status == "Unable to load music", "Remote URI rejected");
+        Check(warnings == 1 && player.Status == "Unable to load music", "Unsupported remote URI rejected");
         Check(!player.NamesTrack, "Hover names nothing after a failed load");
         int opens = FakeDecoder.Opens;
         for (int i=0;i<20;i++) player.Tick(new Vector3(), false);
@@ -151,7 +181,7 @@ static partial class AudioChecks
         source = AudioSource.Last;
         PumpUntil(player, false, () => { var opened = (StreamedAudio)Field(player, "streamed"); return opened != null && opened.IsOpen || player.LoadFailed; });
         player.Tick(new Vector3(), false);
-        // Unity would pre-read silence from a clip created now, so the clip waits for the window too.
+        // An open decoder alone cannot supply the clip's initial audio.
         Check(player.Status == "Loading" && source.Schedules == 0 && source.clip == null, "An open stream alone does not prove its window is ready");
         PumpUntil(player, false, () => source.Schedules > 0 || player.LoadFailed);
         Check(source.Schedules == 1 && source.timeSamples == 0, "The stream starts once its window holds the saved position");
@@ -210,6 +240,7 @@ static partial class AudioChecks
         CheckOgg();
         CheckFlacRouting();
         CheckApplicationRing();
+        CheckBufferedAudioClip();
         CheckM4a();
         CheckPreloadAdoption(path);
         CheckShortTracks();
@@ -385,13 +416,16 @@ static partial class AudioChecks
         WaitStream(player);
         player.Tick(new Vector3(), false);
         var shared = radio.clip;
-        Check(FakeDecoder.OpensOf(path) == opens + 1 && SameStream(shared, small, normal, woofer),
-            "Three speaker endpoints read the radio's one stream through their own clips with one decoder");
+        Check(FakeDecoder.OpensOf(path) == opens + 1 && SameStream(shared, small, normal) &&
+            woofer.clip != null && woofer.clip != shared && !woofer.clip.Streaming && woofer.clip.PcmRead == null,
+            "Regular speakers share one uploaded clip while the woofer uses its own pre-filtered clip from one decoder");
+        int savedSample = MusicSample(player, 96000);
         Check(small.ScheduledAt == radio.ScheduledAt && normal.ScheduledAt == radio.ScheduledAt && woofer.ScheduledAt == radio.ScheduledAt &&
-            small.timeSamples == 96000 && normal.timeSamples == 96000 && woofer.timeSamples == 96000,
+             small.timeSamples == savedSample && normal.timeSamples == savedSample && woofer.timeSamples == savedSample,
             "Initial endpoints schedule identical sample frames on the authoritative DSP start");
-        Check(!radio.loop && !small.loop && !normal.loop && !woofer.loop,
-            "No output source loops the track");
+        Check(radio.ScheduledEnd > radio.ScheduledAt && radio.ScheduledEnd <= radio.ScheduledAt + 8 &&
+            radio.ScheduledEnd == small.ScheduledEnd && radio.ScheduledEnd == normal.ScheduledEnd && radio.ScheduledEnd == woofer.ScheduledEnd,
+            "All voices expire together before their uploaded PCM runs out");
         Check(smallHigh.cutoffFrequency == 600 && smallLow.cutoffFrequency == 9000 && small.maxDistance == 15 &&
             normalHigh.cutoffFrequency == 160 && normalLow.cutoffFrequency == 18000 && normal.maxDistance == 20 &&
             wooferLow.cutoffFrequency == 140 && small.bypassReverbZones && normal.bypassReverbZones && woofer.bypassReverbZones,
@@ -402,7 +436,8 @@ static partial class AudioChecks
             "Woofer bass strength scales only its local bass output");
 
         AudioSettings.dspTime = 501.05;
-        radio.timeSamples = 144000;
+        // Give the native cursor a one-frame difference from the shared DSP clock.
+        radio.timeSamples = MusicSample(player, 144001);
         player.SetCarried(true);
         player.SetAcoustics(new Vector3(), true, 1);
         player.Tick(new Vector3(1000, 0, 0), false);
@@ -429,38 +464,41 @@ static partial class AudioChecks
         player.Tick(new Vector3(), false);
         int expectedJoin = 96000 + (int)Math.Round((joined.ScheduledAt - radio.ScheduledAt) * shared.frequency);
         int quantizedSourceJoin = 1 + radio.timeSamples + (int)Math.Round((joined.ScheduledAt - AudioSettings.dspTime) * shared.frequency);
-        Check(SameStream(shared, joined) && joined.ScheduledAt > AudioSettings.dspTime && joined.timeSamples == expectedJoin &&
+        Check(SameStream(shared, joined) && joined.ScheduledAt > AudioSettings.dspTime && joined.timeSamples == MusicSample(player, expectedJoin) &&
             joined.timeSamples != quantizedSourceJoin && FakeDecoder.OpensOf(path) == opens + 1,
             "Late endpoint follows shared DSP anchor rather than a deliberately mismatched native cursor, with no extra decoder");
 
         state.Paused = true;
         AudioSettings.dspTime = 501.3;
-        radio.timeSamples = 156000;
+        radio.timeSamples = MusicSample(player, 156000);
         player.Tick(new Vector3(), false);
         Check(!radio.isPlaying && !normal.isPlaying && !joined.isPlaying && state.PositionSeconds == 3.25,
             "Manual pause captures shared position and pauses all retained endpoints");
         state.Paused = false;
         WaitStream(player);
         player.Tick(new Vector3(), false);
-        Check(radio.timeSamples == 156000 && normal.timeSamples == 156000 && joined.timeSamples == 156000 &&
+        int pausedSample = MusicSample(player, 156000);
+        Check(radio.timeSamples == pausedSample && normal.timeSamples == pausedSample && joined.timeSamples == pausedSample &&
             radio.UnPauses == 1 && normal.UnPauses == 1 && joined.UnPauses == 1,
             "Resume schedules every remaining endpoint from the same retained cursor");
         AudioSettings.dspTime = 502.05;
-        radio.timeSamples = 192000;
+        radio.timeSamples = MusicSample(player, 192000);
         player.Tick(new Vector3(), false);
         AudioSettings.Reset(); radio.timeSamples = 0;
         player.Tick(new Vector3(), false);
-        Check(radio.timeSamples == 192000 && normal.timeSamples == 192000 && joined.timeSamples == 192000 &&
+        int resetSample = MusicSample(player, 192000);
+        Check(radio.timeSamples == resetSample && normal.timeSamples == resetSample && joined.timeSamples == resetSample &&
             radio.ScheduledAt == joined.ScheduledAt,
             "Device reset recovers radio and endpoints from one pre-reset position");
         AudioSettings.dspTime += .1;
-        radio.timeSamples = 196800;
+        radio.timeSamples = MusicSample(player, 194400);
         int schedules = radio.Schedules;
         player.Tick(new Vector3(), false);
         Check(radio.volume > 0 && normal.volume > 0 && joined.volume > 0 && state.PositionSeconds == 4.05 && radio.Schedules == schedules,
             "Every output remains audible while the shared playback timeline advances");
 
-        AudioSettings.dspTime = radio.ScheduledAt + (shared.samples - 192000) / (double)shared.frequency + .01;
+        AdvanceLocalPlayback(player, radio.ScheduledAt, 192000, radio.ScheduledAt + 6, radio, normal, joined);
+        AudioSettings.dspTime = radio.ScheduledAt + 6.01;
         player.Tick(new Vector3(), false);
         Check(player.TrackEnded && state.PositionSeconds == 10 && radio.timeSamples == 0 && normal.timeSamples == 0 && joined.timeSamples == 0,
             "Non-looping completion preserves exact duration and stops all endpoints");
@@ -477,8 +515,8 @@ static partial class AudioChecks
         player.Tick(new Vector3(), false); Settle(player); WaitStream(player); player.Tick(new Vector3(), false);
         Check(radio.timeSamples == 0 && SameStream(radio.clip, normal) && normal.ScheduledAt == radio.ScheduledAt,
             "Same-path queue restart loads once and resynchronizes endpoints");
-        player.SetTrack("https://example.com/not-local.mp3"); player.Tick(new Vector3(), false);
-        Check(player.LoadFailed && player.FailedPath == "https://example.com/not-local.mp3" && !player.TrackEnded,
+        player.SetTrack("ftp://example.com/not-local.mp3"); player.Tick(new Vector3(), false);
+        Check(player.LoadFailed && player.FailedPath == "ftp://example.com/not-local.mp3" && !player.TrackEnded,
             "Failed track identity is exposed for bounded playlist skipping");
         player.Dispose();
         Check(normal.Destroyed && joined.Destroyed && AudioSettings.Subscribers == 0,
@@ -499,9 +537,10 @@ static partial class AudioChecks
         player.EndEndpoints();
         player.Tick(new Vector3(), false); Settle(player); player.Tick(new Vector3(), false);
         double start = radio.ScheduledAt;
+        AdvanceLocalPlayback(player, start, 156000, start + 4, radio, first, second);
         AudioSettings.dspTime = start + 4;
         radio.isVirtual = true; radio.timeSamples = 0;
-        first.timeSamples = 48000; second.timeSamples = 400000;
+        first.timeSamples = 48000; second.timeSamples = MusicSample(player, 400000);
         player.Tick(new Vector3(), true);
         Check(state.PositionSeconds == 7.25 && !radio.isPlaying && !first.isPlaying && !second.isPlaying,
             "Pause snapshots shared DSP time despite virtual primary and conflicting native speaker cursors");
@@ -511,12 +550,13 @@ static partial class AudioChecks
         Check(state.PositionSeconds == 7.25 && !player.TrackEnded && radio.Pauses == 1 && first.Pauses == 1,
             "An hour of suspended DSP advance cannot consume the song or repeatedly pause its retained voices");
         player.Tick(new Vector3(), false);
-        Check(radio.timeSamples == 348000 && first.timeSamples == 348000 && second.timeSamples == 348000 &&
+        int pausedSample = MusicSample(player, 348000);
+        Check(radio.timeSamples == pausedSample && first.timeSamples == pausedSample && second.timeSamples == pausedSample &&
             radio.Schedules == 1 && first.Schedules == 1 && radio.UnPauses == 1 && first.UnPauses == 1,
             "Long-pause resume restores one common sample without new filtered PlayScheduled starts");
         radio.isVirtual = false;
         AudioSettings.dspTime += 2;
-        radio.timeSamples = first.timeSamples = second.timeSamples = 444000;
+        radio.timeSamples = first.timeSamples = second.timeSamples = MusicSample(player, 444000);
         player.Tick(new Vector3(), false);
         Check(state.PositionSeconds == 9.25 && radio.UnPauses == 1 && first.UnPauses == 1,
             "Resumed DSP anchor excludes the paused hour and healthy voices are untouched");
@@ -525,40 +565,44 @@ static partial class AudioChecks
             "Short pause also retains native voices and cannot introduce extra starts");
         // Continue-through-menu policy: caller leaves suspended false, so time advances.
         AudioSettings.dspTime += 1;
-        radio.timeSamples = second.timeSamples = 492000; first.timeSamples = 490100;
+        radio.timeSamples = second.timeSamples = MusicSample(player, 492000);
+        first.timeSamples = MusicSample(player, 490100);
         player.Tick(new Vector3(), false);
         Check(state.PositionSeconds == 10.25, "Unsuspended music advances on DSP independently of game time scale");
         Check(first.UnPauses == 2, "Normal buffer-sized native cursor lag does not cause corrective seeks");
         // Deliberate 100ms echo: require two observations outside buffer tolerance.
-        first.timeSamples -= 4800;
         AudioSettings.dspTime += .25;
-        radio.timeSamples = second.timeSamples = 504000; first.timeSamples = 499200;
+        radio.timeSamples = second.timeSamples = MusicSample(player, 504000);
+        first.timeSamples = MusicSample(player, 499200);
         player.Tick(new Vector3(), false);
         Check(first.UnPauses == 2, "One suspicious cursor observation does not seek a playing source");
         AudioSettings.dspTime += .25;
-        radio.timeSamples = second.timeSamples = 516000; first.timeSamples = 511200;
+        radio.timeSamples = second.timeSamples = MusicSample(player, 516000);
+        first.timeSamples = MusicSample(player, 511200);
         player.Tick(new Vector3(), false);
-        Check(first.timeSamples == 516000 && first.UnPauses == 3 && radio.UnPauses == 2 && second.UnPauses == 2,
+        Check(first.timeSamples == MusicSample(player, 516000) && first.UnPauses == 3 && radio.UnPauses == 2 && second.UnPauses == 2,
             "Persistent audible drift repairs only the lagging voice against the shared clock");
         Check(player.DriftRepairs == 1, "Diagnostic repair count observes exactly one corrective seek");
         second.isVirtual = true; second.timeSamples = 0;
-        AudioSettings.dspTime += 1; radio.timeSamples = first.timeSamples = 564000;
+        AudioSettings.dspTime += 1;
+        radio.timeSamples = first.timeSamples = MusicSample(player, 564000);
         player.Tick(new Vector3(), false);
         Check(second.UnPauses == 2 && state.PositionSeconds == 11.75, "Virtualized source cannot reset clock or trigger repair churn");
         second.isVirtual = false; second.isPlaying = false;
-        AudioSettings.dspTime += .25; radio.timeSamples = first.timeSamples = 576000;
+        AudioSettings.dspTime += .25;
+        radio.timeSamples = first.timeSamples = MusicSample(player, 576000);
         player.Tick(new Vector3(), false);
-        Check(second.Schedules == 2 && second.timeSamples == 578400 && radio.Schedules == 1,
+        Check(second.Schedules == 2 && second.timeSamples == MusicSample(player, 578400) && radio.Schedules == 1,
             "Unexpected stopped output rejoins future shared sample without restarting neighbors");
         // Pending late joins must be cancelled on pause, not resumed with stale delays.
         player.Tick(new Vector3(), true); WaitStream(player);
         AudioSettings.dspTime += 100; player.Tick(new Vector3(), false);
-        Check(second.Schedules == 3 && second.timeSamples == 578400 && radio.UnPauses == 3,
+        Check(second.Schedules == 3 && second.timeSamples == MusicSample(player, 578400) && radio.UnPauses == 3,
             "Pause before a late scheduled start cancels it and creates exactly one fresh aligned join");
         UnityEngine.Object.Destroy(radio);
         player.Tick(new Vector3(), false);
         var replacement = AudioSource.Last;
-        Check(replacement != radio && replacement.clip != null && replacement.clip.Streaming && replacement.clip.samples == first.clip.samples &&
+        Check(replacement != radio && SameStream(first.clip, replacement) &&
             replacement.Schedules == 1 && !player.TrackEnded,
             "Missing owned primary source is recreated while surviving speakers retain their timeline");
         replacement.enabled = false;
@@ -679,7 +723,7 @@ static partial class AudioChecks
         Settle(player);
         Check(source.clip != null && source.timeSamples == 0 && player.Status == "Suspended", "Adopted load completing during suspension cannot play");
         player.Tick(new Vector3(), false);
-        Check(source.timeSamples == 48000 && speaker.timeSamples == 48000 && SameStream(source.clip, speaker),
+        Check(source.timeSamples == MusicSample(player, 48000) && speaker.timeSamples == source.timeSamples && SameStream(source.clip, speaker),
             "Adopted load resumes every endpoint at requested saved cursor");
         player.PreloadTrack(next); player.Tick(new Vector3(), false);
         var ready = (StreamedAudio)Field(player, "preloadStream");
@@ -702,7 +746,7 @@ static partial class AudioChecks
         player.Tick(new Vector3(), false); // Status is stale until the Tick after selection.
         PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
         Check(!player.LoadFailed && upcomingMp3 != null && Field(player, "streamed") == upcomingMp3 && source.clip != current &&
-            current.Destroyed && source.clip.Streaming, "Managed MP3 preload hands its stream over");
+             current.Destroyed && !source.clip.Streaming, "Managed MP3 preload hands its stream over");
         player.PreloadTrack(broken);
         PumpUntil(player, false, () => (bool)Field(player, "preloadSkipped"));
         Check(!player.LoadFailed && player.Status == "Playing" && Field(player, "preloadStream") == null,
@@ -746,14 +790,29 @@ static partial class AudioChecks
         DeleteClosed(next); DeleteClosed(mp3); DeleteClosed(broken);
     }
 
-    // Each output streams the shared track through its own clip. A speaker never shares the radio's clip.
+    // The active track owns one clip. Outputs share its PCM and keep independent audio sources.
     static bool SameStream(AudioClip master, params AudioSource[] outputs)
     {
-        if (master == null || !master.Streaming) return false;
+        if (master == null || master.Streaming || master.PcmRead != null) return false;
         foreach (var output in outputs)
-            if (output.clip == null || !output.clip.Streaming || output.clip == master || output.clip.samples != master.samples ||
-                output.clip.frequency != master.frequency || output.clip.channels != master.channels) return false;
+            if (output.clip != master) return false;
         return true;
+    }
+
+    static int MusicSample(RadioPlayback player, long frame)
+        => ((BufferedAudioClip)Field(player, "musicBuffer")).ClipFrame(frame);
+
+    static void AdvanceLocalPlayback(RadioPlayback player, double start, int startFrame, double until, params AudioSource[] outputs)
+    {
+        int rate = outputs[0].clip.frequency;
+        while (AudioSettings.dspTime + .25 < until)
+        {
+            AudioSettings.dspTime += .25;
+            int frame = startFrame + (int)Math.Round(Math.Max(0, AudioSettings.dspTime - start) * rate);
+            foreach (var output in outputs) output.timeSamples = MusicSample(player, frame);
+            player.Tick(new Vector3(), false);
+            Thread.Sleep(1);
+        }
     }
 
     static void CheckMp3(string heldPath)
@@ -810,12 +869,13 @@ static partial class AudioChecks
         player.Tick(new Vector3(), true);
         PumpUntil(player, true, () => source.clip != null);
         Check(Field(player, "streamed") is StreamedAudio, "MP3 loads through the stream engine, never a Unity loader");
-        Check(source.clip.Streaming && source.clip.channels == 2 && source.clip.samples == 20 * 1152 && source.clip.frequency == 44100,
-            "A short MP3 plays through a PCM-reader stream with the correct stereo frame count");
+        Check(!source.clip.Streaming && source.clip.channels == 2 && source.clip.samples >= 20 * 1152 && source.clip.frequency == 44100,
+            "A short MP3 uploads stereo PCM at the decoder's sample rate");
         Check(AudioClip.CreateThread == Environment.CurrentManagedThreadId && source.Schedules == 0,
             "The stream opens on its worker, the clip is created on the main thread and suspension is respected");
         PumpUntil(player, false, () => source.Schedules > 0 || player.LoadFailed);
-        Check(source.Schedules == 1 && source.timeSamples == 4410, "Managed MP3 starts at retained sample position");
+        Check(source.Schedules == 1 && source.timeSamples == MusicSample(player, 4410) && state.PositionSeconds == .1,
+            "Managed MP3 starts at retained sample position");
         var clip = source.clip;
         player.Dispose();
         Check(clip.Destroyed, "Managed MP3 clip released on disposal");
@@ -894,20 +954,19 @@ static partial class AudioChecks
         longPlayer.EndEndpoints();
         var speakerSource = AudioSource.Last;
         PumpUntil(longPlayer, false, () => longPlayer.Status == "Playing" || longPlayer.LoadFailed);
-        Check(!longPlayer.LoadFailed && radioSource.clip != null && radioSource.clip.Streaming &&
-            speakerSource.clip != null && speakerSource.clip.Streaming && radioSource.clip != speakerSource.clip &&
+        Check(!longPlayer.LoadFailed && SameStream(radioSource.clip, speakerSource) &&
+             radioSource.clip.samples < 6 * radioSource.clip.frequency &&
             radioSource.Schedules == 1 && speakerSource.Schedules == 1 &&
-            radioSource.timeSamples == 700 * radioSource.clip.frequency &&
+             radioSource.timeSamples == MusicSample(longPlayer, 700 * radioSource.clip.frequency) &&
             speakerSource.timeSamples == radioSource.timeSamples,
-            "Long-track playback restores saved DSP position on independently streamed radio and speaker clips");
+             "Long-track playback restores saved DSP position on one bounded radio and speaker clip");
         var radioClip = radioSource.clip;
         var speakerClip = speakerSource.clip;
         UnityEngine.Object.Destroy(builtInEmitter);
         longPlayer.Tick(new Vector3(), false);
         var recoveredSource = AudioSource.Last;
         var recoveredClip = recoveredSource.clip;
-        Check(!radioClip.Destroyed && !speakerClip.Destroyed && recoveredClip != null &&
-            recoveredClip.Streaming && recoveredClip != radioClip && speakerSource.clip == speakerClip,
+        Check(!radioClip.Destroyed && recoveredClip == radioClip && speakerSource.clip == speakerClip,
             "Recreating a lost built-in emitter retains the master timeline and healthy speaker clip");
         AudioSettings.dspTime = radioSource.ScheduledAt + 1;
         longState.Paused = true;
@@ -1232,10 +1291,12 @@ static partial class AudioChecks
         var player = new RadioPlayback(new MonoBehaviour(), state, _ => warnings++);
         var source = AudioSource.Last;
         PumpUntil(player, true, () => source.clip != null || player.LoadFailed);
-        Check(source.clip != null && source.clip.Streaming && source.clip.samples == 3 * rate && source.clip.channels == 2,
-            "WAV loads through the in-source decoder into a PCM-reader stream");
+        Check(source.clip != null && !source.clip.Streaming && source.clip.samples >= 3 * rate &&
+             source.clip.samples < 4 * rate && source.clip.channels == 2,
+             "WAV loads through the in-source decoder into a bounded PCM clip");
         PumpUntil(player, false, () => source.Schedules > 0 || player.LoadFailed);
-        Check(source.Schedules == 1 && source.timeSamples == 4410 && warnings == 0, "Decoded WAV starts at its saved sample");
+        Check(source.Schedules == 1 && source.timeSamples == MusicSample(player, 4410) && warnings == 0,
+            "Decoded WAV starts at its saved sample");
         player.Dispose();
 
         string longWav = WriteLongSilentWav("long-silent.wav");
@@ -1243,8 +1304,8 @@ static partial class AudioChecks
         player = new RadioPlayback(new MonoBehaviour(), state, _ => warnings++);
         source = AudioSource.Last;
         PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
-        Check(!player.LoadFailed && source.clip.Streaming && source.clip.frequency == 8000 &&
-            source.timeSamples == 3000 * 8000 && warnings == 0,
+        Check(!player.LoadFailed && !source.clip.Streaming && source.clip.frequency == 8000 &&
+             source.timeSamples == MusicSample(player, 3000 * 8000L) && warnings == 0,
             "An hour-long WAV streams from its saved position");
         player.Dispose();
         DeleteClosed(wav);
@@ -1301,7 +1362,7 @@ static partial class AudioChecks
                 if (prefilled)
                 {
                     player.Tick(new Vector3(), false);
-                    Check(player.Status == "Playing" && source.clip.Streaming && source.Schedules == schedules + 1 && source.timeSamples == 0,
+                    Check(player.Status == "Playing" && !source.clip.Streaming && source.Schedules == schedules + 1 && source.timeSamples == 0,
                         "An adopted " + label + " stream schedules on the first Tick after selection");
                 }
                 else
@@ -1311,7 +1372,7 @@ static partial class AudioChecks
                     FakeDecoder.Gate.Set();
                     PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
                 }
-                Check(!player.LoadFailed && warnings == 0 && source.clip.Streaming && source.clip.samples == upcoming.Frames &&
+                Check(!player.LoadFailed && warnings == 0 && !source.clip.Streaming &&
                     source.timeSamples == 0 && FakeDecoder.OpensOf(target) == opens + (target == gated ? 1 : 0) && Field(player, "streamed") == upcoming,
                     "Adopted " + label + " plays from its start with no second loader: status=" + player.Status + " warnings=" + warnings);
                 player.Dispose();
@@ -1339,7 +1400,7 @@ static partial class AudioChecks
         player.SetAcoustics(new Vector3(), true, 0);
         PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
         var currentStream = (StreamedAudio)Field(player, "streamed");
-        Check(currentStream != null && source.clip.Streaming && player.Status == "Playing", "A streamed current track plays before preloading");
+        Check(currentStream != null && !source.clip.Streaming && player.Status == "Playing", "The buffered current track plays before preloading");
 
         player.PreloadTrack(longMp3); player.Tick(new Vector3(), false);
         var upcoming = (StreamedAudio)Field(player, "preloadStream");
@@ -1714,5 +1775,187 @@ static partial class AudioChecks
                 bytes[3] = (byte)(mono ? 0xc0 : 0);
                 output.Write(bytes, 0, bytes.Length);
             }
+    }
+
+    static void CheckInternetRadioStream()
+    {
+        string artist, title;
+        InternetRadioStream.ParseIcyMetadata("StreamTitle='The Sea - Rolling Waves';StreamUrl='';", out artist, out title);
+        Check(artist == "The Sea" && title == "Rolling Waves", "ICY metadata splits artist and title");
+        InternetRadioStream.ParseIcyMetadata("StreamTitle='Harbor News';", out artist, out title);
+        Check(artist == "" && title == "Harbor News", "ICY metadata keeps title-only values");
+        InternetRadioStream.ParseIcyMetadata("StreamUrl='https://example.com';", out artist, out title);
+        Check(artist == "" && title == "", "Missing StreamTitle leaves metadata empty");
+
+        Check(InternetRadioStream.ParseStatusCode("ICY 200 OK") == 200 &&
+            InternetRadioStream.ParseStatusCode("HTTP/1.1 200 OK") == 200 &&
+            InternetRadioStream.ParseStatusCode("HTTP/1.0 302 Found") == 302,
+            "Internet stream parser accepts Shoutcast ICY 200 OK alongside standard HTTP responses");
+
+        byte[] icyResponse = System.Text.Encoding.ASCII.GetBytes(
+            "ICY 200 OK\r\ncontent-type: audio/aacp\r\nicy-name: SomaFM Live\r\nicy-metaint: 16000\r\n\r\nABCD");
+        int parsedStatus, leftoverOffset, leftoverCount;
+        System.Collections.Generic.Dictionary<string, string> parsedHeaders;
+        byte[] leftoverBytes;
+        InternetRadioStream.ReadHttpResponseHeaders(new MemoryStream(icyResponse), out parsedStatus, out parsedHeaders,
+            out leftoverBytes, out leftoverOffset, out leftoverCount);
+        Check(parsedStatus == 200 && parsedHeaders["icy-name"] == "SomaFM Live" &&
+            parsedHeaders["icy-metaint"] == "16000" && parsedHeaders["content-type"] == "audio/aacp" &&
+            leftoverCount == 4 && System.Text.Encoding.ASCII.GetString(leftoverBytes, leftoverOffset, leftoverCount) == "ABCD",
+            "Shoutcast ICY headers parse cleanly while preserving exact leftover audio bytes");
+
+        bool isAac;
+        InternetRadioStream.ValidateContentType("audio/mpeg", out isAac); Check(!isAac, "MP3 content type accepted");
+        InternetRadioStream.ValidateContentType("audio/mpeg; charset=utf-8", out isAac); Check(!isAac, "MP3 with charset accepted");
+        InternetRadioStream.ValidateContentType("application/octet-stream", out isAac); Check(!isAac, "Octet stream defaults to MP3");
+        InternetRadioStream.ValidateContentType("", out isAac); Check(!isAac, "Empty content type defaults to MP3");
+        foreach (string rejected in new[] { "application/vnd.apple.mpegurl", "audio/ogg", "text/html" })
+        {
+            bool threw = false;
+            try { InternetRadioStream.ValidateContentType(rejected, out isAac); }
+            catch (IOException) { threw = true; }
+            Check(threw, "Unsupported internet stream content type rejected: " + rejected);
+        }
+
+        // Build a >2.5 second MP3 payload interleaved with an inline ICY metadata block.
+        string fixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "stereo-noise.mp3");
+        byte[] single = File.ReadAllBytes(fixture);
+        var mp3Payload = new MemoryStream();
+        for (int i = 0; i < 4; i++) mp3Payload.Write(single, 0, single.Length);
+        byte[] rawMp3 = mp3Payload.ToArray();
+
+        const int metaInterval = 4096;
+        byte[] icyBytes = BuildIcyMux(rawMp3, metaInterval, "StreamTitle='Sailwind - Trade Winds';");
+
+        // Verify IcyAudioStream strips metadata cleanly without losing or altering a single audio byte.
+        string seenMeta = null;
+        var demuxed = new MemoryStream();
+        using (var icy = new InternetRadioStream.IcyAudioStream(new MemoryStream(icyBytes), metaInterval, m => seenMeta = m))
+        {
+            byte[] buf = new byte[513];
+            int got;
+            while ((got = icy.Read(buf, 0, buf.Length)) > 0) demuxed.Write(buf, 0, got);
+        }
+        byte[] recovered = demuxed.ToArray();
+        bool exactBytes = recovered.Length == rawMp3.Length;
+        for (int i = 0; exactBytes && i < rawMp3.Length; i++) exactBytes = recovered[i] == rawMp3[i];
+        Check(exactBytes && seenMeta == "StreamTitle='Sailwind - Trade Winds';",
+            "ICY demuxer extracts inline metadata and preserves exact MP3 byte stream");
+
+        // Compare our streaming frame decoder against NLayer.MpegFile on the same MP3 fixture.
+        float[] reference = new float[44100 * 2];
+        int referenceRead;
+        using (var refFile = new NLayer.MpegFile(fixture))
+            referenceRead = refFile.ReadSamples(reference, 0, reference.Length);
+        using (var directStream = InternetRadioStream.StartForTest(new MemoryStream(single), "audio/mpeg", 0, "Test"))
+        {
+            var waitDirect = DateTime.UtcNow.AddSeconds(5);
+            while (!directStream.WorkerCompleted && directStream.WrittenFrames < 22050 && DateTime.UtcNow < waitDirect)
+                Thread.Sleep(5);
+            Check(directStream.Fault == null && directStream.Ready && directStream.WrittenFrames >= 22050,
+                "Streaming MP3 decoder decodes real stereo fixture without seeking");
+            float[] streamedPcm = new float[22050 * 2];
+            Check(directStream.TryCopy(0, streamedPcm, 22050), "Decoded streaming PCM can be read from ring");
+            // MpegFile skips the first 1-frame encoder delay; verify both streams carry non-zero correlated signal.
+            double energy = 0, refEnergy = 0;
+            for (int i = 0; i < streamedPcm.Length; i++) energy += streamedPcm[i] * streamedPcm[i];
+            for (int i = 0; i < streamedPcm.Length; i++) refEnergy += reference[i] * reference[i];
+            double streamRms = Math.Sqrt(energy / streamedPcm.Length);
+            double refRms = Math.Sqrt(refEnergy / streamedPcm.Length);
+            Check(referenceRead > 0 && streamRms > refRms * 0.5 && refRms > 0.001,
+                "Streaming MP3 decoder produces full-amplitude audio matching real stereo fixture (streamRms=" + streamRms.ToString("F6") + ", refRms=" + refRms.ToString("F6") + ")");
+            // Verify exact frame-aligned match against NLayer.MpegFile (after skipping MpegFile's 1-frame preroll/delay).
+            int bestLag = 0;
+            double bestError = double.MaxValue;
+            for (int lag = 0; lag <= 2304; lag += 576)
+            {
+                double sumSq = 0;
+                int compare = 8192 * 2;
+                for (int i = 0; i < compare; i++)
+                {
+                    double diff = streamedPcm[i + lag * 2] - reference[i];
+                    sumSq += diff * diff;
+                }
+                double rms = Math.Sqrt(sumSq / compare);
+                if (rms < bestError) { bestError = rms; bestLag = lag; }
+            }
+            Check(bestError < 0.001, "Streaming MP3 decoder matches NLayer.MpegFile sample-for-sample (rms=" + bestError.ToString("F6") + ", lag=" + bestLag + ")");
+        }
+
+        // Verify real NLayer decoding through a non-seekable ICY stream inside RadioPlayback with a woofer.
+        AudioSettings.dspTime = 500;
+        var state = new RadioState { Powered = true, Volume = 1f, TrackPath = "https://stream.example.com/mp3-128" };
+        int streamWarnings = 0;
+        string lastStreamWarning = "";
+        var player = new RadioPlayback(new MonoBehaviour(), state, msg => { streamWarnings++; lastStreamWarning = msg; });
+        var radio = AudioSource.Last;
+        player.OpenInternetStream = _ => InternetRadioStream.StartForTest(
+            new MemoryStream(icyBytes), "audio/mpeg", metaInterval, "Trade Wind FM");
+        player.SetAcoustics(new Vector3(), true, 0);
+        player.BeginEndpoints();
+        player.SetEndpoint(1, new Vector3(), false, 3, 1f, 0.5f, 0f);
+        var woofer = AudioSource.Last;
+        player.EndEndpoints();
+        player.PreloadTrack("https://stream.example.com/other.mp3");
+        Check(String.IsNullOrEmpty((string)Field(player, "preloadPath")), "Internet radio URLs are never speculatively preloaded");
+
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (player.Status != "Playing" && player.Status != "Unable to play stream" && DateTime.UtcNow < deadline)
+        {
+            player.Tick(new Vector3(), false);
+            Thread.Sleep(5);
+        }
+        Check(streamWarnings == 0 && player.Status == "Playing" && player.Audible(false) && player.NamesTrack,
+            "Internet MP3 stream buffers and plays through callback-free buffered clips (status=" + player.Status + ", warn=" + lastStreamWarning + ")");
+        Check(player.StreamStation == "Trade Wind FM" && player.StreamArtist == "Sailwind" && player.StreamTitle == "Trade Winds",
+            "Live ICY station, artist, and title propagate to RadioPlayback");
+        Check(radio.clip != null && woofer.clip != null && radio.clip != woofer.clip && radio.Schedules == 1 && woofer.Schedules == 1,
+            "Internet stream feeds the built-in clip and a separate pre-filtered woofer clip");
+        Check(state.PositionSeconds == 0, "Live internet stream never persists a playback timestamp");
+
+        // Rejecting an HLS or HTML response fails cleanly without hanging.
+        state.TrackPath = "https://stream.example.com/live.m3u8";
+        player.OpenInternetStream = _ => InternetRadioStream.StartForTest(
+            new MemoryStream(new byte[16]), "application/vnd.apple.mpegurl", 0, "");
+        deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!player.LoadFailed && DateTime.UtcNow < deadline)
+        {
+            player.Tick(new Vector3(), false);
+            Thread.Sleep(5);
+        }
+        Check(player.LoadFailed && player.Status == "Unable to play stream" && streamWarnings == 1,
+            "Unsupported internet stream reports failure cleanly");
+        player.Dispose();
+    }
+
+    static byte[] BuildIcyMux(byte[] audio, int interval, string metadata)
+    {
+        var output = new MemoryStream();
+        byte[] metaRaw = System.Text.Encoding.UTF8.GetBytes(metadata);
+        int blocks = (metaRaw.Length + 15) / 16;
+        byte[] metaPadded = new byte[blocks * 16];
+        Array.Copy(metaRaw, metaPadded, metaRaw.Length);
+        int pos = 0;
+        bool sentMeta = false;
+        while (pos < audio.Length)
+        {
+            int chunk = Math.Min(interval, audio.Length - pos);
+            output.Write(audio, pos, chunk);
+            pos += chunk;
+            if (chunk == interval)
+            {
+                if (!sentMeta)
+                {
+                    output.WriteByte((byte)blocks);
+                    output.Write(metaPadded, 0, metaPadded.Length);
+                    sentMeta = true;
+                }
+                else
+                {
+                    output.WriteByte(0);
+                }
+            }
+        }
+        return output.ToArray();
     }
 }

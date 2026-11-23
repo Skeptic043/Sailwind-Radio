@@ -36,9 +36,10 @@ static partial class AudioChecks
         var source = AudioSource.Last;
         player.SetAcoustics(new Vector3(), true, 0);
         PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
-        Check(!player.LoadFailed && Field(player, "streamed") is StreamedAudio && source.clip.Streaming && source.clip.samples == frames &&
-            source.clip.channels == 2 && source.clip.frequency == 44100 && source.timeSamples == 4410 && warnings == 0,
-            "OGG plays from its saved sample through a PCM-reader stream like every other format: status=" + player.Status);
+        Check(!player.LoadFailed && Field(player, "streamed") is StreamedAudio && !source.clip.Streaming &&
+            source.clip.samples >= frames && source.clip.samples < frames + 4096 &&
+            source.clip.channels == 2 && source.clip.frequency == 44100 && source.timeSamples == MusicSample(player, 4410) && warnings == 0,
+            "OGG plays from its saved sample through the uploaded PCM clip: status=" + player.Status);
         player.Dispose();
         DeleteClosed(ogg);
         CheckLongOgg();
@@ -79,7 +80,8 @@ static partial class AudioChecks
         var source = AudioSource.Last;
         player.SetAcoustics(new Vector3(), true, 0);
         PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
-        Check(!player.LoadFailed && source.clip.Streaming && source.clip.samples == frames && source.timeSamples == saved && warnings == 0,
+        Check(!player.LoadFailed && !source.clip.Streaming && source.clip.samples < 6 * rate &&
+            source.timeSamples == MusicSample(player, saved) && warnings == 0,
             "A 27 minute OGG plays from a saved position past 25 minutes: status=" + player.Status);
         player.Dispose();
         DeleteClosed(path);
@@ -126,8 +128,8 @@ static partial class AudioChecks
         var source = AudioSource.Last;
         player.SetAcoustics(new Vector3(), true, 0);
         PumpUntil(player, false, () => player.Status == "Playing" || player.LoadFailed);
-        Check(!player.LoadFailed && source.clip.Streaming && source.clip.channels == 1 && source.clip.frequency == 22050 &&
-            source.clip.samples == 11025 && source.Schedules == 1 && warnings == 0, "Chained OGG plays its first link through the stream engine");
+        Check(!player.LoadFailed && !source.clip.Streaming && source.clip.channels == 1 && source.clip.frequency == 22050 &&
+            source.Schedules == 1 && warnings == 0, "Chained OGG plays its first link through the buffered clip");
         AudioSettings.dspTime = source.ScheduledAt + .6;
         player.Tick(new Vector3(), false);
         Check(player.TrackEnded && player.Status == "Ended" && Math.Abs(state.PositionSeconds - .5) < 1e-9 && warnings == 0,

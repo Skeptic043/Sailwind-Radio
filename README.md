@@ -27,13 +27,15 @@ Install Sailwind Radio through [Sailwind Mod Synchronizer](https://github.com/fo
 
 ## Configuration
 
-After the first launch, close the game and edit `BepInEx/config/local.sailwind.radio.cfg` in your active game or mod manager profile. With [Configuration Manager](https://github.com/BepInEx/BepInEx.ConfigurationManager) installed, the audio and display settings can also be changed in game.
+After the first launch, close the game and edit `BepInEx/config/local.sailwind.radio.cfg` in your active game or mod manager profile. With [BepInEx Configuration Manager](https://github.com/BepInEx/BepInEx.ConfigurationManager) installed, the audio and display settings can also be changed in game.
 
 | Section | Setting | Default | What it does |
 | --- | --- | --- | --- |
-| Music | `MusicFolders` | Blank | Music folders separated by `\|`. |
+| Music | `MusicFolders` | Blank | Music folders or playlist files (`.m3u`, `.m3u8`, `.pls`) separated by `\|`. |
 | Audio | `ContinueWhileSleeping` | `false` | Keep music playing while the player sleeps. |
 | Audio | `AppVolumePercent` | `100` | Volume of apps playing through a radio, from 1 to 100%. |
+| Audio | `AppBufferSeconds` | `0` | Extra delay in seconds for captured app audio, from 0 to 2.5. Around 1.0 covers typical save pauses cleanly. Pausing the game clears the buffer and unpausing rebuilds it. |
+| Audio | `ExcludedApps` | Blank | Applications hidden from the radio app list, separated by `\|`, by executable name or full path. |
 | Audio | `RadioFalloff` | `12` | How far the radio's built-in speaker can be heard, from 5 to 50 m. |
 | Audio | `SmallSpeakerFalloff` | `15` | How far Small Speakers can be heard, from 5 to 50 m. |
 | Audio | `SpeakerFalloff` | `20` | How far Speakers can be heard, from 5 to 50 m. |
@@ -42,12 +44,12 @@ After the first launch, close the game and edit `BepInEx/config/local.sailwind.r
 | Display | `ShowSongOnHover` | `false` | Show the current song's title and artist when looking at a radio. |
 | Development | `LogDisplayTiming` | `false` | Log regional display frame cost every 10 seconds. |
 
-Example folder setup: `MusicFolders = D:\Music | E:\Sailing Music`. Each folder is one collection, including music within its subfolders. The radio reads file metadata to display title, artist and album tags, and uses the filename when a title tag is missing.
+Example folder setup: `MusicFolders = D:\Music | E:\Sailing Music | E:\Sailing.m3u`. Each folder is one collection, including music within its subfolders. Playlist files (`.m3u`, `.m3u8` and `.pls`) listed directly or placed in the top level of a music folder also appear as collections in playlist order, and can point to local files or direct `http://` and `https://` MP3 or AAC internet radio streams. The radio reads file metadata or live stream info to display title, artist and album tags, and uses the filename when a title tag is missing.
 
 Supported formats:
 
 - MP3, OGG (Vorbis), WAV and FLAC files.
-- M4A and AAC files on Windows. These file types are currently turned off automatically on Steam Deck and Linux (Proton).
+- M4A and AAC files, plus AAC internet radio streams, on Windows. These are currently turned off automatically on Steam Deck and Linux (Proton).
 
 Sample rates up to 192 kHz are supported, and surround files are mixed down to stereo.
 
@@ -61,6 +63,7 @@ A radio can play another app's sound instead of your music files, such as Spotif
 
 - Previous, Pause and Next control the app and the radio shows its song when the selected application supports Windows media controls. Spotify, web browsers and most music players are all supported.
 - Choose "Back to music" in the Collections menu to return to local music. Turning the radio off or quitting Sailwind restores the application's normal volume.
+- If captured app audio pauses or stutters during game saves, raising `AppBufferSeconds` in [BepInEx Configuration Manager](https://github.com/BepInEx/BepInEx.ConfigurationManager) to around `1.0` covers typical save pauses. Pausing the game clears the buffer and unpausing rebuilds it.
 - The radio plays everything the application plays. In the case of internet browsers, all tabs will be captured if playing audio.
 - If Sailwind crashes while an application is playing through the radio, the application's audio remains low. Starting Sailwind will restore the volume to normal levels. Alternatively, you can adjust the volume back to your preferred level in the Windows Volume Mixer.
 - Currently, only Windows 11 is fully supported in application capture, while recent versions of Windows 10 may also work.

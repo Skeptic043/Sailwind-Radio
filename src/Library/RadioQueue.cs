@@ -85,7 +85,6 @@ namespace SailwindRadio.Library
                     foreach (var track in collection.Tracks)
                         if (!failed.Contains(track.Path) && unique.Add(track.Path)) pool.Add(track.Path);
                 }
-                pool.Sort(LibraryPaths.Comparer);
             }
             ResetTraversal();
             if (IndexOf(state.TrackPath) >= 0) return false;

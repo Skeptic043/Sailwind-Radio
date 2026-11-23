@@ -18,7 +18,7 @@ namespace SailwindRadio.Audio
         {
             if (disposed) return;
             path = path ?? "";
-            if (String.Equals(path, state.TrackPath, StringComparison.OrdinalIgnoreCase)) path = "";
+            if (IsStreamUrl(path) || String.Equals(path, state.TrackPath, StringComparison.OrdinalIgnoreCase)) path = "";
             if (String.Equals(path, preloadPath ?? "", StringComparison.OrdinalIgnoreCase)) return;
             ReleasePreload();
             preloadPath = path;

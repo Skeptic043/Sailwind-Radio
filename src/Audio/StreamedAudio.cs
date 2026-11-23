@@ -7,8 +7,7 @@ using UnityEngine;
 namespace SailwindRadio.Audio
 {
     // One decoder feeds all outputs. Its own worker opens the file, so the Unity thread never
-    // touches disk or decoding. Audio callbacks only copy published, immutable PCM chunks and
-    // never touch the decoder, disk, or Unity objects.
+    // touches disk or decoding. Consumers only copy published, immutable PCM chunks.
     internal sealed class StreamedAudio : IDisposable
     {
         private const int ChunkFrames = 4096;
@@ -89,7 +88,9 @@ namespace SailwindRadio.Audio
                 int observedGeneration = Volatile.Read(ref generation);
                 int start = Volatile.Read(ref cursor);
                 int frames = data.Length / owner.Channels;
-                owner.Copy(start, data, frames);
+                int copied = owner.Copy(start, data, frames);
+                int missing = Math.Min(frames, owner.Frames - start) - copied;
+                if (missing > 0) Interlocked.Add(ref owner.missingFrames, missing);
                 int advanced = start > owner.Frames - frames ? owner.Frames : start + frames;
                 CommitRead(observedGeneration, start, advanced);
             }
@@ -156,16 +157,23 @@ namespace SailwindRadio.Audio
             return true;
         }
 
-        private void Copy(int frame, float[] destination, int frames)
+        // An incomplete copy is never committed to Unity. The caller can upload this block when it is ready.
+        internal bool TryCopy(long frame, float[] destination, int frames)
         {
-            if (frame < 0 || frame >= Frames) return;
+            return opened && !disposed && frame >= 0 && frame <= Frames - frames &&
+                Copy((int)frame, destination, frames) == frames;
+        }
+
+        private int Copy(int frame, float[] destination, int frames)
+        {
+            if (frame < 0 || frame >= Frames) return 0;
+            int copied = 0;
             int at = frame, end = (int)Math.Min((long)Frames, (long)frame + frames);
             while (at < end)
             {
                 int start = at / ChunkFrames * ChunkFrames;
                 int take = Math.Min(end - at, start + ChunkFrames - at);
                 int slot = Volatile.Read(ref slots[start / ChunkFrames]) - 1;
-                bool copied = false;
                 if (slot >= 0)
                 {
                     Chunk chunk = chunks[slot];
@@ -179,15 +187,15 @@ namespace SailwindRadio.Audio
                             if (chunk.Start == start && at + take <= start + chunk.Count)
                             {
                                 Array.Copy(chunk.Samples, (at - start) * Channels, destination, (at - frame) * Channels, take * Channels);
-                                copied = true;
+                                copied += take;
                             }
                         }
                         finally { Interlocked.Decrement(ref chunk.State); }
                     }
                 }
-                if (!copied) Interlocked.Add(ref missingFrames, take);
-                at += take; // Missing chunks are silence, never a blocking read.
+                at += take;
             }
+            return copied;
         }
 
         private void Open(CancellationToken token)

@@ -6,10 +6,11 @@ namespace SailwindRadio.Audio
 {
     // Plays one desktop application through a radio. Its worker holds the application's Windows volume down,
     // captures the application's process tree into a ring and follows the application across restarts. The
-    // main thread only starts and stops it, and the outputs' audio threads read the ring without waiting.
+    // playback side reads the ring without blocking capture.
     internal sealed class ApplicationAudio
     {
         private const int PollMilliseconds = 5, PacketMilliseconds = 20, HoldMilliseconds = 1000, JoinMilliseconds = 1000, PauseMilliseconds = 250;
+        private const int PacketsPerPass = 32;
         internal readonly AudioApplication Application;
         internal readonly ApplicationRing Ring;
         internal readonly MediaControls Media;
@@ -35,8 +36,8 @@ namespace SailwindRadio.Audio
         internal void Stop(bool wait, bool pause = false)
         {
             pausing = pause;
+            Media.Stop(pause ? MediaControls.Command.Pause : MediaControls.Command.None, Ring.Sounding);
             stopping = true;
-            Media.Stop(pause ? MediaControls.Command.Pause : MediaControls.Command.None);
             if (wait) worker.Join(JoinMilliseconds);
         }
 
@@ -49,9 +50,11 @@ namespace SailwindRadio.Audio
                     ProcessLoopback capture = null;
                     try
                     {
-                        var packet = new float[Ring.Capacity * ApplicationRing.Channels];
+                        float[] packet = null;
                         var clock = Stopwatch.StartNew();
                         long nextHold = 0;
+                        ulong previousQpc = 0;
+                        int previousFrames = 0;
                         int root = 0, self = Process.GetCurrentProcess().Id;
                         while (!stopping)
                         {
@@ -63,7 +66,14 @@ namespace SailwindRadio.Audio
                                 // Started, or the application closed or restarted with a new process.
                                 if (root == 0 || !tree.Contains(root))
                                 {
-                                    if (capture != null) { capture.Dispose(); capture = null; }
+                                    if (capture != null)
+                                    {
+                                        capture.Dispose();
+                                        capture = null;
+                                        previousQpc = 0;
+                                        previousFrames = 0;
+                                        Ring.Reset();
+                                    }
                                     root = tree.Find(Application.Program);
                                     // A launcher that started Sailwind would capture and hold the game itself.
                                     if (root != 0 && tree.Within(self, root)) root = 0;
@@ -75,15 +85,41 @@ namespace SailwindRadio.Audio
                                     // Capture opens first, so a system that refuses it, or a quit during activation,
                                     // never leaves the application held. Its first packets come before the hold and
                                     // the ring's guard plays them as silence.
-                                    if (capture == null) capture = ProcessLoopback.Open(root, Ring.SampleRate);
+                                    if (capture == null)
+                                    {
+                                        capture = ProcessLoopback.Open(root, Ring.SampleRate);
+                                        previousQpc = 0;
+                                        previousFrames = 0;
+                                        int samples = checked(capture.BufferFrames * ApplicationRing.Channels);
+                                        if (packet == null || packet.Length < samples) packet = new float[samples];
+                                    }
                                     HeldVolumes.Hold(this, id => id != self && tree.Within(id, top));
                                 }
                             }
                             if (capture != null)
                             {
-                                int samples = capture.Read(packet, 0, packet.Length);
-                                // A packet too loud to be held means a session escaped the hold, so hold again now.
-                                if (samples > 0 && !Ring.Write(packet, samples / ApplicationRing.Channels)) holdNow = true;
+                                int packets = 0;
+                                for (; packets < PacketsPerPass && !stopping; packets++)
+                                {
+                                    bool discontinuity;
+                                    int frames = capture.ReadPacket(packet, 0, packet.Length, out discontinuity);
+                                    if (frames == 0) break;
+                                    ulong qpc = capture.LastPacketQpc;
+                                    // Windows process loopback drops packets silently when GC freezes this thread.
+                                    // Detect gaps from packet QPC timestamps so the ring can smooth across the join.
+                                    if (previousQpc != 0 && qpc > previousQpc)
+                                    {
+                                        double missingMs = (qpc - previousQpc) / 10000.0 - previousFrames * 1000.0 / Ring.SampleRate;
+                                        if (missingMs > 25.0 && missingMs < 1500.0) discontinuity = true;
+                                        else if (missingMs >= 1500.0) discontinuity = false;
+                                    }
+                                    previousQpc = qpc;
+                                    previousFrames = frames;
+                                    // A loud packet means a session escaped the hold. Silence it and recheck the hold.
+                                    if (!Ring.Write(packet, frames, discontinuity)) holdNow = true;
+                                }
+                                // The negotiated buffer sizes one packet. A stalled worker can have several queued.
+                                if (packets == PacketsPerPass) continue;
                             }
                             // Windows wakes the worker for each packet. Without capture it only checks for the application.
                             if (capture != null) capture.Wait(PacketMilliseconds);

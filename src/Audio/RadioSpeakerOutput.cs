@@ -27,14 +27,11 @@ namespace SailwindRadio.Audio
         }
     }
 
-    /// <summary>One emitter and its own stream clip. It never decodes, and RadioPlayback owns the timeline.</summary>
+    /// <summary>One native Unity emitter with no managed audio callbacks. RadioPlayback owns the timeline and clips.</summary>
     internal sealed class RadioSpeakerOutput : IDisposable
     {
         internal readonly GameObject Emitter;
         internal readonly AudioSource Source;
-        internal readonly RadioApplicationInput Input;
-        internal readonly RadioOutputLimiter Limiter;
-        internal AudioClip StreamClip;
         internal RadioSpeakerProfile Profile;
         internal Vector3 Position;
         // Flat outputs play without panning but keep their distance gain, for a listening point away from the native listener.
@@ -44,7 +41,6 @@ namespace SailwindRadio.Audio
         internal float LocalVolume = 1f, Bass = 1f, Obstruction;
         private AudioHighPassFilter highPass;
         private AudioLowPassFilter lowPass;
-        private RadioBassFilter bassFilter;
         private float smoothedObstruction;
         private bool initialized;
         // The inputs of the latest Update, so a start can apply them without waiting for the next frame.
@@ -74,8 +70,6 @@ namespace SailwindRadio.Audio
             // Native pause retains the voice, while a modded port's global reverb can
             // keep sounding after it. Keep Radio's own signal out of reverb zones.
             Source.bypassReverbZones = true;
-            // Added before the filters, so they also shape application audio.
-            Input = Emitter.AddComponent<RadioApplicationInput>();
             try
             {
                 highPass = Emitter.AddComponent<AudioHighPassFilter>();
@@ -102,20 +96,6 @@ namespace SailwindRadio.Audio
                 lowPass = null;
                 warning("Radio low-pass filter unavailable: " + ex.Message);
             }
-            if (profile.IsWoofer) try
-            {
-                bassFilter = Emitter.AddComponent<RadioBassFilter>();
-                if (bassFilter == null) throw new InvalidOperationException("Bass component unavailable");
-            }
-            catch (Exception ex)
-            {
-                if (bassFilter != null) UnityEngine.Object.Destroy(bassFilter);
-                bassFilter = null;
-                warning("Radio bass filter unavailable: " + ex.Message);
-            }
-            // Added last, so it holds the output after every filter.
-            Limiter = Emitter.AddComponent<RadioOutputLimiter>();
-            Limiter.Input = Input;
         }
 
         // Runs every frame. A stopped output only keeps its muffling eased, and writes nothing to its source.
@@ -132,15 +112,12 @@ namespace SailwindRadio.Audio
             if (Running || Paused) Apply();
         }
 
-        // Writes position, spatialization, filters and volume to the native source. Every path that starts
-        // this output calls it immediately before the start (PlayScheduled, UnPause and the application
-        // carrier's Play), so a stopped output never starts with stale settings.
+        // Writes position, spatialization, filters and volume to the native source immediately before starting.
         internal void Apply()
         {
             if (Emitter == null || Source == null) return;
             Emitter.transform.position = Position;
             Source.spatialBlend = Carried || Flat ? 0f : 1f;
-            if (Input != null) Input.Spatial = !(Carried || Flat);
             Source.maxDistance = Profile.Radius;
             float effectiveObstruction = Carried ? 0f : smoothedObstruction;
             if (highPass != null) highPass.cutoffFrequency = Profile.HighPass;
@@ -150,26 +127,8 @@ namespace SailwindRadio.Audio
             float distanceGain = !listenerKnown ? 0f : Carried ? 1f : DistanceGain(Vector3.Distance(Position, listener), Profile.Radius);
             float local = Profile.IsWoofer ? 1f : Clamp(LocalVolume);
             float bassGain = Profile.IsWoofer ? (float)Math.Sqrt(Clamp(Bass)) : 1f;
-            float volume = Profile.Gain * masterVolume * masterVolume * local * local * bassGain * distanceGain *
+            Source.volume = Profile.Gain * masterVolume * masterVolume * local * local * bassGain * distanceGain *
                 (1f - (Profile.IsWoofer ? .4f : .65f) * effectiveObstruction);
-            // Unity applies volume after every filter, so boosted application audio and bass emphasis can rise until
-            // volume makes them full scale. Near silence the bound only keeps samples finite. Lower headroom is published before a
-            // louder volume and higher headroom after a quieter one, so the audio thread never pairs a louder
-            // volume with the old headroom.
-            float headroom = volume > .01f ? 1f / volume : 100f;
-            if (headroom < Input.Headroom)
-            {
-                Input.Headroom = headroom;
-                Source.volume = volume;
-            }
-            else
-            {
-                Source.volume = volume;
-                Input.Headroom = headroom;
-            }
-            int sampleRate = AudioSettings.outputSampleRate;
-            if (Limiter != null) Limiter.SampleRate = sampleRate;
-            if (bassFilter != null) bassFilter.SetProfile(sampleRate, Profile.IsWoofer);
         }
 
         internal void Stop(bool clearClip = false)
@@ -178,6 +137,28 @@ namespace SailwindRadio.Audio
             if (Source == null) return;
             Source.Stop();
             if (clearClip) Source.clip = null;
+        }
+
+        internal bool PlayBuffered(BufferedAudioClip buffer, long frame, double startDsp, double endDsp, bool loop)
+        {
+            if (Source == null || buffer == null || frame < buffer.FirstFrame || frame >= buffer.WrittenThrough || endDsp <= startDsp)
+                return false;
+            Stop();
+            Source.clip = buffer.Clip;
+            Source.loop = loop;
+            Source.timeSamples = buffer.ClipFrame(frame);
+            Apply();
+            Source.PlayScheduled(startDsp);
+            Source.SetScheduledEndTime(endDsp);
+            Running = true;
+            StartsAt = startDsp;
+            SettlesAt = startDsp + .3;
+            return true;
+        }
+
+        internal void ExtendBuffered(double endDsp)
+        {
+            if (Running && Source != null) Source.SetScheduledEndTime(endDsp);
         }
 
         internal void Pause()
@@ -206,25 +187,19 @@ namespace SailwindRadio.Audio
             float remaining = 1f - Mathf.Clamp01((distance - 1f) / (radius - 1f));
             return remaining * remaining;
         }
+
         internal static float Clamp(float value) { return Single.IsNaN(value) ? 0f : Mathf.Clamp01(value); }
         internal static bool Finite(float value) { return !Single.IsNaN(value) && !Single.IsInfinity(value); }
+
         public void Dispose()
         {
             try { Stop(true); }
             finally
             {
-                ReleaseStreamClip();
                 if (Emitter != null) UnityEngine.Object.Destroy(Emitter);
                 highPass = null;
                 lowPass = null;
-                bassFilter = null;
             }
-        }
-
-        internal void ReleaseStreamClip()
-        {
-            if (StreamClip != null) UnityEngine.Object.Destroy(StreamClip);
-            StreamClip = null;
         }
     }
 }

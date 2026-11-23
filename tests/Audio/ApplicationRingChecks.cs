@@ -1,9 +1,9 @@
 using System;
+using SailwindRadio;
 using SailwindRadio.Audio;
+using UnityEngine;
 
-// The application ring between the capture worker and each output's audio thread. Windows capture and the
-// Unity carrier are live checks. The Unity editor showed that a 3D source's filter receives the carrier
-// already panned, with both input channels summed, and a flat source's receives each channel unchanged.
+// The application ring and callback-free buffered upload path between capture and Unity's native voices.
 static partial class AudioChecks
 {
     static void CheckApplicationRing()
@@ -15,90 +15,18 @@ static partial class AudioChecks
         var ring = new ApplicationRing(rate);
         var packet = Packet(2048, HeldVolumes.Level * 10);
         Check(!ring.Write(packet, 2048), "an unheld packet is reported");
-        var reader = new ApplicationRing.Reader(ring);
-        var data = Carrier(1024, 2, .5f);
-        reader.Mix(data, 2, false, 0);
-        Check(MaxAbs(data) == 0, "an unheld packet plays as silence");
+        ApplicationRing.CaptureWindow window;
+        var copy = new float[2048 * 2];
+        Check(ring.TryGetWindow(out window) && ring.TryCopy(window.FirstFrame, copy, 2048, window.Generation) && MaxAbs(copy) == 0,
+            "an unheld packet plays as silence");
+
         var nan = Packet(2048, held);
         nan[7] = Single.NaN;
         Check(!ring.Write(nan, 2048) && Finite(nan), "a packet with NaN is silenced");
 
-        // A held full-scale peak passes, and the gain carries it past full scale for the output's limiter to hold.
+        // A held full-scale peak passes the guard.
         ring = new ApplicationRing(rate);
         Check(ring.Write(Packet(2048, HeldVolumes.Level), 2048), "a held full-scale packet passes the guard");
-        ring = new ApplicationRing(rate);
-        ring.Write(Stereo(4096, ApplicationRing.HeldPeak * .999f, -ApplicationRing.HeldPeak * .999f), 4096);
-        data = Carrier(1024, 2, .5f);
-        new ApplicationRing.Reader(ring).Mix(data, 2, false, 0);
-        Check(Math.Abs(data[0] - 3.996f) < 1e-3f && Math.Abs(data[1] + 3.996f) < 1e-3f, "mixing leaves audio past full scale to the output limiter");
-
-        // AppVolume lifts a quiet app.
-        try
-        {
-            ApplicationRing.Boost = 4f;
-            ring = new ApplicationRing(rate);
-            ring.Write(Stereo(4096, held * .2f, -held * .2f), 4096);
-            data = Carrier(1024, 2, .5f);
-            new ApplicationRing.Reader(ring).Mix(data, 2, false, 0);
-            Check(Near(data[0], .4f) && Near(data[1], -.4f), "AppVolume lifts a quiet app");
-            CheckBoostedWoofer(rate, held);
-        }
-        finally { ApplicationRing.Boost = 1f; }
-        CheckPeakLimiter(rate);
-
-        // A flat output restores each channel to full level from its carrier of one half per channel.
-        ring = new ApplicationRing(rate);
-        ring.Write(Stereo(4096, held, -held), 4096);
-        reader = new ApplicationRing.Reader(ring);
-        data = Carrier(1024, 2, .5f);
-        reader.Mix(data, 2, false, 0);
-        Check(Near(data[0], .5f) && Near(data[1], -.5f), "a flat output keeps left and right at full level");
-
-        // A 3D output applies each channel's pan gain to the sum of both inputs, as Unity does for a stereo clip.
-        data = new float[2048];
-        for (int i = 0; i < data.Length; i += 2) { data[i] = .259f; data[i + 1] = .966f; }
-        ring = new ApplicationRing(rate);
-        ring.Write(Stereo(4096, held, held), 4096);
-        new ApplicationRing.Reader(ring).Mix(data, 2, true, 0);
-        Check(Near(data[0], .259f) && Near(data[1], .966f), "a 3D output pans the summed application audio");
-
-        // Unused channels of a wider speaker layout carry no gain and stay silent.
-        data = Carrier(256, 6, 0f);
-        for (int i = 0; i < data.Length; i += 6) { data[i] = .5f; data[i + 1] = .5f; }
-        new ApplicationRing.Reader(ring).Mix(data, 6, false, 0);
-        Check(Near(data[0], .5f) && data[2] == 0 && data[5] == 0, "a flat 5.1 output fills only the front pair");
-
-        // A reader stays a short margin behind the newest audio and catches up when it falls far behind.
-        ring = new ApplicationRing(rate);
-        reader = new ApplicationRing.Reader(ring);
-        var ramp = new float[4800 * 2];
-        for (int frame = 0; frame < 4800; frame++) ramp[frame * 2] = ramp[frame * 2 + 1] = held * frame / 4800f;
-        ring.Write(ramp, 4800);
-        data = Carrier(1024, 2, .5f);
-        reader.Mix(data, 2, false, 0);
-        float first = data[0];
-        Check(first > 0 && first < .5f, "a new reader starts just behind the newest audio");
-        for (int i = 0; i < 20; i++) ring.Write(Stereo(4800, held, held), 4800);
-        data = Carrier(1024, 2, .5f);
-        reader.Mix(data, 2, false, 1024);
-        Check(Near(data[0], .5f), "a reader far behind jumps to recent audio");
-
-        // A speaker that joins later plays the same moment as the radio, not its own point behind the newest audio.
-        ring = new ApplicationRing(rate);
-        ramp = new float[48000 * 2];
-        for (int frame = 0; frame < 48000; frame++) ramp[frame * 2] = ramp[frame * 2 + 1] = held * frame / 48000f;
-        ring.Write(ramp, 2400);
-        var radio = new ApplicationRing.Reader(ring);
-        radio.Mix(Carrier(1024, 2, .5f), 2, false, 0);
-        var rest = new float[(48000 - 2400) * 2];
-        Array.Copy(ramp, 2400 * 2, rest, 0, rest.Length);
-        ring.Write(rest, 2400);
-        var fromRadio = Carrier(1024, 2, .5f);
-        var fromSpeaker = Carrier(1024, 2, .5f);
-        radio.Mix(fromRadio, 2, false, 1024);
-        new ApplicationRing.Reader(ring).Mix(fromSpeaker, 2, false, 1024);
-        Check(fromRadio[0] > 0 && Near(fromRadio[0], fromSpeaker[0]) && Near(fromRadio[2046], fromSpeaker[2046]),
-            "a speaker joining later plays in step with its radio");
 
         // Sound marks the application as playing, and a paused player's digital silence does not.
         ring = new ApplicationRing(rate);
@@ -107,69 +35,191 @@ static partial class AudioChecks
         ring.Write(Packet(480, held), 480);
         Check(ring.Sounding, "held music is playing");
 
-        // Nothing captured yet is silence, never stale or uninitialized samples.
-        data = Carrier(1024, 2, .5f);
-        new ApplicationRing.Reader(new ApplicationRing(rate)).Mix(data, 2, false, 0);
-        Check(MaxAbs(data) == 0, "an empty ring plays silence");
+        // Smooth crossfade splice across a capture drop keeps the stream continuous without a step jump.
+        ring = new ApplicationRing(rate);
+        ring.Write(Stereo(1024, held, -held), 1024);
+        ring.Write(Stereo(1024, -held, held), 1024, splice: true);
+        Check(ring.TryGetWindow(out window) && window.EndFrame == 2048 && ring.Discontinuities == 1,
+            "a capture drop records a discontinuity without resetting playback history");
+        var spliced = new float[1024 * 2];
+        Check(ring.TryCopy(1024, spliced, 1024, window.Generation), "spliced frames remain readable in the same generation");
+        // First spliced frame stays close to previous tail (held, -held) instead of jumping straight to (-held, held).
+        Check(spliced[0] > held * .9f && spliced[1] < -held * .9f && Near(spliced[2046], -held) && Near(spliced[2047], held),
+            "a capture drop crossfades smoothly from the previous sample into the new packet");
+
+        CheckPeakLimiter(rate);
+        CheckBufferedApplicationHistory(rate, held);
+        CheckBufferedApplicationPlayback(rate, held);
+        CheckBufferedWooferAndLiveBoost(rate, held);
     }
 
-    // The whole chain of a Turbo Wolfer at half master volume, with AppVolume at 10 on a 70 Hz app tone: mixing,
-    // the bass filter's emphasis, the final limiter and then the output's volume, as Unity applies it last.
-    static void CheckBoostedWoofer(int rate, float held)
+    static void CheckBufferedApplicationPlayback(int rate, float held)
     {
-        ApplicationRing.Boost = 10f;
-        var output = new RadioSpeakerOutput("Boost check", RadioSpeakerProfile.TurboWoofer, message => { });
-        output.Carried = true;
-        output.Running = true; // A playing output. A stopped one writes nothing to its source.
-        output.Update(.5f, new UnityEngine.Vector3(), true);
-        Check(Near(output.Source.volume, .25f) && Near(output.Input.Headroom, 4f), "an output's headroom is the level its volume turns into full scale");
-        output.Update(.5f, new UnityEngine.Vector3(), false);
-        Check(output.Source.volume == 0 && output.Input.Headroom == 100f, "a silent output keeps a finite headroom");
-        output.Update(.5f, new UnityEngine.Vector3(), true);
-
+        double previousTime = AudioSettings.dspTime;
+        AudioSettings.dspTime = 90;
         var ring = new ApplicationRing(rate);
-        var reader = new ApplicationRing.Reader(ring);
-        output.Input.Reader = reader;
-        var bass = new RadioBassFilter();
-        bass.SetProfile(rate, true);
-        var tone = new float[1024 * 2];
-        float loudPeak = 0, quietPeak = 0;
-        // Written a block ahead of each read, as capture runs, so the reader plays the whole passage in order.
-        for (int block = 0; block < rate / 1024; block++)
+        using (var player = new RadioPlayback(new MonoBehaviour(), new RadioState(), _ => { }))
         {
-            for (int frame = 0; frame < 1024; frame++)
-            {
-                int at = block * 1024 + frame;
-                tone[frame * 2] = tone[frame * 2 + 1] = (at < rate / 2 ? held : held * .1f) * (float)Math.Sin(2 * Math.PI * 70 * at / rate);
-            }
-            ring.Write(tone, 1024);
-            var data = Carrier(1024, 2, .5f);
-            reader.Mix(data, 2, false, block * 1024);
-            bass.Process(data, 2);
-            output.Limiter.Process(data, 2);
-            for (int i = 0; i < data.Length; i++) data[i] *= output.Source.volume;
-            if (block > 6 && block < 20) loudPeak = Math.Max(loudPeak, MaxAbs(data));
-            if (block > 40) quietPeak = Math.Max(quietPeak, MaxAbs(data));
+            var radio = AudioSource.Last;
+            player.SetEndpoint(1, new Vector3(0, 0, 0), false, DeviceKind.WalnutSpeaker, 1, .5f, 0);
+            var speaker = AudioSource.Last;
+            ring.Write(Stereo(rate / 4, held, -held), rate / 4);
+            player.UpdateBufferedApplication(ring, .5f);
+            Check(radio.Schedules == 0, "The delayed app waits for its selected reserve");
+
+            ring.Write(Stereo(rate / 2, held, -held), rate / 2);
+            player.UpdateBufferedApplication(ring, .5f);
+            Check(radio.Schedules == 1 && speaker.Schedules == 1 && radio.clip == speaker.clip &&
+                !radio.clip.Streaming && radio.clip.PcmRead == null &&
+                radio.timeSamples == speaker.timeSamples && radio.ScheduledAt == speaker.ScheduledAt &&
+                radio.ScheduledEnd == speaker.ScheduledEnd && radio.ScheduledEnd - radio.ScheduledAt >= .45,
+                "Radio and speakers play the same callback-free buffered clip through the last published frames");
+
+            var clip = radio.clip;
+            double originalEnd = radio.ScheduledEnd;
+            AudioSettings.dspTime += .10;
+            ring.Write(Stereo(rate / 10, held * .5f, -held * .5f), rate / 10);
+            player.UpdateBufferedApplication(ring, .5f);
+            Check(radio.Schedules == 1 && radio.clip == clip && radio.ScheduledEnd > originalEnd &&
+                radio.ScheduledEnd == speaker.ScheduledEnd,
+                "New captured audio extends the existing schedule without a track-transition restart");
+
+            // Zero extra delay still uses the callback-free buffered clip with low latency.
+            ring.Reset();
+            AudioSettings.dspTime += .10;
+            player.UpdateBufferedApplication(ring, 0f);
+            Check(!radio.isPlaying && !speaker.isPlaying, "A new capture session invalidates the previous app's queued audio");
+            ring.Write(Stereo(rate / 5, held, -held), rate / 5);
+            player.UpdateBufferedApplication(ring, 0f);
+            Check(radio.Schedules == 2 && !radio.clip.Streaming && radio.clip.PcmRead == null,
+                "Zero app delay still uses the callback-free buffered clip");
+
+            // Raising AppBufferSeconds waits to fill the new reserve without jumping backward into old audio.
+            AudioSettings.dspTime += .05;
+            player.UpdateBufferedApplication(ring, 1.0f);
+            Check(radio.Schedules == 2 && !radio.isPlaying, "Raising app buffer waits for fresh reserve instead of replaying old audio");
+            ring.Write(Stereo(rate + rate / 4, held, -held), rate + rate / 4);
+            player.UpdateBufferedApplication(ring, 1.0f);
+            Check(radio.Schedules == 3 && radio.ScheduledEnd - radio.ScheduledAt >= 1.0,
+                "Raised app buffer starts once the full reserve is queued");
+
+            // Pausing the game wipes the buffer so unpausing skips wake-up silence and rebuilds a full fresh reserve.
+            AudioSettings.dspTime += .15;
+            player.StopBufferedApplication();
+            ring.Write(Stereo(rate / 20, held, -held), rate / 20); // Pre-pause tail before Spotify finishes pausing.
+            player.StopBufferedApplication();
+            AudioSettings.dspTime += 2.0;
+            player.UpdateBufferedApplication(ring, 1.0f);
+            Check(radio.Schedules == 3 && !radio.isPlaying,
+                "Unpausing wipes pre-pause audio and waits to rebuild a full fresh buffer");
+            // Digital silence while the external app wakes up must be skipped rather than buffered ahead of music.
+            ring.Write(new float[rate * 2], rate);
+            player.UpdateBufferedApplication(ring, 1.0f);
+            Check(radio.Schedules == 3 && !radio.isPlaying,
+                "Wake-up digital silence is skipped instead of filling the buffer with silence");
+            ring.Write(Stereo(rate / 2, held, -held), rate / 2);
+            player.UpdateBufferedApplication(ring, 1.0f);
+            Check(radio.Schedules == 3 && !radio.isPlaying,
+                "Partial fresh audio keeps building until the full delay reserve is ready");
+            ring.Write(Stereo(rate * 3 / 4, held, -held), rate * 3 / 4);
+            player.UpdateBufferedApplication(ring, 1.0f);
+            Check(radio.Schedules == 4 && radio.ScheduledEnd - radio.ScheduledAt >= 1.0,
+                "Unpausing returns to audio once the full fresh buffer reserve is rebuilt");
         }
-        Check(loudPeak <= 1f + 1e-3f && loudPeak > .9f, "a boosted Wolfer reaches full scale after volume, never past it");
-        Check(quietPeak > .2f, "a boosted Wolfer recovers once the app is quiet again");
+        AudioSettings.dspTime = previousTime;
+    }
 
-        // Another app starts at full gain, not at the last app's limited level.
-        output.Input.Reader = new ApplicationRing.Reader(new ApplicationRing(rate));
-        var block2 = Stereo(1, 2f, 2f);
-        output.Limiter.Process(block2, 2);
-        Check(Near(block2[0], 2f), "a new app starts at full gain");
+    static void CheckBufferedWooferAndLiveBoost(int rate, float held)
+    {
+        double previousTime = AudioSettings.dspTime;
+        AudioSettings.dspTime = 120;
+        try
+        {
+            ApplicationRing.Boost = 10f;
+            var ring = new ApplicationRing(rate);
+            var tone = new float[rate * 2];
+            for (int frame = 0; frame < rate; frame++)
+                tone[frame * 2] = tone[frame * 2 + 1] = held * (float)Math.Sin(2 * Math.PI * 70 * frame / rate);
+            ring.Write(tone, rate);
 
-        // Music's bass emphasis may pass full scale before volume, as the bass knob sets it, and is held at the
-        // level volume turns into full scale whatever Reader the main thread has just set.
-        output.Input.Reader = null;
-        block2 = Stereo(1, 3f, 3f);
-        output.Limiter.Process(block2, 2);
-        Check(Near(block2[0], 3f), "Wolfer bass emphasis within its headroom is not clipped");
-        block2 = Stereo(1024, 40f, 40f);
-        output.Limiter.Process(block2, 2);
-        Check(MaxAbs(block2) <= 4f + 1e-3f, "music is held at the level volume turns into full scale");
-        output.Dispose();
+            using (var player = new RadioPlayback(new MonoBehaviour(), new RadioState { Powered = true, Volume = 1f }, _ => { }))
+            {
+                var radio = AudioSource.Last;
+                player.SetEndpoint(2, new Vector3(0, 0, 0), false, DeviceKind.WalnutWoofer, 1f, 1f, 0f);
+                var woofer = AudioSource.Last;
+                player.UpdateBufferedApplication(ring, .5f);
+                Check(radio.Schedules == 1 && woofer.Schedules == 1 && radio.clip != null && woofer.clip != null &&
+                    radio.clip != woofer.clip, "A connected woofer receives its own pre-filtered buffered clip");
+                var mainSamples = new float[radio.clip.samples * 2];
+                var wooferSamples = new float[woofer.clip.samples * 2];
+                radio.clip.GetData(mainSamples, 0);
+                woofer.clip.GetData(wooferSamples, 0);
+                Check(MaxAbs(mainSamples) <= 1f + 1e-4f && MaxAbs(mainSamples) > .5f,
+                    "Boosted app audio is limited cleanly to full scale before upload");
+                Check(MaxAbs(wooferSamples) <= 1f + 1e-4f && MaxAbs(wooferSamples) > .5f,
+                    "Boosted woofer audio is bass-filtered and limited cleanly to full scale before upload");
+
+                // Dropping AppVolume while queued rewrites future blocks immediately.
+                ApplicationRing.Boost = .2f;
+                AudioSettings.dspTime += .05;
+                player.UpdateBufferedApplication(ring, .5f);
+                var updated = new float[radio.clip.samples * 2];
+                radio.clip.GetData(updated, 0);
+                int tailStart = (radio.timeSamples + 4096) % radio.clip.samples;
+                float tailPeak = 0f;
+                for (int i = 0; i < 512; i++)
+                {
+                    int idx = ((tailStart + i) % radio.clip.samples) * 2;
+                    tailPeak = Math.Max(tailPeak, Math.Abs(updated[idx]));
+                }
+                Check(tailPeak < .2f, "Changing App volume rewrites queued future blocks immediately");
+            }
+        }
+        finally
+        {
+            ApplicationRing.Boost = 1f;
+            AudioSettings.dspTime = previousTime;
+        }
+    }
+
+    static void CheckBufferedApplicationHistory(int rate, float held)
+    {
+        var ring = new ApplicationRing(rate);
+        Check(ring.Capacity >= rate * 4, "capture keeps 2.5 seconds of app delay with time for the player to catch up");
+        int packetFrames = rate / 10;
+        for (int packet = 1; packet <= 45; packet++)
+        {
+            float level = held * packet / 50;
+            ring.Write(Stereo(packetFrames, level, -level), packetFrames);
+        }
+
+        ApplicationRing.CaptureWindow window;
+        Check(ring.TryGetWindow(out window) && window.EndFrame == 45L * packetFrames &&
+            window.FirstFrame == window.EndFrame - ring.Capacity, "capture advances monotonically and publishes its retained frame window");
+        var copy = new float[8];
+        Check(ring.TryCopy(window.EndFrame - rate * 5 / 2, copy, 4, window.Generation) &&
+            Math.Abs(copy[0] - held * 21 / 50) < 1e-8f && copy[1] == -copy[0],
+            "the delayed consumer can read guarded stereo PCM at 2.5 seconds");
+        Check(ring.TryCopy(ring.Capacity - 2, copy, 4, window.Generation) &&
+            Math.Abs(copy[0] - held * 40 / 50) < 1e-8f && Math.Abs(copy[4] - held * 41 / 50) < 1e-8f,
+            "a delayed read crosses the storage wrap in frame order");
+        Check(!ring.TryCopy(window.FirstFrame - 1, copy, 4, window.Generation), "older overwritten PCM is unavailable");
+        Check(!ring.TryCopy(window.EndFrame - 3, copy, 4, window.Generation) && ring.Discontinuities == 0,
+            "an incomplete read returns no PCM without recording a capture discontinuity");
+
+        ring.Write(Stereo(packetFrames, held, -held), packetFrames, splice: true);
+        ApplicationRing.CaptureWindow spliced;
+        Check(ring.TryGetWindow(out spliced) && spliced.Generation == window.Generation &&
+            spliced.EndFrame == window.EndFrame + packetFrames &&
+            ring.Discontinuities == 1 && ring.LastPacketTimestamp > 0,
+            "a spliced capture drop stays in the same generation and keeps playback continuous");
+
+        ring.Reset();
+        ApplicationRing.CaptureWindow restarted;
+        Check(ring.TryGetWindow(out restarted) && restarted.Generation != spliced.Generation &&
+            restarted.FirstFrame == spliced.EndFrame && restarted.EndFrame == spliced.EndFrame &&
+            !ring.Sounding && ring.LastPacketTimestamp == 0 && ring.Discontinuities == 1,
+            "a process restart drops stale PCM and does not count as a dropped packet");
     }
 
     static void CheckPeakLimiter(int rate)
@@ -209,13 +259,6 @@ static partial class AudioChecks
     {
         var samples = new float[frames * 2];
         for (int i = 0; i < samples.Length; i += 2) { samples[i] = left; samples[i + 1] = right; }
-        return samples;
-    }
-
-    static float[] Carrier(int frames, int channels, float value)
-    {
-        var samples = new float[frames * channels];
-        for (int i = 0; i < samples.Length; i++) samples[i] = value;
         return samples;
     }
 

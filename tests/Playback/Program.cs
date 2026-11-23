@@ -188,13 +188,13 @@ internal static partial class Program
             Check(!liveA.Source.isPlaying && a.PositionSeconds == 2.95 && !a.Powered && a.Paused,
                 "switch captures shared DSP position and pauses outgoing voice");
             Dispatch(reversed, arbiter); CompleteRequests(reversed); Dispatch(reversed, arbiter);
-            Check(liveB.Source.Schedules == 1 && liveB.Source.timeSamples == 246000 && b.Volume == .7f,
-                "new radio starts at its own remembered sample and volume");
+            Check(liveB.Source.Schedules == 1 && liveB.Source.timeSamples == 0 && b.PositionSeconds == 5.125 && b.Volume == .7f,
+                "new radio starts at its own remembered position and volume");
             AudioSettings.dspTime += 1;
-            liveB.Source.timeSamples = 300005;
+            liveB.Source.timeSamples = 300005 % liveB.Source.clip.samples;
             arbiter.Toggle(10, id => { Check(id == 20, "new explicit request displaces current owner"); liveB.Stop(); });
             Dispatch(new[] { liveA, liveB }, arbiter);
-            Check(liveA.Source.Schedules == 1 && liveA.Source.UnPauses == 1 && liveA.Source.timeSamples == 141600 && b.PositionSeconds == 6.075,
+            Check(liveA.Source.Schedules == 1 && liveA.Source.UnPauses == 1 && liveA.Source.timeSamples == 45600 && b.PositionSeconds == 6.075,
                 "switching back resumes both independently captured positions without rewinding");
             Dispatch(new[] { liveB, liveA }, arbiter, true);
             Check(!liveA.Source.isPlaying && arbiter.ActiveId == 10 && a.Powered, "game suspension stops output without changing chosen owner");
@@ -263,9 +263,9 @@ internal static partial class Program
                 var deadline = DateTime.UtcNow.AddSeconds(10);
                 while (newB.Source.Schedules == 0 && DateTime.UtcNow < deadline) { Dispatch(new[] { newB, pendingA }, arbiter); Thread.Sleep(1); }
                 for (int i = 0; i < 20; i++) { Dispatch(new[] { newB, pendingA }, arbiter); Thread.Sleep(1); }
-                Check(pendingA.Source.Schedules == 0 && newB.Source.Schedules == 1 && newB.Source.clip != null && newB.Source.clip.Streaming &&
-                    newB.Source.timeSamples == 88200 && pendingA.Playback.Status == "Off",
-                    "a streamed load finishing after replacement cannot schedule alongside the new radio, which streams from its own position");
+                Check(pendingA.Source.Schedules == 0 && newB.Source.Schedules == 1 && newB.Source.clip != null &&
+                    newB.Source.timeSamples == 0 && b.PositionSeconds == 2 && pendingA.Playback.Status == "Off",
+                    "A load finishing after replacement cannot play alongside the new radio, which starts from its own position");
             }
         }
         finally { track = previous; }

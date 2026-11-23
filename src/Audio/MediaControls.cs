@@ -12,17 +12,19 @@ namespace SailwindRadio.Audio
     internal sealed class MediaControls
     {
         internal enum Command { None, PlayPause, Next, Previous, Play, Pause }
-        private const int CommandMilliseconds = 50, RefreshMilliseconds = 1000, OperationMilliseconds = 2000;
+        private const int CommandMilliseconds = 50, RefreshMilliseconds = 1000, OperationMilliseconds = 2000, ShutdownPauseMilliseconds = 250;
         private const int AsyncCompleted = 1, AsyncStarted = 0;
         private static readonly Guid StaticsId = new Guid("2050c4ee-11a0-57de-aed7-c97c70338245");
         private static readonly Guid AsyncInfoId = new Guid("00000036-0000-0000-C000-000000000046");
         private readonly string program;
         private readonly string[] identities;
         private readonly Thread worker;
+        private readonly AutoResetEvent wake = new AutoResetEvent(false);
         private volatile bool stopping;
         private int pending;
         // Kept apart from pending, so the worker's loop never takes it before it can be delivered.
         private volatile Command final;
+        private volatile bool finalWasSounding;
         private volatile Track current;
         // Set once the worker has looked for the application, and false again only if its loop stops.
         private volatile bool located, reachable;
@@ -48,7 +50,8 @@ namespace SailwindRadio.Audio
 
         // Vtable slots after IInspectable's 0 to 5.
         private const int SlotRequest = 6, SlotSessions = 7, SlotGetAt = 6, SlotSize = 7, SlotStatus = 7, SlotResults = 8;
-        private const int SlotIdentity = 6, SlotProperties = 7, SlotPlay = 10, SlotPause = 11, SlotNext = 16, SlotPrevious = 17, SlotPlayPause = 20;
+        private const int SlotIdentity = 6, SlotProperties = 7, SlotPlaybackInfo = 9, SlotPlay = 10, SlotPause = 11, SlotNext = 16, SlotPrevious = 17, SlotPlayPause = 20;
+        private const int SlotPlaybackStatus = 7, StatusPlaying = 4;
         private const int SlotTitle = 6, SlotArtist = 9, SlotAlbum = 10;
 
         internal MediaControls(AudioApplication application)
@@ -71,6 +74,8 @@ namespace SailwindRadio.Audio
                 merged = (int)Merge((Command)seen, command);
             }
             while (Interlocked.CompareExchange(ref pending, merged, seen) != seen);
+            try { wake.Set(); }
+            catch (ObjectDisposedException) { }
             return true;
         }
 
@@ -79,12 +84,25 @@ namespace SailwindRadio.Audio
         internal static Command Merge(Command waiting, Command next) =>
             waiting == Command.PlayPause && next == Command.PlayPause ? Command.None : next;
 
-        // Last is sent before the worker ends, such as the pause for a radio that is gone. It is sent even before the
-        // first refresh, when the worker looks for the application once more to deliver it.
-        internal void Stop(Command last)
+        // Last is sent before the worker ends, such as the pause for a radio that switched away or closed.
+        // For Pause, wasSounding tells the worker whether capture heard audio recently, so silent or already-paused
+        // apps are not sent a stray window command that Windows could bounce to another media player.
+        internal void Stop(Command last, bool wasSounding = true)
         {
+            finalWasSounding = wasSounding;
             final = last;
             stopping = true;
+            try { wake.Set(); }
+            catch (ObjectDisposedException) { }
+        }
+
+        // Pure decision rule for shutdown pauses:
+        // - With a Windows media session whose playback state is known, pause only if it is actually Playing.
+        // - Otherwise (no session or unknown state), pause only if the app was actually making sound.
+        internal static bool ShouldSendShutdownPause(bool hasSession, bool statusKnown, bool sessionPlaying, bool wasSounding)
+        {
+            if (hasSession && statusKnown) return sessionPlaying;
+            return wasSounding;
         }
 
         internal bool Join(int milliseconds) => worker.Join(milliseconds);
@@ -132,6 +150,10 @@ namespace SailwindRadio.Audio
                     IntPtr window = IntPtr.Zero;
                     while (!stopping)
                     {
+                        // Deliver queued pause/play commands immediately if we already have a target,
+                        // before doing any 1-second session refresh or metadata read.
+                        if (session != IntPtr.Zero || window != IntPtr.Zero)
+                            Deliver(session, window, (Command)Interlocked.Exchange(ref pending, 0));
                         bool refresh = clock.ElapsedMilliseconds >= nextRefresh;
                         if (refresh)
                         {
@@ -147,11 +169,15 @@ namespace SailwindRadio.Audio
                         if (refresh)
                             current = session != IntPtr.Zero ? Read(session) :
                                 window != IntPtr.Zero ? new Track(AppWindows.Title(window), "", "") : null;
-                        Thread.Sleep(CommandMilliseconds);
+                        if (!stopping) wake.WaitOne(CommandMilliseconds);
                     }
-                    // A radio gone before the first refresh still pauses its application.
-                    if (final != Command.None && session == IntPtr.Zero && window == IntPtr.Zero) Locate(manager, ref session, ref window);
-                    Deliver(session, window, final);
+                    // On shutdown, deliver the final command cleanly before releasing COM and restoring desktop volume.
+                    if (final == Command.Pause) DeliverShutdownPause(manager, ref session, ref window, finalWasSounding);
+                    else if (final != Command.None)
+                    {
+                        if (session == IntPtr.Zero && window == IntPtr.Zero) Locate(manager, ref session, ref window);
+                        Deliver(session, window, final);
+                    }
                 }
             }
             // Track names and buttons are extras. Without them the application still plays.
@@ -160,6 +186,7 @@ namespace SailwindRadio.Audio
             {
                 ComCalls.Release(ref session);
                 ComCalls.Release(ref manager);
+                wake.Close();
             }
         }
 
@@ -232,6 +259,82 @@ namespace SailwindRadio.Audio
             }
             catch (IOException) { return new Track("", "", ""); }
             finally { ComCalls.Release(ref properties); }
+        }
+
+        private void DeliverShutdownPause(IntPtr manager, ref IntPtr session, ref IntPtr window, bool wasSounding)
+        {
+            if (session == IntPtr.Zero) Locate(manager, ref session, ref window);
+            if (session != IntPtr.Zero)
+            {
+                bool statusKnown = TryIsPlaying(session, out bool playing);
+                if (!statusKnown)
+                {
+                    // Cached session may have gone stale between 1-second refreshes; look it up once more.
+                    Locate(manager, ref session, ref window);
+                    if (session != IntPtr.Zero) statusKnown = TryIsPlaying(session, out playing);
+                }
+                if (session != IntPtr.Zero)
+                {
+                    if (!ShouldSendShutdownPause(true, statusKnown, playing, wasSounding)) return;
+                    if (!FireAndWait(session, Command.Pause, ShutdownPauseMilliseconds))
+                    {
+                        Locate(manager, ref session, ref window);
+                        if (session != IntPtr.Zero && (!TryIsPlaying(session, out playing) || playing))
+                            FireAndWait(session, Command.Pause, ShutdownPauseMilliseconds);
+                    }
+                    return;
+                }
+            }
+            if (window != IntPtr.Zero && ShouldSendShutdownPause(false, false, false, wasSounding))
+                AppWindows.Send(window, Command.Pause);
+        }
+
+        private static bool TryIsPlaying(IntPtr session, out bool playing)
+        {
+            playing = false;
+            IntPtr info = IntPtr.Zero;
+            try
+            {
+                if (ComCalls.Method<PointerMethod>(session, SlotPlaybackInfo)(session, out info) < 0 || info == IntPtr.Zero)
+                    return false;
+                int status;
+                if (ComCalls.Method<IntMethod>(info, SlotPlaybackStatus)(info, out status) < 0)
+                    return false;
+                playing = status == StatusPlaying;
+                return true;
+            }
+            finally { ComCalls.Release(ref info); }
+        }
+
+        // Starts a media command and waits briefly for the WinRT async operation to finish so shutdown
+        // does not tear down COM or restore desktop volume before the application receives Pause.
+        private static bool FireAndWait(IntPtr session, Command command, int timeoutMilliseconds)
+        {
+            int slot = command == Command.Next ? SlotNext : command == Command.Previous ? SlotPrevious :
+                command == Command.Play ? SlotPlay : command == Command.Pause ? SlotPause : SlotPlayPause;
+            IntPtr operation = IntPtr.Zero, info = IntPtr.Zero;
+            try
+            {
+                if (ComCalls.Method<PointerMethod>(session, slot)(session, out operation) < 0 || operation == IntPtr.Zero)
+                    return false;
+                Guid id = AsyncInfoId;
+                if (ComCalls.Method<QueryMethod>(operation, 0)(operation, ref id, out info) < 0 || info == IntPtr.Zero)
+                    return true;
+                int status = AsyncStarted;
+                for (int waited = 0; waited < timeoutMilliseconds; waited += 5)
+                {
+                    if (ComCalls.Method<IntMethod>(info, SlotStatus)(info, out status) < 0 || status != AsyncStarted)
+                        break;
+                    Thread.Sleep(5);
+                }
+                // Once SlotPause accepted the call, do not send a duplicate Pause even if the app took >250 ms.
+                return true;
+            }
+            finally
+            {
+                ComCalls.Release(ref info);
+                ComCalls.Release(ref operation);
+            }
         }
 
         // The command runs on in the application. Its result is not needed, so the operation is released at once.

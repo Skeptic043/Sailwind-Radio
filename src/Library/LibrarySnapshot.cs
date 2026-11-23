@@ -97,8 +97,43 @@ namespace SailwindRadio.Library
                 Comparer.Equals(extension, ".flac") ||
                 (MediaFoundationFormats && (Comparer.Equals(extension, ".m4a") || Comparer.Equals(extension, ".aac")));
         }
+        internal static bool IsPlaylist(string path)
+        {
+            string extension = System.IO.Path.GetExtension(path);
+            return Comparer.Equals(extension, ".m3u") || Comparer.Equals(extension, ".m3u8") || Comparer.Equals(extension, ".pls");
+        }
+        internal static bool IsStreamUrl(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return false;
+            string trimmed = path.Trim();
+            if (!trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                return false;
+            return Uri.TryCreate(trimmed, UriKind.Absolute, out Uri uri) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
+                !string.IsNullOrEmpty(uri.Host);
+        }
         internal static string FileLabel(string path)
         {
+            if (IsStreamUrl(path))
+            {
+                try
+                {
+                    var uri = new Uri(path.Trim());
+                    string segment = uri.AbsolutePath.Trim('/');
+                    int slash = segment.LastIndexOf('/');
+                    if (slash >= 0) segment = segment.Substring(slash + 1);
+                    if (!string.IsNullOrEmpty(segment))
+                    {
+                        int dot = segment.LastIndexOf('.');
+                        if (dot > 0) segment = segment.Substring(0, dot);
+                        segment = Uri.UnescapeDataString(segment).Replace('_', ' ').Trim();
+                        if (segment.Length > 0) return segment;
+                    }
+                    return uri.Host;
+                }
+                catch { return "Internet radio"; }
+            }
             try { return System.IO.Path.GetFileNameWithoutExtension(path ?? "").Replace('_', ' '); }
             catch (Exception error) when (FilesystemError(error)) { return "Unavailable track"; }
         }

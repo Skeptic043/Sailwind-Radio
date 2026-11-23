@@ -7,21 +7,21 @@ namespace SailwindRadio.Audio
     {
         private AudioApplication application;
         private ApplicationAudio live;
-        private AudioClip carrier;
         private bool applicationWarned;
         // The radio paused the application for a game pause and resumes it afterwards. A pause the player made stays.
         private bool pausedForGame;
+        private double resumePendingUntil;
 
         // The application this radio plays instead of music, or null. Not saved, so a loaded game plays music.
         public AudioApplication PlayingApplication => application;
         // The application's current track from its Windows media session, or null.
         internal MediaControls.Track ApplicationTrack => live == null ? null : live.Media.Current;
 
-        // Sends a button press to the application. False when it has no media session to receive it.
+        // Sends a button press to the application. False when it has no media session or window to receive it.
         internal bool SendToApplication(MediaControls.Command command) => live != null && live.Media.Send(command);
 
         /// <summary>Play an application instead of music, or music again for null. The music position is kept, and
-        /// an application switched away from is paused so it does not carry on at its own volume.</summary>
+        /// an application switched away from is paused if it was playing so it does not carry on at its own volume.</summary>
         public void SetApplication(AudioApplication chosen)
         {
             if (disposed || (chosen == null ? application == null : chosen.Same(application))) return;
@@ -60,12 +60,24 @@ namespace SailwindRadio.Audio
             Exception fault = live == null ? null : live.Fault;
             if (live != null && fault == null && state.Powered && !state.Paused)
             {
-                if (gamePaused && !pausedForGame && live.Ring.Sounding) pausedForGame = live.Media.Send(MediaControls.Command.Pause);
-                else if (!gamePaused && pausedForGame && live.Media.Send(MediaControls.Command.Play)) pausedForGame = false;
+                double now = Time.realtimeSinceStartup;
+                if (gamePaused && !pausedForGame && (live.Ring.Sounding || now < resumePendingUntil))
+                {
+                    pausedForGame = live.Media.Send(MediaControls.Command.Pause);
+                    resumePendingUntil = 0;
+                }
+                else if (!gamePaused && pausedForGame && live.Media.Send(MediaControls.Command.Play))
+                {
+                    pausedForGame = false;
+                    // Cover rapid pause/unpause before the app produces sound again so a second pause still pauses it.
+                    resumePendingUntil = now + 1.5;
+                }
             }
             bool play = shouldPlay && live != null && fault == null;
-            PlayCarrier(builtIn, play);
-            foreach (var endpoint in endpoints.Values) PlayCarrier(endpoint, play);
+            float rawDelay = AppBufferSeconds == null ? 0f : AppBufferSeconds();
+            float delay = Single.IsNaN(rawDelay) ? 0f : Math.Min(MaximumAppBufferSeconds, Math.Max(0f, rawDelay));
+            if (play) UpdateBufferedApplication(live.Ring, delay);
+            else StopBufferedApplication();
             if (fault != null && !applicationWarned)
             {
                 applicationWarned = true;
@@ -75,64 +87,20 @@ namespace SailwindRadio.Audio
                 !live.Found ? application.Label + " is not running" : state.Paused ? "Paused" : !shouldPlay ? "Suspended" : "Playing";
         }
 
-        private void PlayCarrier(RadioSpeakerOutput output, bool play)
-        {
-            if (output.Source == null || output.Input == null) return;
-            if (!play)
-            {
-                output.Stop();
-                return;
-            }
-            if (output.Source.clip != Carrier())
-            {
-                output.Stop(true);
-                output.Source.clip = Carrier();
-                output.Source.loop = true;
-            }
-            var reader = output.Input.Reader;
-            if (reader == null || reader.Ring != live.Ring) output.Input.Reader = new ApplicationRing.Reader(live.Ring);
-            if (!output.Source.isPlaying)
-            {
-                output.Apply();
-                output.Source.Play();
-            }
-            output.Running = true;
-        }
-
-        // A constant half on both channels. Unity pans it, and the output's input filter replaces it with the application.
-        // Unity fills a clip that is not streamed once, at creation.
-        private AudioClip Carrier()
-        {
-            if (carrier == null)
-                carrier = AudioClip.Create("Sailwind Radio application carrier", 4096, 2, AudioSettings.outputSampleRate, false,
-                    data => { for (int i = 0; i < data.Length; i++) data[i] = .5f; }, null);
-            return carrier;
-        }
-
         private void StopApplication(bool wait, bool pause = false)
         {
             if (live != null) live.Stop(wait, pause);
             live = null;
             pausedForGame = false;
-            ReleaseCarrier(builtIn);
-            foreach (var endpoint in endpoints.Values) ReleaseCarrier(endpoint);
+            resumePendingUntil = 0;
+            ReleaseBufferedApplication();
         }
 
-        private void ReleaseCarrier(RadioSpeakerOutput output)
-        {
-            if (output == null || output.Source == null || carrier == null || output.Source.clip != carrier) return;
-            output.Stop(true);
-            output.Source.loop = false;
-            if (output.Input != null) output.Input.Reader = null;
-        }
-
-        // A radio sold, destroyed or closed with the game takes the application's signal with it, so it pauses.
+        // A radio sold, destroyed or closed with the game takes the application's signal with it, so it pauses if playing.
         private void DisposeApplication()
         {
             StopApplication(true, true);
             application = null;
-            if (carrier != null) UnityEngine.Object.Destroy(carrier);
-            carrier = null;
         }
     }
 }

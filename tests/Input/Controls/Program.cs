@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using SailwindRadio;
 using SailwindRadio.Physical;
 using UnityEngine;
 
@@ -220,6 +221,67 @@ internal static class Program
                 "small devices keep their controls in cargo loading");
             CargoStorageUI.loadingCargoMode = false;
         }
+
+        // Tabletop placement covers only the six flat-topped large speakers and woofers.
+        // Emerald Large Speaker (14), Al'Ankh Woofer (7), Radios, and Small Speakers stay excluded.
+        int[] expectedTabletops = { 2, 3, 6, 10, 11, 15 };
+        for (int kind = 0; kind <= 15; kind++)
+        {
+            bool expected = Array.IndexOf(expectedTabletops, kind) >= 0;
+            Check(DeviceKind.HasTabletop(kind) == expected, "tabletop rule for device kind " + kind);
+        }
+
+        (knob, pointer) = Fresh();
+        var speakerDevice = new RadioItemController { State = new RadioState { Kind = 2 } };
+        var speakerItem = new ShipItem { big = true, allowPlacingItems = true, TestRadio = speakerDevice };
+        var smallHeld = new ShipItem { big = false };
+        pointer.Held = smallHeld;
+        var topHit = new RaycastHit { collider = new Collider(), distance = 1.1f, normal = Vector3.up };
+        target = speakerItem; lookDistance = 1.1f;
+        RadioHeldItemTarget.FilterTabletop(pointer, topHit, ref target, ref lookDistance);
+        Check(target == speakerItem && lookDistance == 1.1f && !speakerItem.Unlooked,
+            "upward top hit keeps tabletop placement target on supported speaker");
+
+        var frontHit = new RaycastHit { collider = new Collider(), distance = 1.1f, normal = new Vector3(0, 0, -1) };
+        target = speakerItem; lookDistance = 1.1f; speakerItem.Unlooked = false;
+        RadioHeldItemTarget.FilterTabletop(pointer, frontHit, ref target, ref lookDistance);
+        Check(target == null && lookDistance == 0f && speakerItem.Unlooked,
+            "front or side hit clears tabletop placement target");
+
+        speakerItem.transform.up = new Vector3(1, 0, 0);
+        var tippedTopHit = new RaycastHit { collider = new Collider(), distance = 1.1f, normal = new Vector3(1, 0, 0) };
+        target = speakerItem; lookDistance = 1.1f; speakerItem.Unlooked = false;
+        RadioHeldItemTarget.FilterTabletop(pointer, tippedTopHit, ref target, ref lookDistance);
+        Check(target == null && lookDistance == 0f && speakerItem.Unlooked,
+            "tipped-over speaker clears tabletop placement target");
+        speakerItem.transform.up = Vector3.up;
+
+        speakerDevice.State.Kind = 0; // e.g., a Radio stacked on top
+        target = speakerItem; lookDistance = 1.1f; speakerItem.Unlooked = false;
+        RadioHeldItemTarget.FilterTabletop(pointer, topHit, ref target, ref lookDistance);
+        Check(target == null && lookDistance == 0f && speakerItem.Unlooked,
+            "stack topped by non-tabletop device clears tabletop placement target");
+
+        speakerDevice.State.Kind = 15; // Emerald Woofer
+        speakerDevice.IsPlacedForControls = false;
+        target = speakerItem; lookDistance = 1.1f; speakerItem.Unlooked = false;
+        RadioHeldItemTarget.FilterTabletop(pointer, topHit, ref target, ref lookDistance);
+        Check(target == null && lookDistance == 0f, "unplaced or shop-stock speaker clears tabletop placement target");
+
+        speakerDevice.IsPlacedForControls = true;
+        pointer.Held = new ShipItemHammer { big = false };
+        target = speakerItem; lookDistance = 1.1f; speakerItem.Unlooked = false;
+        RadioHeldItemTarget.FilterTabletop(pointer, frontHit, ref target, ref lookDistance);
+        Check(target == speakerItem && lookDistance == 1.1f && !speakerItem.Unlooked,
+            "hammer nailing stays untouched from any side");
+
+        pointer.Held = smallHeld;
+        var vanillaTable = new ShipItem { big = true, allowPlacingItems = true };
+        target = vanillaTable; lookDistance = 1.1f;
+        RadioHeldItemTarget.FilterTabletop(pointer, frontHit, ref target, ref lookDistance);
+        Check(target == vanillaTable && lookDistance == 1.1f,
+            "vanilla furniture tabletops stay untouched");
+
         Console.WriteLine(checks + " production knob lifecycle checks passed with explicit native input doubles. Live click, scroll and menu behavior remain acceptance gates.");
     }
 }

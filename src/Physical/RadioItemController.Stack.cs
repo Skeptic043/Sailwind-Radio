@@ -26,6 +26,7 @@ namespace SailwindRadio.Physical
         private const float MaxDepenetration = 1f;
         internal IReadOnlyList<RadioItemController> Stack => stack;
         internal RadioItemController StackTop => stack.Count > 0 ? stack[stack.Count - 1] : null;
+        internal int TopKind => StackTop ? StackTop.State.Kind : State.Kind;
         internal bool IsStackTop => stackBase;
         // The device whose saved record holds this one's state.
         internal RadioItemController RecordOwner => stackBase ? stackBase : this;
@@ -80,8 +81,9 @@ namespace SailwindRadio.Physical
             // Native ItemRigidbody reads mass at Start and in UpdateMass, as crates and kettles refresh it.
             if (item.itemRigidbodyC && item.itemRigidbodyC.GetBody())
                 item.itemRigidbodyC.UpdateMass();
-            // A stack sells as all its devices.
+            // A stack sells as all its devices, and only its topmost cabinet decides whether small items can sit on it.
             item.value = value;
+            item.allowPlacingItems = !shopStock && DeviceKind.HasTabletop(TopKind);
         }
 
         private void BuildTop(RadioState state)

@@ -48,6 +48,29 @@ namespace SailwindRadio.Physical
             return true;
         }
 
+        // Only the upward-facing flat top of a supported cabinet acts as a tabletop for small held items.
+        // Looking at a speaker's front or sides clears the placement target while leaving hammer nailing untouched.
+        internal static void FilterTabletop(GoPointer pointer, RaycastHit hit, ref GoPointerButton target, ref float lookDistance)
+        {
+            if (!pointer || !(target is ShipItem targetItem) || !targetItem.allowPlacingItems)
+                return;
+            var held = pointer.GetHeldItem() as ShipItem;
+            if (!held || held.big || held is ShipItemHammer)
+                return;
+            var device = targetItem.GetComponent<RadioItemController>();
+            if (!device)
+                return;
+            bool onTop = device.IsPlacedForControls && DeviceKind.HasTabletop(device.TopKind) &&
+                hit.collider && Vector3.Dot(hit.normal, targetItem.transform.up) > 0.7f &&
+                Vector3.Dot(hit.normal, Vector3.up) > 0.7f;
+            if (!onTop)
+            {
+                target.ForceUnlook();
+                target = null;
+                lookDistance = 0f;
+            }
+        }
+
         internal static void Clear(GoPointer pointer, ref GoPointerButton target, ref float lookDistance)
         {
             // Native GoPointer drops a ShipItem on pickup-key release only when its

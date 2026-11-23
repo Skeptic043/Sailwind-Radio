@@ -1,48 +1,68 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 
 namespace SailwindRadio.Audio
 {
-    // One second of held application audio. One writer adds captured stereo packets, and each output's audio
-    // thread reads through its own Reader 40 ms behind the newest audio, never waiting for it. Every reader plays
-    // the same captured frame at the same output frame, so a radio and its speakers never echo each other.
+    // Captured stereo frames in order, with one writer and main-thread readers that never wait.
+    // The history covers the longest app delay and leaves room to catch up after a save or hitch.
     internal sealed class ApplicationRing
     {
         internal const int Channels = ProcessLoopback.Channels;
+        private const int HistorySeconds = 4;
         // Held audio stays far below this before the radio's gain, even with the overs of heavily limited music. A
         // louder packet comes from a session not held yet, such as a new browser tab or a moved Volume Mixer slider,
-        // and plays as silence. Each output's RadioOutputLimiter keeps what passes from clipping.
+        // and plays as silence. The upload path's PeakLimiter keeps what passes from clipping.
         internal const float HeldPeak = HeldVolumes.Level * 4;
         internal const float Gain = 1f / HeldVolumes.Level;
         internal readonly int SampleRate;
         private readonly float[] samples;
-        private readonly int frames, margin, maximumLag;
-        private long written;
-        // The captured frame minus the output frame that plays it, shared by every reader. Unaligned until first read.
-        private const long Unaligned = long.MinValue;
-        private long offset = Unaligned;
+        private readonly int frames, crossfadeFrames;
+        private long written, writingEnd, generationStart;
+        private long lastSoundStartFrame, lastSoundEndFrame;
+        private int generation, discontinuities;
+        private long lastPacketTimestamp, maximumPacketGapTicks;
+        private float lastLeft, lastRight;
+        private bool hasLastSample;
         // Milliseconds tick of the last sound. It starts a minute ago, so a new ring is silent.
         private int soundAt = unchecked(Environment.TickCount - 60000);
 
         internal ApplicationRing(int sampleRate)
         {
             SampleRate = sampleRate;
-            frames = sampleRate;
+            frames = sampleRate * HistorySeconds;
+            // About 10 ms to blend cleanly across a brief capture drop without clicking or stopping playback.
+            crossfadeFrames = Math.Max(16, sampleRate / 100);
             samples = new float[frames * Channels];
-            // Windows delivers about every 10 ms, and Spotify measured gaps up to 22 ms between packets. Unity reads
-            // 21 ms blocks on its own schedule, so readers stay 40 ms behind to never run dry.
-            margin = sampleRate / 25;
-            maximumLag = sampleRate / 8;
         }
 
         internal int Capacity { get { return frames; } }
+        internal int Discontinuities => Volatile.Read(ref discontinuities);
+        internal long LastPacketTimestamp => Volatile.Read(ref lastPacketTimestamp);
+        internal long MaximumPacketGapTicks => Volatile.Read(ref maximumPacketGapTicks);
 
         // The application made sound within the last second, so it is playing rather than paused.
         internal bool Sounding { get { return unchecked(Environment.TickCount - Volatile.Read(ref soundAt)) < 1000; } }
+        internal long LastSoundStartFrame { get { return Volatile.Read(ref lastSoundStartFrame); } }
+        internal long LastSoundEndFrame { get { return Volatile.Read(ref lastSoundEndFrame); } }
 
         // Writer only. Adds up to Capacity frames and returns false when the packet was too loud and became silence.
-        internal bool Write(float[] packet, int count)
+        // When splice is true (Windows dropped packets during a pause), the new packet blends smoothly from the
+        // previous sample so playback stays continuous without a click or silent restart.
+        internal bool Write(float[] packet, int count, bool splice = false)
         {
+            if (count <= 0 || count > frames || count > packet.Length / Channels)
+                throw new ArgumentOutOfRangeException(nameof(count));
+
+            long now = Stopwatch.GetTimestamp();
+            if (lastPacketTimestamp != 0)
+            {
+                long gap = now - lastPacketTimestamp;
+                if (gap > maximumPacketGapTicks) Volatile.Write(ref maximumPacketGapTicks, gap);
+            }
+            Volatile.Write(ref lastPacketTimestamp, now);
+            if (splice) Interlocked.Increment(ref discontinuities);
+
             int length = count * Channels;
             bool held = true, sound = false;
             for (int i = 0; i < length && held; i++)
@@ -54,72 +74,97 @@ namespace SailwindRadio.Audio
             }
             if (!held) Array.Clear(packet, 0, length);
             else if (sound) Volatile.Write(ref soundAt, Environment.TickCount);
+
+            if (splice && hasLastSample)
+            {
+                int fade = Math.Min(crossfadeFrames, count);
+                for (int i = 0; i < fade; i++)
+                {
+                    float t = (i + 1f) / (fade + 1f);
+                    float keep = 1f - t;
+                    packet[i * 2] = lastLeft * keep + packet[i * 2] * t;
+                    packet[i * 2 + 1] = lastRight * keep + packet[i * 2 + 1] * t;
+                }
+            }
+            lastLeft = packet[length - 2];
+            lastRight = packet[length - 1];
+            hasLastSample = true;
+
             long end = written;
             int at = (int)(end % frames), first = Math.Min(count, frames - at);
+            // Mark any old frames being overwritten before touching their storage.
+            Interlocked.Exchange(ref writingEnd, end + count);
             Array.Copy(packet, 0, samples, at * Channels, first * Channels);
             Array.Copy(packet, first * Channels, samples, 0, (count - first) * Channels);
             // Published after the samples, so a reader that sees the new end also sees them.
             Volatile.Write(ref written, end + count);
+            if (held && sound)
+            {
+                Volatile.Write(ref lastSoundStartFrame, end);
+                Volatile.Write(ref lastSoundEndFrame, end + count);
+            }
             return held;
         }
 
-        // Copies the count frames that play at output frame, realigning every reader to just behind the newest
-        // audio when the shared position falls out of range. Audio not captured yet plays as silence.
-        private void Copy(long frame, float[] destination, int count)
+        // The process changed. Old samples are no longer eligible, even though their absolute indices are retained.
+        internal void Reset()
         {
-            long end = Volatile.Read(ref written), shift = Volatile.Read(ref offset);
-            long cursor = shift == Unaligned ? -1 : frame + shift;
-            if (shift == Unaligned || cursor < 0 || cursor + count > end || end - cursor > maximumLag + count)
+            Volatile.Write(ref generationStart, written);
+            Volatile.Write(ref soundAt, unchecked(Environment.TickCount - 60000));
+            Volatile.Write(ref lastPacketTimestamp, 0);
+            Volatile.Write(ref lastSoundStartFrame, 0);
+            Volatile.Write(ref lastSoundEndFrame, 0);
+            lastLeft = lastRight = 0f;
+            hasLastSample = false;
+            Interlocked.Increment(ref generation);
+        }
+
+        internal struct CaptureWindow
+        {
+            internal readonly long FirstFrame, EndFrame;
+            internal readonly int Generation;
+
+            internal CaptureWindow(long firstFrame, long endFrame, int generation)
             {
-                cursor = end - count - margin;
-                Volatile.Write(ref offset, cursor - frame);
+                FirstFrame = firstFrame;
+                EndFrame = endFrame;
+                Generation = generation;
             }
-            if (cursor < 0)
-            {
-                Array.Clear(destination, 0, count * Channels);
-                return;
-            }
-            int at = (int)(cursor % frames), first = Math.Min(count, frames - at);
+        }
+
+        private long OldestFrame => Math.Max(Volatile.Read(ref generationStart), Volatile.Read(ref writingEnd) - frames);
+
+        internal bool TryGetWindow(out CaptureWindow window)
+        {
+            int current = Volatile.Read(ref generation);
+            long end = Volatile.Read(ref written);
+            window = new CaptureWindow(Math.Min(OldestFrame, end), end, current);
+            return current == Volatile.Read(ref generation);
+        }
+
+        // Consumers discard the destination on false. A writer can wrap during a copy, while unrelated
+        // appends leave the copy valid and do not make readers wait or retry.
+        internal bool TryCopy(long firstFrame, float[] destination, int count, int expectedGeneration)
+        {
+            if (count <= 0 || count > destination.Length / Channels || expectedGeneration != Volatile.Read(ref generation) ||
+                firstFrame < OldestFrame || firstFrame > Volatile.Read(ref written) - count)
+                return false;
+
+            int at = (int)(firstFrame % frames), first = Math.Min(count, frames - at);
             Array.Copy(samples, at * Channels, destination, 0, first * Channels);
             Array.Copy(samples, 0, destination, first * Channels, (count - first) * Channels);
+            Thread.MemoryBarrier();
+            return expectedGeneration == Volatile.Read(ref generation) && firstFrame >= OldestFrame;
         }
 
         // The player's AppVolume setting, applied on top of the held gain so an app left at a normal volume of its
-        // own can still match music. Read by every output's audio thread.
+        // own can still match music.
         internal const float MinimumBoost = .1f, MaximumBoost = 50f;
         private static volatile float boost = 1f;
         internal static float Boost
         {
             get { return boost; }
             set { boost = Single.IsNaN(value) ? 1f : Math.Min(MaximumBoost, Math.Max(MinimumBoost, value)); }
-        }
-
-        // One output's mixing buffer. Used only on that output's audio thread.
-        internal sealed class Reader
-        {
-            internal readonly ApplicationRing Ring;
-            private float[] stereo = new float[0];
-            internal Reader(ApplicationRing ring) { Ring = ring; }
-
-            // Replaces the carrier in data with application audio. A 3D output's carrier holds Unity's pan gain
-            // for each channel, applied to the sum of both input channels as Unity does for a stereo clip. A flat
-            // output keeps left and right, and its carrier of one half per channel is doubled back. Start is the
-            // output frame the block begins at, the same for every output in one Unity mix. Boosted audio may pass
-            // full scale here, and the output's own RadioOutputLimiter holds it after every filter.
-            internal void Mix(float[] data, int channels, bool spatial, long start)
-            {
-                if (channels <= 0) return;
-                int count = data.Length / channels;
-                if (stereo.Length < count * Channels) stereo = new float[count * Channels];
-                Ring.Copy(start, stereo, count);
-                float gain = Gain * Boost;
-                for (int frame = 0; frame < count; frame++)
-                {
-                    float left = stereo[frame * 2] * gain, right = stereo[frame * 2 + 1] * gain;
-                    for (int channel = 0, at = frame * channels; channel < channels; channel++, at++)
-                        data[at] = spatial ? data[at] * (left + right) : 2 * data[at] * ((channel & 1) == 0 ? left : right);
-                }
-            }
         }
     }
 }

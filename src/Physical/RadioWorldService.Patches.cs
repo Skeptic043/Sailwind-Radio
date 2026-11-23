@@ -413,6 +413,7 @@ namespace SailwindRadio.Physical
             {
                 if (!CargoCompatible || !RadioHeldItemTarget.CargoTarget(__instance, ___hit, ref ___pointedAtButton))
                     RadioHeldItemTarget.Restore(__instance, ___hit, ref ___pointedAtButton, ref ___currentLookDistance);
+                RadioHeldItemTarget.FilterTabletop(__instance, ___hit, ref ___pointedAtButton, ref ___currentLookDistance);
             }
             catch (Exception ex) { active.warn("Radio pointer target correction failed: " + ex.Message); }
         }

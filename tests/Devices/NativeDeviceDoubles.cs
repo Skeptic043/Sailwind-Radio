@@ -95,6 +95,8 @@ namespace UnityEngine
         public static GUILayoutOption ExpandHeight(bool value) => new();
         public static Vector2 BeginScrollView(Vector2 value,params GUILayoutOption[] options)=>value;
         public static void EndScrollView(){}
+        public static void BeginHorizontal(params GUILayoutOption[] options){}
+        public static void EndHorizontal(){}
     }
 }
 public static class MouseLook

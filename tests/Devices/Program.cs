@@ -231,6 +231,44 @@ internal static class Program
             menus.Draw();
             Check(folderSaves == 1 && folders == editedFolders && !menus.IsOpen, "Apply saves the entire edited folder string verbatim");
         }
+        Reset();
+        {
+            var hidden = new System.Collections.Generic.List<string>();
+            var discord = new SailwindRadio.Audio.AudioApplication("Discord", @"C:\Apps\Discord.exe");
+            var spotify = new SailwindRadio.Audio.AudioApplication("Spotify", @"C:\Apps\Spotify.exe");
+            SailwindRadio.Audio.AudioApplication hiddenApp = null;
+            string restored = null;
+            var settings = new MenuSettings
+            {
+                GetExcludedApps = () => hidden,
+                ExcludeApp = app => { hiddenApp = app; hidden.Add("Discord.exe"); },
+                RestoreExcludedApp = entry => { restored = entry; hidden.Remove(entry); },
+            };
+            using var menus = new RadioMenus(settings);
+            var radio = new RadioItemController();
+            menus.ShowCollections(radio, Array.Empty<CollectionChoice>());
+            menus.ShowApplications(null, new[] { discord, spotify }, null);
+            GUILayout.Click = "Hide";
+            menus.Draw();
+            Check(hiddenApp == discord && menus.IsOpen, "hiding an app invokes callback and keeps the menu open");
+            // Hidden apps stay collapsed until the player expands them.
+            GUILayout.Labels.Clear();
+            menus.Draw();
+            Check(!GUILayout.Labels.Contains("Discord.exe"), "hidden apps stay tucked away while collapsed");
+            GUILayout.Click = "Show hidden apps (1)";
+            menus.Draw();
+            GUILayout.Labels.Clear();
+            GUILayout.Click = "Show";
+            menus.Draw();
+            Check(GUILayout.Labels.Contains("Discord.exe") && restored == "Discord.exe" && menus.IsOpen,
+                "expanding hidden apps reveals excluded entries and restores them on Show");
+            // Back to music must never offer a Hide button.
+            hiddenApp = null;
+            menus.ShowApplications(spotify, new[] { spotify }, null);
+            GUILayout.Click = "Hide";
+            menus.Draw();
+            Check(hiddenApp == null && menus.IsOpen, "Back to music cannot be excluded");
+        }
         Reset();Refs.charController.enabled=false;using(var menus=new RadioMenus()){menus.ShowCollections(new RadioItemController(),Array.Empty<CollectionChoice>());Check(!menus.IsOpen,"another native control owner prevents menu acquisition");}
         Reset();using(var menus=new RadioMenus()){menus.ShowCollections(new RadioItemController(),Array.Empty<CollectionChoice>());menus.Dispose();Check(!GameState.inCursorMenu&&Refs.charController.enabled,"dispose returns owned input state");}
         Console.WriteLine(checks+" device association and collection menu lifecycle checks passed with production rules and native API doubles. Physical placement and UI remain live checks.");
