@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.4
+
+### Fixed
+- Fixed external app audio failing to resume or taking several seconds to return after pausing or unpausing
+- Fixed external app audio taking a while to come back after walking out of speaker range and returning
+- Fixed rapid repeat game pauses leaving external music apps paused
+
 ## 1.6.1
 
 ### Added

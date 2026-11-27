@@ -9,7 +9,7 @@ namespace SailwindRadio.Audio
         internal delegate bool ReadFrames(long firstFrame, float[] destination, int frames);
 
         private readonly int channels;
-        private readonly float[] upload;
+        private readonly float[] upload, silence;
         private long origin;
         private bool finished;
 
@@ -29,6 +29,7 @@ namespace SailwindRadio.Audio
             BlockFrames = blockFrames;
             CapacityFrames = checked(((capacityFrames - 1) / blockFrames + 1) * blockFrames);
             upload = new float[checked(blockFrames * channels)];
+            silence = new float[upload.Length];
             Clip = AudioClip.Create(name, CapacityFrames, channels, sampleRate, false);
             if (Clip == null) throw new InvalidOperationException("Unity could not create a buffered audio clip");
         }
@@ -39,6 +40,30 @@ namespace SailwindRadio.Audio
             if (firstFrame < 0) throw new ArgumentOutOfRangeException(nameof(firstFrame));
             origin = FirstFrame = WrittenThrough = firstFrame;
             finished = false;
+        }
+
+        // Re-anchors the logical frame window onto a specific clip sample offset without stopping a running voice.
+        internal void Reanchor(long firstFrame, int clipSample)
+        {
+            if (firstFrame < 0) throw new ArgumentOutOfRangeException(nameof(firstFrame));
+            int aligned = ((clipSample % CapacityFrames) + CapacityFrames) % CapacityFrames;
+            aligned = (aligned / BlockFrames) * BlockFrames;
+            origin = firstFrame - aligned;
+            FirstFrame = WrittenThrough = firstFrame;
+            finished = false;
+        }
+
+        internal bool ClearBlock(long frame)
+        {
+            if (Clip == null) throw new ObjectDisposedException(nameof(BufferedAudioClip));
+            return Clip.SetData(silence, ClipFrame(frame));
+        }
+
+        internal void ClearAll()
+        {
+            if (Clip == null) throw new ObjectDisposedException(nameof(BufferedAudioClip));
+            for (int offset = 0; offset < CapacityFrames; offset += BlockFrames)
+                Clip.SetData(silence, offset);
         }
 
         internal int ClipFrame(long frame)

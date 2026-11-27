@@ -42,7 +42,9 @@ namespace SailwindRadio.Audio
         internal long MaximumPacketGapTicks => Volatile.Read(ref maximumPacketGapTicks);
 
         // The application made sound within the last second, so it is playing rather than paused.
-        internal bool Sounding { get { return unchecked(Environment.TickCount - Volatile.Read(ref soundAt)) < 1000; } }
+        internal bool Sounding { get { return SoundedWithin(1000); } }
+        internal bool SoundedWithin(int milliseconds) =>
+            unchecked(Environment.TickCount - Volatile.Read(ref soundAt)) < milliseconds;
         internal long LastSoundStartFrame { get { return Volatile.Read(ref lastSoundStartFrame); } }
         internal long LastSoundEndFrame { get { return Volatile.Read(ref lastSoundEndFrame); } }
 

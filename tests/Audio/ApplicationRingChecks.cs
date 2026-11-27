@@ -50,7 +50,119 @@ static partial class AudioChecks
         CheckPeakLimiter(rate);
         CheckBufferedApplicationHistory(rate, held);
         CheckBufferedApplicationPlayback(rate, held);
+        CheckBufferedApplicationRecovery(rate, held);
+        CheckApplicationPauseSync();
         CheckBufferedWooferAndLiveBoost(rate, held);
+    }
+
+    static void CheckApplicationPauseSync()
+    {
+        var sent = new System.Collections.Generic.List<MediaControls.Command>();
+        var sync = new ApplicationPauseSync();
+        // First game pause pauses a sounding app; unpause sends Play.
+        sync.Tick(true, 10.0, true, true, 1000, true, c => { sent.Add(c); return true; });
+        Check(sync.PausedForGame && sent.Count == 1 && sent[0] == MediaControls.Command.Pause,
+            "Game pause sends Pause to a playing external app");
+        sync.Tick(false, 10.2, true, true, 1200, false, c => { sent.Add(c); return true; });
+        Check(!sync.PausedForGame && sent.Count == 2 && sent[1] == MediaControls.Command.Play,
+            "Game unpause sends Play to resume the app");
+        // Even if fade-out audio made recentSound true, sessionPlaying == false forces a Play retry.
+        sync.Tick(false, 10.7, true, true, 1400, false, c => { sent.Add(c); return true; });
+        Check(sent.Count == 3 && sent[2] == MediaControls.Command.Play,
+            "Game unpause retries idempotent Play when the media session still reports paused");
+        // Once the media session reports playing and fresh audio returns, no further retries are sent.
+        sync.Tick(false, 11.2, true, true, 5000, true, c => { sent.Add(c); return true; });
+        Check(sent.Count == 3, "Confirmed playing session with fresh audio cancels remaining game-unpause retries");
+        // Manual PlayPause clears pending game-unpause retries.
+        sync.Tick(true, 12.0, true, true, 8000, true, c => { sent.Add(c); return true; });
+        sync.Tick(false, 12.1, true, true, 8200, false, c => { sent.Add(c); return true; });
+        sync.ClearResume();
+        sync.Tick(false, 12.7, false, false, 8200, false, c => { sent.Add(c); return true; });
+        Check(sent.Count == 5, "Manual radio pause clears pending game-unpause retries");
+    }
+
+    static void CheckBufferedApplicationRecovery(int rate, float held)
+    {
+        double previousTime = AudioSettings.dspTime;
+        AudioSettings.dspTime = 110;
+        try
+        {
+            var ring = new ApplicationRing(rate);
+            using (var player = new RadioPlayback(new MonoBehaviour(), new RadioState { Powered = true, Volume = 1f }, _ => { }))
+            {
+                var radio = AudioSource.Last;
+                player.SetAcoustics(new Vector3(0, 0, 0), true, 0f);
+                ring.Write(Stereo(rate / 5, held, -held), rate / 5);
+                player.UpdateBufferedApplication(ring, 0f);
+                Check(radio.isPlaying && radio.Schedules == 0 && radio.loop,
+                    "Zero-delay app audio starts directly with plain looping Play instead of filtered PlayScheduled");
+
+                // Pause/unpause at zero delay retains the native voice with zero PlayScheduled calls.
+                AudioSettings.dspTime += .05;
+                player.UpdateBufferedApplication(ring, 0f);
+                player.StopBufferedApplication();
+                Check(!radio.isPlaying, "Pausing silences the buffered app voice");
+                AudioSettings.dspTime += .20;
+                player.UpdateBufferedApplication(ring, 0f);
+                ring.Write(Stereo(rate / 5, held, -held), rate / 5);
+                player.UpdateBufferedApplication(ring, 0f);
+                Check(radio.isPlaying && radio.Schedules == 0 && radio.UnPauses == 1,
+                    "Zero-delay unpause resumes the retained native voice without PlayScheduled");
+
+                // If an external app pauses and stops sending packets, the playhead overtakes WrittenThrough,
+                // pauses cleanly, and resumes immediately when packets return.
+                AudioSettings.dspTime += 1.0;
+                player.UpdateBufferedApplication(ring, 0f);
+                Check(!radio.isPlaying, "Underrun when the app stops delivering packets pauses the voice cleanly");
+                bool recovered = false;
+                for (int step = 0; step < 15; step++)
+                {
+                    ring.Write(Stereo(480, held, -held), 480);
+                    AudioSettings.dspTime += .01;
+                    player.UpdateBufferedApplication(ring, 0f);
+                    if (radio.isPlaying) { recovered = true; break; }
+                }
+                Check(recovered && radio.Schedules == 0,
+                    "Returning packets resume playback immediately without PlayScheduled or dead-zone stalls");
+
+                // Walking far away (volume 0 / virtualized) and walking back close snaps a drifted cursor immediately,
+                // while an already-aligned voice returns smoothly without an extra seek.
+                AudioSettings.dspTime += .05;
+                ring.Write(Stereo(rate / 5, held, -held), rate / 5);
+                player.UpdateBufferedApplication(ring, 0f);
+                radio.volume = 0f;
+                radio.isVirtual = true;
+                AudioSettings.dspTime += .05;
+                ring.Write(Stereo(rate / 10, held, -held), rate / 10);
+                player.UpdateBufferedApplication(ring, 0f);
+                int unpausesBeforeReturn = radio.UnPauses;
+                int repairsBeforeReturn = player.DriftRepairs;
+                radio.timeSamples = 0;
+                radio.volume = .25f;
+                radio.isVirtual = false;
+                AudioSettings.dspTime += .02;
+                ring.Write(Stereo(rate / 10, held, -held), rate / 10);
+                player.UpdateBufferedApplication(ring, 0f);
+                Check(radio.isPlaying && radio.Schedules == 0 &&
+                    radio.UnPauses == unpausesBeforeReturn + 1 && player.DriftRepairs == repairsBeforeReturn + 1 &&
+                    radio.timeSamples > 0,
+                    "Returning from out-of-range virtualization snaps a drifted cursor back to live audio immediately without PlayScheduled");
+
+                // Returning from volume 0 when the cursor is still aligned does not cause an unnecessary seek.
+                int alignedSample = radio.timeSamples;
+                radio.volume = 0f;
+                player.UpdateBufferedApplication(ring, 0f);
+                radio.volume = .25f;
+                radio.timeSamples = alignedSample;
+                player.UpdateBufferedApplication(ring, 0f);
+                Check(radio.UnPauses == unpausesBeforeReturn + 1 && player.DriftRepairs == repairsBeforeReturn + 1,
+                    "Returning from volume 0 with an already-aligned cursor does not seek unnecessarily");
+            }
+        }
+        finally
+        {
+            AudioSettings.dspTime = previousTime;
+        }
     }
 
     static void CheckBufferedApplicationPlayback(int rate, float held)
@@ -65,42 +177,39 @@ static partial class AudioChecks
             var speaker = AudioSource.Last;
             ring.Write(Stereo(rate / 4, held, -held), rate / 4);
             player.UpdateBufferedApplication(ring, .5f);
-            Check(radio.Schedules == 0, "The delayed app waits for its selected reserve");
+            Check(!radio.isPlaying && !speaker.isPlaying, "The delayed app waits for its selected reserve");
 
             ring.Write(Stereo(rate / 2, held, -held), rate / 2);
             player.UpdateBufferedApplication(ring, .5f);
-            Check(radio.Schedules == 1 && speaker.Schedules == 1 && radio.clip == speaker.clip &&
-                !radio.clip.Streaming && radio.clip.PcmRead == null &&
-                radio.timeSamples == speaker.timeSamples && radio.ScheduledAt == speaker.ScheduledAt &&
-                radio.ScheduledEnd == speaker.ScheduledEnd && radio.ScheduledEnd - radio.ScheduledAt >= .45,
-                "Radio and speakers play the same callback-free buffered clip through the last published frames");
+            Check(radio.isPlaying && speaker.isPlaying && radio.Schedules == 0 && speaker.Schedules == 0 &&
+                radio.clip == speaker.clip && !radio.clip.Streaming && radio.clip.PcmRead == null &&
+                radio.timeSamples == speaker.timeSamples,
+                "Radio and speakers play the same callback-free looping buffered clip without PlayScheduled");
 
             var clip = radio.clip;
-            double originalEnd = radio.ScheduledEnd;
             AudioSettings.dspTime += .10;
             ring.Write(Stereo(rate / 10, held * .5f, -held * .5f), rate / 10);
             player.UpdateBufferedApplication(ring, .5f);
-            Check(radio.Schedules == 1 && radio.clip == clip && radio.ScheduledEnd > originalEnd &&
-                radio.ScheduledEnd == speaker.ScheduledEnd,
-                "New captured audio extends the existing schedule without a track-transition restart");
+            Check(radio.isPlaying && speaker.isPlaying && radio.clip == clip && radio.Schedules == 0,
+                "New captured audio continues seamlessly on the running looping clip");
 
-            // Zero extra delay still uses the callback-free buffered clip with low latency.
+            // Zero extra delay still uses the callback-free buffered clip with low latency and retains native voices.
             ring.Reset();
             AudioSettings.dspTime += .10;
             player.UpdateBufferedApplication(ring, 0f);
             Check(!radio.isPlaying && !speaker.isPlaying, "A new capture session invalidates the previous app's queued audio");
             ring.Write(Stereo(rate / 5, held, -held), rate / 5);
             player.UpdateBufferedApplication(ring, 0f);
-            Check(radio.Schedules == 2 && !radio.clip.Streaming && radio.clip.PcmRead == null,
+            Check(radio.isPlaying && radio.Schedules == 0 && radio.UnPauses == 1 && !radio.clip.Streaming && radio.clip.PcmRead == null,
                 "Zero app delay still uses the callback-free buffered clip");
 
             // Raising AppBufferSeconds waits to fill the new reserve without jumping backward into old audio.
             AudioSettings.dspTime += .05;
             player.UpdateBufferedApplication(ring, 1.0f);
-            Check(radio.Schedules == 2 && !radio.isPlaying, "Raising app buffer waits for fresh reserve instead of replaying old audio");
+            Check(!radio.isPlaying, "Raising app buffer waits for fresh reserve instead of replaying old audio");
             ring.Write(Stereo(rate + rate / 4, held, -held), rate + rate / 4);
             player.UpdateBufferedApplication(ring, 1.0f);
-            Check(radio.Schedules == 3 && radio.ScheduledEnd - radio.ScheduledAt >= 1.0,
+            Check(radio.isPlaying && radio.Schedules == 0 && radio.UnPauses == 2,
                 "Raised app buffer starts once the full reserve is queued");
 
             // Pausing the game wipes the buffer so unpausing skips wake-up silence and rebuilds a full fresh reserve.
@@ -110,20 +219,20 @@ static partial class AudioChecks
             player.StopBufferedApplication();
             AudioSettings.dspTime += 2.0;
             player.UpdateBufferedApplication(ring, 1.0f);
-            Check(radio.Schedules == 3 && !radio.isPlaying,
+            Check(!radio.isPlaying,
                 "Unpausing wipes pre-pause audio and waits to rebuild a full fresh buffer");
             // Digital silence while the external app wakes up must be skipped rather than buffered ahead of music.
             ring.Write(new float[rate * 2], rate);
             player.UpdateBufferedApplication(ring, 1.0f);
-            Check(radio.Schedules == 3 && !radio.isPlaying,
+            Check(!radio.isPlaying,
                 "Wake-up digital silence is skipped instead of filling the buffer with silence");
             ring.Write(Stereo(rate / 2, held, -held), rate / 2);
             player.UpdateBufferedApplication(ring, 1.0f);
-            Check(radio.Schedules == 3 && !radio.isPlaying,
+            Check(!radio.isPlaying,
                 "Partial fresh audio keeps building until the full delay reserve is ready");
             ring.Write(Stereo(rate * 3 / 4, held, -held), rate * 3 / 4);
             player.UpdateBufferedApplication(ring, 1.0f);
-            Check(radio.Schedules == 4 && radio.ScheduledEnd - radio.ScheduledAt >= 1.0,
+            Check(radio.isPlaying && radio.Schedules == 0 && radio.UnPauses == 3,
                 "Unpausing returns to audio once the full fresh buffer reserve is rebuilt");
         }
         AudioSettings.dspTime = previousTime;
@@ -148,8 +257,9 @@ static partial class AudioChecks
                 player.SetEndpoint(2, new Vector3(0, 0, 0), false, DeviceKind.WalnutWoofer, 1f, 1f, 0f);
                 var woofer = AudioSource.Last;
                 player.UpdateBufferedApplication(ring, .5f);
-                Check(radio.Schedules == 1 && woofer.Schedules == 1 && radio.clip != null && woofer.clip != null &&
-                    radio.clip != woofer.clip, "A connected woofer receives its own pre-filtered buffered clip");
+                Check(radio.isPlaying && woofer.isPlaying && radio.Schedules == 0 && woofer.Schedules == 0 &&
+                    radio.clip != null && woofer.clip != null && radio.clip != woofer.clip,
+                    "A connected woofer receives its own pre-filtered buffered clip");
                 var mainSamples = new float[radio.clip.samples * 2];
                 var wooferSamples = new float[woofer.clip.samples * 2];
                 radio.clip.GetData(mainSamples, 0);

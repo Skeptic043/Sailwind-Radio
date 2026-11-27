@@ -9,8 +9,7 @@ namespace SailwindRadio.Audio
         private ApplicationAudio live;
         private bool applicationWarned;
         // The radio paused the application for a game pause and resumes it afterwards. A pause the player made stays.
-        private bool pausedForGame;
-        private double resumePendingUntil;
+        private ApplicationPauseSync appPause;
 
         // The application this radio plays instead of music, or null. Not saved, so a loaded game plays music.
         public AudioApplication PlayingApplication => application;
@@ -18,7 +17,13 @@ namespace SailwindRadio.Audio
         internal MediaControls.Track ApplicationTrack => live == null ? null : live.Media.Current;
 
         // Sends a button press to the application. False when it has no media session or window to receive it.
-        internal bool SendToApplication(MediaControls.Command command) => live != null && live.Media.Send(command);
+        internal bool SendToApplication(MediaControls.Command command)
+        {
+            if (live == null) return false;
+            if (command == MediaControls.Command.PlayPause || command == MediaControls.Command.Pause)
+                appPause.ClearResume();
+            return live.Media.Send(command);
+        }
 
         /// <summary>Play an application instead of music, or music again for null. The music position is kept, and
         /// an application switched away from is paused if it was playing so it does not carry on at its own volume.</summary>
@@ -52,26 +57,16 @@ namespace SailwindRadio.Audio
             // A new output rate needs a new capture. The application is still paused for the game, so the radio still resumes it.
             else if (live != null && live.Ring.SampleRate != rate)
             {
-                bool resume = pausedForGame;
+                bool resume = appPause.PausedForGame;
                 StopApplication(false);
-                pausedForGame = resume;
+                appPause.PausedForGame = resume;
             }
             if (state.Powered && live == null) live = new ApplicationAudio(application, rate);
             Exception fault = live == null ? null : live.Fault;
             if (live != null && fault == null && state.Powered && !state.Paused)
             {
-                double now = Time.realtimeSinceStartup;
-                if (gamePaused && !pausedForGame && (live.Ring.Sounding || now < resumePendingUntil))
-                {
-                    pausedForGame = live.Media.Send(MediaControls.Command.Pause);
-                    resumePendingUntil = 0;
-                }
-                else if (!gamePaused && pausedForGame && live.Media.Send(MediaControls.Command.Play))
-                {
-                    pausedForGame = false;
-                    // Cover rapid pause/unpause before the app produces sound again so a second pause still pauses it.
-                    resumePendingUntil = now + 1.5;
-                }
+                appPause.Tick(gamePaused, Time.realtimeSinceStartup, live.Ring.Sounding,
+                    live.Ring.SoundedWithin(250), live.Ring.LastSoundEndFrame, live.Media.SessionPlaying, live.Media.Send);
             }
             bool play = shouldPlay && live != null && fault == null;
             float rawDelay = AppBufferSeconds == null ? 0f : AppBufferSeconds();
@@ -91,8 +86,7 @@ namespace SailwindRadio.Audio
         {
             if (live != null) live.Stop(wait, pause);
             live = null;
-            pausedForGame = false;
-            resumePendingUntil = 0;
+            appPause.Reset();
             ReleaseBufferedApplication();
         }
 
@@ -101,6 +95,79 @@ namespace SailwindRadio.Audio
         {
             StopApplication(true, true);
             application = null;
+        }
+    }
+
+    // Coordinates game pause/unpause with an external media app. Some players (such as Spotify) fade out on
+    // Pause and can ignore a Play sent during that transition, so unpausing retries idempotent Play briefly
+    // if fresh sound does not return.
+    internal struct ApplicationPauseSync
+    {
+        private const double ResumePendingSeconds = 2.0;
+        private const double ResumeRetryIntervalSeconds = 0.5;
+        private const int MaxResumeRetries = 3;
+
+        internal bool PausedForGame;
+        private double resumePendingUntil, resumeRetryAt;
+        private int resumeRetries;
+        private long resumeSoundBaseline;
+
+        internal void Reset()
+        {
+            PausedForGame = false;
+            ClearResume();
+        }
+
+        internal void ClearResume()
+        {
+            resumePendingUntil = 0;
+            resumeRetryAt = 0;
+            resumeRetries = 0;
+            resumeSoundBaseline = 0;
+        }
+
+        internal void Tick(bool gamePaused, double now, bool sounding, bool recentSound, long soundEndFrame,
+            bool? sessionPlaying, Func<MediaControls.Command, bool> send)
+        {
+            if (gamePaused)
+            {
+                bool active = sessionPlaying.HasValue ? sessionPlaying.Value : sounding;
+                if (!PausedForGame && (active || now < resumePendingUntil))
+                {
+                    PausedForGame = send(MediaControls.Command.Pause);
+                    ClearResume();
+                }
+                return;
+            }
+            if (PausedForGame)
+            {
+                if (send(MediaControls.Command.Play))
+                {
+                    PausedForGame = false;
+                    resumePendingUntil = now + ResumePendingSeconds;
+                    resumeRetryAt = now + ResumeRetryIntervalSeconds;
+                    resumeRetries = MaxResumeRetries;
+                    resumeSoundBaseline = soundEndFrame;
+                }
+                return;
+            }
+            if (resumeRetries <= 0 || now < resumeRetryAt) return;
+            // Confirmed playing: when a media session exists, require both sessionPlaying == true and recent audio
+            // so a pause fade-out tail never cancels a needed Play retry.
+            bool confirmedPlaying = sessionPlaying.HasValue
+                ? sessionPlaying.Value && recentSound && soundEndFrame > resumeSoundBaseline
+                : recentSound && soundEndFrame > resumeSoundBaseline;
+            if (confirmedPlaying)
+            {
+                resumeRetries = 0;
+                return;
+            }
+            if (send(MediaControls.Command.Play))
+            {
+                resumeRetries--;
+                resumeRetryAt = now + ResumeRetryIntervalSeconds;
+                resumePendingUntil = Math.Max(resumePendingUntil, now + ResumePendingSeconds);
+            }
         }
     }
 }

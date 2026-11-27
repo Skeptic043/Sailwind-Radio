@@ -35,7 +35,7 @@ namespace SailwindRadio.Audio
         internal RadioSpeakerProfile Profile;
         internal Vector3 Position;
         // Flat outputs play without panning but keep their distance gain, for a listening point away from the native listener.
-        internal bool Carried, Flat, Seen, Running, Paused;
+        internal bool Carried, Flat, Seen, Running, Paused, WasInaudible;
         internal double SettlesAt, StartsAt;
         internal int DriftObservations;
         internal float LocalVolume = 1f, Bass = 1f, Obstruction;
@@ -133,10 +133,27 @@ namespace SailwindRadio.Audio
 
         internal void Stop(bool clearClip = false)
         {
-            Running = Paused = false;
+            Running = Paused = WasInaudible = false;
+            DriftObservations = 0;
             if (Source == null) return;
             Source.Stop();
             if (clearClip) Source.clip = null;
+        }
+
+        internal bool PlayLooping(BufferedAudioClip buffer, long frame, double now)
+        {
+            if (Source == null || buffer == null) return false;
+            Stop();
+            Source.clip = buffer.Clip;
+            Source.loop = true;
+            Source.timeSamples = buffer.ClipFrame(frame);
+            Apply();
+            Source.Play();
+            Running = true;
+            DriftObservations = 0;
+            StartsAt = now;
+            SettlesAt = now + .3;
+            return true;
         }
 
         internal bool PlayBuffered(BufferedAudioClip buffer, long frame, double startDsp, double endDsp, bool loop)
@@ -151,6 +168,7 @@ namespace SailwindRadio.Audio
             Source.PlayScheduled(startDsp);
             Source.SetScheduledEndTime(endDsp);
             Running = true;
+            DriftObservations = 0;
             StartsAt = startDsp;
             SettlesAt = startDsp + .3;
             return true;
@@ -177,6 +195,7 @@ namespace SailwindRadio.Audio
             Source.UnPause();
             Running = true;
             Paused = false;
+            DriftObservations = 0;
             SettlesAt = now + .3;
             StartsAt = now;
         }

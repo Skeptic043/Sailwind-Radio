@@ -6,10 +6,10 @@ namespace SailwindRadio.Audio
     public sealed partial class RadioPlayback
     {
         internal const float MaximumAppBufferSeconds = 2.5f;
-        private const double CaptureMarginSeconds = .04;
-        private const double AppScheduleLeadSeconds = .03;
+        private const double CaptureMarginSeconds = .06;
         private const int AppUploadFrames = 512;
         private const int MaxAppUploadsPerTick = 128;
+        private const int ClearBehindBlocks = 4;
 
         internal Func<float> AppBufferSeconds { private get; set; }
         private BufferedAudioClip appBuffer, appWooferBuffer;
@@ -20,9 +20,9 @@ namespace SailwindRadio.Audio
         private readonly PeakLimiter appWooferLimiter = new PeakLimiter();
         private float activeAppDelay, uploadedAppBoost;
         private int appCaptureGeneration;
-        private bool appPrimed, appScheduled, appRebuildBuffer, appSkipSilence;
-        private long appStartFrame;
-        private double appStartDsp, appEndDsp, appWooferEndDsp;
+        private bool appPrimed, appRunning, appRebuildBuffer, appSkipSilence;
+        private long appStartFrame, appClearedThrough, appWooferClearedThrough;
+        private double appStartDsp, nextAppHealthCheck;
 
         internal void UpdateBufferedApplication(ApplicationRing ring, float delay)
         {
@@ -34,6 +34,7 @@ namespace SailwindRadio.Audio
                 bufferedCapture = ring;
                 appBuffer = new BufferedAudioClip("Sailwind Radio buffered application", ring.SampleRate,
                     ApplicationRing.Channels, ring.Capacity, AppUploadFrames);
+                appBuffer.ClearAll();
                 readCapturedFrames = ReadCapturedFrames;
                 readCapturedWooferFrames = ReadCapturedWooferFrames;
                 appLimiter.Reset();
@@ -58,7 +59,7 @@ namespace SailwindRadio.Audio
             if (appPrimed)
             {
                 if (appCaptureGeneration != window.Generation || appBuffer.WrittenThrough < window.FirstFrame ||
-                    (appScheduled && now >= appEndDsp))
+                    (appRunning && CapturedFrameAt(now, rate) >= appBuffer.WrittenThrough))
                 {
                     StopBufferedApplication();
                 }
@@ -74,35 +75,56 @@ namespace SailwindRadio.Audio
                     : Math.Max(window.FirstFrame, window.EndFrame - framesAhead);
                 appRebuildBuffer = false;
                 appBuffer.Reset(resetFrame);
+                appBuffer.ClearAll();
+                appClearedThrough = resetFrame;
                 appLimiter.Reset();
                 if (appWooferBuffer != null)
                 {
                     appWooferBuffer.Reset(resetFrame);
+                    appWooferBuffer.ClearAll();
+                    appWooferClearedThrough = resetFrame;
                     appWooferBass.Reset();
                     appWooferLimiter.Reset();
                 }
-                appWooferEndDsp = 0;
                 uploadedAppBoost = ApplicationRing.Boost;
                 appPrimed = true;
             }
 
-            // While rebuilding after a pause, skip digital silence delivered while the external app is still
-            // waking up so silence never gets buffered and replayed ahead of real audio.
-            if (!appScheduled && appSkipSilence)
+            // While rebuilding a multi-frame delay buffer after a pause, skip digital silence delivered while the
+            // external app is still waking up so silence never fills the delay reserve ahead of real audio.
+            if (!appRunning && appSkipSilence)
             {
-                if (ring.LastSoundEndFrame <= appBuffer.FirstFrame)
+                if (delay <= 0f)
                 {
-                    appBuffer.Reset(window.EndFrame);
-                    if (appWooferBuffer != null) appWooferBuffer.Reset(window.EndFrame);
-                    return;
+                    appSkipSilence = false;
                 }
-                long soundStart = Math.Max(window.FirstFrame, Math.Max(appBuffer.FirstFrame, ring.LastSoundStartFrame));
-                appBuffer.Reset(soundStart);
-                if (appWooferBuffer != null) appWooferBuffer.Reset(soundStart);
-                appSkipSilence = false;
+                else
+                {
+                    if (ring.LastSoundEndFrame <= appBuffer.FirstFrame)
+                    {
+                        appBuffer.Reset(window.EndFrame);
+                        appClearedThrough = window.EndFrame;
+                        if (appWooferBuffer != null)
+                        {
+                            appWooferBuffer.Reset(window.EndFrame);
+                            appWooferClearedThrough = window.EndFrame;
+                        }
+                        return;
+                    }
+                    long soundStart = Math.Max(window.FirstFrame, Math.Max(appBuffer.FirstFrame, ring.LastSoundStartFrame));
+                    appBuffer.Reset(soundStart);
+                    appClearedThrough = soundStart;
+                    if (appWooferBuffer != null)
+                    {
+                        appWooferBuffer.Reset(soundStart);
+                        appWooferClearedThrough = soundStart;
+                    }
+                    appSkipSilence = false;
+                }
             }
 
-            long retainFrom = appScheduled ? Math.Max(appBuffer.FirstFrame, CapturedFrameAt(now, rate) - AppUploadFrames * 2)
+            long playFrame = appRunning ? CapturedFrameAt(now, rate) : appBuffer.FirstFrame;
+            long retainFrom = appRunning ? Math.Max(appBuffer.FirstFrame, playFrame - AppUploadFrames * 2)
                 : appBuffer.FirstFrame;
 
             // Lazily build the woofer clip only while a woofer is connected, and keep it synced with appBuffer.
@@ -111,18 +133,18 @@ namespace SailwindRadio.Audio
             {
                 appWooferBuffer = new BufferedAudioClip("Sailwind Radio buffered application woofer", rate,
                     ApplicationRing.Channels, ring.Capacity, AppUploadFrames);
+                appWooferBuffer.ClearAll();
                 appWooferBass.SetProfile(rate, true);
                 appWooferLimiter.Reset();
-                long syncFrom = appScheduled ? Math.Max(window.FirstFrame, CapturedFrameAt(now + ScheduleLeadSeconds, rate))
-                    : appBuffer.FirstFrame;
+                long syncFrom = appRunning ? Math.Max(window.FirstFrame, playFrame) : appBuffer.FirstFrame;
                 appWooferBuffer.Reset(syncFrom);
-                appWooferEndDsp = 0;
+                appWooferClearedThrough = syncFrom;
             }
             else if (!needWoofer && appWooferBuffer != null)
             {
                 appWooferBuffer.Dispose();
                 appWooferBuffer = null;
-                appWooferEndDsp = 0;
+                appWooferClearedThrough = 0;
             }
 
             // If the player moved the App volume slider, refresh already-queued future blocks so the change is heard right away.
@@ -130,9 +152,9 @@ namespace SailwindRadio.Audio
             if (Math.Abs(currentBoost - uploadedAppBoost) > 1e-4f)
             {
                 uploadedAppBoost = currentBoost;
-                if (appScheduled)
+                if (appRunning)
                 {
-                    long rewriteFrom = Math.Max(appBuffer.FirstFrame, CapturedFrameAt(now, rate) + AppUploadFrames * 2);
+                    long rewriteFrom = Math.Max(appBuffer.FirstFrame, playFrame + AppUploadFrames * 2);
                     RewriteFutureBlocks(appBuffer, rewriteFrom, readCapturedFrames, appLimiter);
                     if (appWooferBuffer != null)
                     {
@@ -152,12 +174,13 @@ namespace SailwindRadio.Audio
             {
                 if (appWooferBuffer.WrittenThrough < window.FirstFrame)
                 {
-                    long syncFrom = Math.Max(window.FirstFrame, appScheduled ? CapturedFrameAt(now + ScheduleLeadSeconds, rate) : appBuffer.FirstFrame);
+                    long syncFrom = Math.Max(window.FirstFrame, appRunning ? playFrame : appBuffer.FirstFrame);
                     StopWooferOutputs(appWooferBuffer);
                     appWooferBuffer.Reset(syncFrom);
+                    appWooferBuffer.ClearAll();
+                    appWooferClearedThrough = syncFrom;
                     appWooferBass.Reset();
                     appWooferLimiter.Reset();
-                    appWooferEndDsp = 0;
                 }
                 for (int count = 0; count < MaxAppUploadsPerTick &&
                     appWooferBuffer.WrittenThrough + AppUploadFrames <= window.EndFrame; count++)
@@ -166,29 +189,56 @@ namespace SailwindRadio.Audio
                 }
             }
 
-            if (!appScheduled)
+            if (!appRunning)
             {
                 if (appBuffer.WrittenThrough - appBuffer.FirstFrame < framesAhead) return;
                 appStartFrame = appBuffer.FirstFrame;
-                appStartDsp = now + AppScheduleLeadSeconds;
-                appEndDsp = appStartDsp;
-                appWooferEndDsp = appStartDsp;
-                appScheduled = true;
+                appStartDsp = now;
+                appRunning = true;
+                nextAppHealthCheck = now + .25;
+                playFrame = appStartFrame;
             }
 
-            double mainEnd = appStartDsp + (appBuffer.WrittenThrough - appStartFrame) / (double)rate;
-            bool extendMain = mainEnd > appEndDsp;
-            if (extendMain) appEndDsp = mainEnd;
-            PlayBufferedApplicationOutput(builtIn, appBuffer, now, rate, appEndDsp, extendMain);
-            double wooferEnd = appWooferBuffer == null ? appEndDsp
-                : appStartDsp + (appWooferBuffer.WrittenThrough - appStartFrame) / (double)rate;
-            bool extendWoofer = appWooferBuffer != null && wooferEnd > appWooferEndDsp;
-            if (extendWoofer) appWooferEndDsp = wooferEnd;
+            // Keep old ring blocks behind the playhead zeroed so any save freeze or app pause plays clean silence
+            // without ever needing SetScheduledEndTime or filtered PlayScheduled restarts.
+            ClearBehind(appBuffer, ref appClearedThrough, playFrame);
+            if (appWooferBuffer != null) ClearBehind(appWooferBuffer, ref appWooferClearedThrough, playFrame);
+
+            PlayBufferedApplicationOutput(builtIn, appBuffer, now, rate);
             foreach (var endpoint in endpoints.Values)
             {
                 bool woofer = endpoint.Profile.IsWoofer && appWooferBuffer != null;
-                PlayBufferedApplicationOutput(endpoint, woofer ? appWooferBuffer : appBuffer,
-                    now, rate, woofer ? appWooferEndDsp : appEndDsp, woofer ? extendWoofer : extendMain);
+                PlayBufferedApplicationOutput(endpoint, woofer ? appWooferBuffer : appBuffer, now, rate);
+            }
+            CheckAppOutputRecovery(builtIn, appBuffer, now, rate);
+            foreach (var endpoint in endpoints.Values)
+            {
+                bool woofer = endpoint.Profile.IsWoofer && appWooferBuffer != null;
+                CheckAppOutputRecovery(endpoint, woofer ? appWooferBuffer : appBuffer, now, rate);
+            }
+            if (now >= nextAppHealthCheck)
+            {
+                nextAppHealthCheck = now + .25;
+                RepairAppOutput(builtIn, appBuffer, now, rate);
+                foreach (var endpoint in endpoints.Values)
+                {
+                    bool woofer = endpoint.Profile.IsWoofer && appWooferBuffer != null;
+                    RepairAppOutput(endpoint, woofer ? appWooferBuffer : appBuffer, now, rate);
+                }
+            }
+        }
+
+        private static void ClearBehind(BufferedAudioClip buffer, ref long clearedThrough, long playFrame)
+        {
+            long limit = playFrame - AppUploadFrames * ClearBehindBlocks;
+            if (clearedThrough < buffer.FirstFrame) clearedThrough = buffer.FirstFrame;
+            int cleared = 0;
+            while (cleared < MaxAppUploadsPerTick && clearedThrough + AppUploadFrames <= limit &&
+                clearedThrough + AppUploadFrames <= buffer.WrittenThrough)
+            {
+                buffer.ClearBlock(clearedThrough);
+                clearedThrough += AppUploadFrames;
+                cleared++;
             }
         }
 
@@ -210,19 +260,86 @@ namespace SailwindRadio.Audio
             appStartFrame + (long)Math.Round(Math.Max(0, dsp - appStartDsp) * rate);
 
         private void PlayBufferedApplicationOutput(RadioSpeakerOutput output, BufferedAudioClip buffer,
-            double now, int rate, double endDsp, bool extend)
+            double now, int rate)
         {
             if (output.Source == null || buffer == null) return;
-            if (output.Source.clip == buffer.Clip && output.Running &&
-                (now < output.StartsAt || output.Source.isPlaying))
+            if (output.Source.clip == buffer.Clip && output.Running && output.Source.isPlaying) return;
+            long frame = CapturedFrameAt(now, rate);
+            if (frame < buffer.FirstFrame || frame >= buffer.WrittenThrough) return;
+            if (output.Paused && output.Source.clip == buffer.Clip)
             {
-                if (extend) output.ExtendBuffered(endDsp);
+                output.Resume(buffer.ClipFrame(frame), now);
+                if (output.Source.isPlaying)
+                {
+                    output.WasInaudible = output.Source.isVirtual || output.Source.volume <= 0f;
+                    return;
+                }
+                output.Stop();
+            }
+            output.PlayLooping(buffer, frame, now);
+            output.WasInaudible = output.Source.isVirtual || output.Source.volume <= 0f;
+        }
+
+        // Walking out of speaker range virtualizes the voice at volume 0. Snap a drifted cursor back to live
+        // audio on the first frame it becomes audible again, without disturbing an already-aligned voice.
+        private void CheckAppOutputRecovery(RadioSpeakerOutput output, BufferedAudioClip buffer, double now, int rate)
+        {
+            if (output.Source == null || buffer == null || !output.Running || output.Source.clip != buffer.Clip) return;
+            bool inaudible = output.Source.isVirtual || output.Source.volume <= 0f;
+            if (inaudible)
+            {
+                output.WasInaudible = true;
+                output.DriftObservations = 0;
                 return;
             }
-            double start = Math.Max(now + AppScheduleLeadSeconds, appStartDsp);
-            long frame = CapturedFrameAt(start, rate);
-            if (frame < buffer.FirstFrame || frame >= buffer.WrittenThrough || endDsp <= start) return;
-            output.PlayBuffered(buffer, frame, start, endDsp, true);
+            if (!output.WasInaudible) return;
+            output.WasInaudible = false;
+            if (!output.Source.isPlaying) return;
+            if (!TryGetAppDrift(output, buffer, now, rate, out int expected, out int difference)) return;
+            if (difference <= rate * AppDriftTolerance(rate)) return;
+            output.Pause();
+            output.Resume(expected, now);
+            DriftRepairs++;
+        }
+
+        private void RepairAppOutput(RadioSpeakerOutput output, BufferedAudioClip buffer, double now, int rate)
+        {
+            if (!output.Running || output.Source == null || buffer == null ||
+                output.Source.clip != buffer.Clip || now < output.SettlesAt) return;
+            if (!output.Source.isPlaying || output.Source.isVirtual || output.Source.volume <= 0f)
+            {
+                output.DriftObservations = 0;
+                return;
+            }
+            if (!TryGetAppDrift(output, buffer, now, rate, out int expected, out int difference)) return;
+            if (difference <= rate * AppDriftTolerance(rate))
+            {
+                output.DriftObservations = 0;
+                return;
+            }
+            if (++output.DriftObservations < 2) return;
+            DriftRepairs++;
+            output.Pause();
+            output.Resume(expected, now);
+        }
+
+        private bool TryGetAppDrift(RadioSpeakerOutput output, BufferedAudioClip buffer,
+            double now, int rate, out int expected, out int difference)
+        {
+            expected = difference = 0;
+            long expectedFrame = CapturedFrameAt(now, rate);
+            if (expectedFrame < buffer.FirstFrame || expectedFrame >= buffer.WrittenThrough) return false;
+            expected = buffer.ClipFrame(expectedFrame);
+            difference = Math.Abs(output.Source.timeSamples - expected);
+            difference = Math.Min(difference, buffer.CapacityFrames - difference);
+            return true;
+        }
+
+        private static double AppDriftTolerance(int rate)
+        {
+            int bufferLength, bufferCount;
+            AudioSettings.GetDSPBufferSize(out bufferLength, out bufferCount);
+            return Math.Max(.05, 2d * bufferLength / Math.Max(8000, rate) + .01);
         }
 
         private bool ReadCapturedFrames(long firstFrame, float[] data, int frames)
@@ -258,14 +375,24 @@ namespace SailwindRadio.Audio
             if (appBuffer == null) return;
             if (appPrimed)
             {
-                StopBufferedApplicationOutput(builtIn);
-                foreach (var endpoint in endpoints.Values) StopBufferedApplicationOutput(endpoint);
-                appPrimed = appScheduled = false;
-                appWooferEndDsp = 0;
+                PauseBufferedApplicationOutput(builtIn);
+                foreach (var endpoint in endpoints.Values) PauseBufferedApplicationOutput(endpoint);
+                appPrimed = appRunning = false;
             }
             // Pausing, underrunning, or changing delay wipes the buffer so unpausing rebuilds a full fresh reserve.
             appRebuildBuffer = true;
             appSkipSilence = true;
+        }
+
+        private void PauseBufferedApplicationOutput(RadioSpeakerOutput output)
+        {
+            if (output.Source == null) return;
+            if ((appBuffer != null && output.Source.clip == appBuffer.Clip) ||
+                (appWooferBuffer != null && output.Source.clip == appWooferBuffer.Clip))
+            {
+                if (output.Running && output.Source.isPlaying) output.Pause();
+                else output.Stop();
+            }
         }
 
         private void StopBufferedApplicationOutput(RadioSpeakerOutput output)
@@ -282,12 +409,16 @@ namespace SailwindRadio.Audio
         private void ReleaseBufferedApplication()
         {
             if (appBuffer == null && appWooferBuffer == null) return;
-            StopBufferedApplication();
+            StopBufferedApplicationOutput(builtIn);
+            foreach (var endpoint in endpoints.Values) StopBufferedApplicationOutput(endpoint);
+            appPrimed = appRunning = false;
             appBuffer?.Dispose();
             appBuffer = null;
             appWooferBuffer?.Dispose();
             appWooferBuffer = null;
             bufferedCapture = null;
+            appClearedThrough = 0;
+            appWooferClearedThrough = 0;
             appRebuildBuffer = false;
             appSkipSilence = false;
         }

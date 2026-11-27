@@ -21,7 +21,7 @@ namespace SailwindRadio
     public sealed class Plugin : BaseUnityPlugin
     {
         public const string Id = "local.sailwind.radio";
-        public const string Version = "1.6.1";
+        public const string Version = "1.6.4";
         private static Plugin instance;
         private Harmony harmony;
         private RadioWorldService world;
